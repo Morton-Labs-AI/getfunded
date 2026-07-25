@@ -31,37 +31,70 @@ The April 2026 predecessor produced 60 files and zero rows. Inverted here:
 3. If a gate slips >2 days, shrink the data slice — never retreat into
    refactoring or schema redesign.
 
-## Phase-1 gates
+## Phase-1 gates — ALL COMPLETE (2026-07-25)
 
 | Gate | Content | Status |
 |---|---|---|
-| G0 | Supabase project + schema (10 tables, 7 views) + smoke-verified upsert/guard SQL | ✅ 2026-07-25 |
-| G1 | IRS EO BMF private foundations (~135k orgs, EIN crosswalk) | ✅ 2026-07-25 — 134,927 loaded (exact), 0 provenance orphans, rerun-idempotency proven at scale |
-| G2 | Curated federal agencies + programs seed (10 agencies, 16 programs) | ✅ 2026-07-25 — B1 fusion query returns all 7 expected programs |
-| G3 | SEC Form ADV firms, RIA + ERA (+ Schedule A/B people, 7B1 funds) | — |
-| G4 | IRS 990-PF XML 2025–26: officers + grants-paid | — |
-| G5 | SEC Form D 2024–26 offerings | — |
-| G6 | SBIR/STTR awards (~250k) | — |
-| G7 | Benchmark suite passes ([benchmarks/queries.sql](benchmarks/queries.sql)) | — |
+| G0 | Supabase project + schema (10 tables, 7 public views) + smoke-verified upsert/guard SQL | ✅ |
+| G1 | IRS EO BMF private foundations | ✅ 134,927 loaded (exact match to verified count), rerun-idempotency proven at scale |
+| G2 | Curated federal agencies + programs seed | ✅ 10 agencies + 16 programs; B1 returns all 7 fusion-relevant programs |
+| G3 | SEC Form ADV: 23,638 firms (17,050 RIA + 6,588 ERA) + 83k Schedule A/B people + 126k 7B1 funds | ✅ 3,268 classified `vc`, 4,015 `pe`; Lowercarbon fully shaped ($3.13B GAV, 25 funds) |
+| G4 | IRS 990-PF XML 2025–26 | ✅ 2.32M grants + 310k officers from 162,793 filings (35,648 index rows not yet zip-packaged by IRS — future re-runs pick up) |
+| G5 | SEC Form D 2024q1–2026q1 | ✅ 102,842 offerings (24,151 D/A amendments superseded — reconciles exactly), 119k issuers, 408k related persons |
+| G6 | SBIR/STTR awards | ✅ 205,836 awards, 100% agency-linked, 94% seed-program-linked; POC/PI contacts yellow-tier internal-only |
+| G7 | Benchmark suite | ✅ 10/10 (results below) |
+
+**Final inventory:** 418,309 orgs (145,589 foundations · 23,638 advisers · 180,174
+funds · 68,890 companies · agencies) · 446,222 identifiers · 869,246 people ·
+995,135 relationships · **2,633,212 funding events** · 232,910 contact channels
+(zero public) · 16 programs · DB 2.9GB (Supabase Pro).
+
+## Benchmark results (2026-07-25)
+
+| # | Benchmark | Result |
+|---|---|---|
+| B1 | Federal non-dilutive fusion programs | ✅ 7: DOE SBIR/STTR, INFUSE†, FES Milestone, FIRE, ARPA-E, SciDAC (†`funds_lab_not_company`) |
+| B2 | SBIR agencies | ✅ 5 seeded agencies; 193,883/205,836 awards program-linked |
+| B3 | Named VC targets | ✅ Lowercarbon = vc/ERA/CRD 162946/$3.13B/25 funds. Prelude Ventures: **documented absent from both ADV and Form D** (likely family-office-exempt). Fundable Fusion/Rutherford: absent, too small to file (documented) |
+| B4 | Climate/energy VC discovery | ✅ 92 advisers (name-text FTS only — thesis text/embeddings are Phase 2) |
+| B5 | Named philanthropy | ✅ 61 Schmidt-family foundations. Stellar Energy Foundation: **public charity** (BMF code 15, EIN 812567715) — outside private-foundation scope; motivates Phase-2 public-charity extension |
+| B6 | Energy/science foundations >$10M assets | ✅ 75 |
+| B7 | IL science/energy foundations >$10M | ✅ 4 |
+| B8 | Grants-paid evidence (fusion) | ✅ Schmidt→MIT PSFC $6M · Schmidt→UW fusion materials $1.2M · Simons→Princeton "Hidden Symmetries and Fusion Energy" $610k · Simons→PPPL $500k; 4,535 energy/science grants from 1,712 foundations |
+| B9 | Recent Reg D raisers | ✅ 17,166 offerings in last 12 months; 17,595 VC-fund offerings total |
+| B10 | Provenance round-trip | ✅ **0 orphans** across all five fact tables |
 
 ## Running
 
 ```
 uv sync
-cp .env.example .env       # add DATABASE_URL (Supabase session pooler, port 5432)
+cp .env.example .env       # add DATABASE_URL (direct connection — see .env.example)
 uv run funderdb stage bmf              # download + hash-stage (no DB needed)
 uv run funderdb ingest bmf --dry-run   # parse + count locally (no DB needed)
-uv run funderdb ingest bmf             # load foundations
-uv run funderdb ingest seed            # load federal agencies + programs
+uv run funderdb ingest bmf             # IRS foundations
+uv run funderdb ingest seed            # federal agencies + programs
+uv run funderdb ingest adv             # SEC ADV firm spine (daily feed)
+uv run funderdb ingest adv-schedules   # owners + private funds (monthly zips)
+uv run funderdb ingest 990pf           # 990-PF officers + grants (2026+2025)
+uv run funderdb ingest formd           # Form D offerings (2024q1->present)
+uv run funderdb ingest sbir            # SBIR/STTR awards
 uv run funderdb status                 # ledger + row counts
 ```
 
-## Benchmark results
+## Known limits (Phase 2 targets)
 
-_Populated at G7. Ten queries in [benchmarks/queries.sql](benchmarks/queries.sql):
-federal non-dilutive discovery, named VC/philanthropic target resolution
-(Prelude, Lowercarbon, Schmidt, Stellar Energy), FTS discovery queries,
-grants-paid evidence, recent Reg D raisers, provenance round-trip._
+- ADV-side and Form-D-side records of the same fund are separate org rows
+  (different ID systems) — the Splink entity-resolution job.
+- FTS matches names/titles only ("fusion" also matches bone/protein fusion);
+  embeddings + hybrid search are research-plan Stage 2.
+- Yet-to-occur Form D first sales carry null `event_date` (filing-date fallback
+  is a candidate refinement); a handful of filer-entered absurd amounts survive
+  in the Reg D tail.
+- Public charities / regranters (BMF codes ≥10, e.g. Stellar Energy Foundation)
+  and 990/990-EZ Schedule I grants are not yet loaded.
+- Supabase linter flags the `public.*` views as SECURITY DEFINER — **intentional**
+  in Phase 1 (owner-rights filtered views, nothing granted to `anon`); flip to
+  `security_invoker` when RLS lands in Phase 2.
 
 ## Operational notes
 

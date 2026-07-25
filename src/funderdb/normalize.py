@@ -56,10 +56,13 @@ def parse_ruling_date(raw: str) -> date | None:
 
 
 def parse_amount(raw: str) -> int | None:
-    digits = re.sub(r"[^\d-]", "", raw or "")
-    if digits in ("", "-"):
+    """Dollar amounts as whole dollars. Handles '$1,234,567', '150000.00',
+    and negatives; a naive strip-non-digits would turn cents into 100x
+    inflation (the SBIR bug of 2026-07-25)."""
+    s = (raw or "").strip().replace(",", "").replace("$", "")
+    if s in ("", "-"):
         return None
     try:
-        return int(digits)
+        return int(float(s))
     except ValueError:
         return None
