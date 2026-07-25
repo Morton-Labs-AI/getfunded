@@ -55,6 +55,16 @@ def ingest_adv() -> None:
     click.echo(f"parsed={r['parsed']:,} inserted={r['inserted']:,} updated={r['updated']:,}")
 
 
+@ingest.command("990pf")
+@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025))
+def ingest_990pf(years: tuple[int, ...]) -> None:
+    from .sources import irs_990pf
+
+    totals = irs_990pf.ingest(years=years)
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("adv-schedules")
 def ingest_adv_schedules() -> None:
     from .sources import sec_adv_schedules
