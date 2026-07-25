@@ -55,6 +55,15 @@ def ingest_adv() -> None:
     click.echo(f"parsed={r['parsed']:,} inserted={r['inserted']:,} updated={r['updated']:,}")
 
 
+@ingest.command("adv-schedules")
+def ingest_adv_schedules() -> None:
+    from .sources import sec_adv_schedules
+
+    counts = sec_adv_schedules.ingest()
+    for k, v in counts.items():
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("seed")
 def ingest_seed() -> None:
     from .sources import seed
