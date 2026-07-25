@@ -21,7 +21,11 @@ where fp.program_type in ('sbir','sttr')
 order by agency.name;
 
 -- B3. Named VC targets resolve (PENDING: G3 sec_form_adv) -------------------
--- Prelude Ventures + Lowercarbon Capital must resolve (likely ERAs).
+-- Verified against the full 2026-07-25 RIA+ERA feed (23,638 firms):
+--   Lowercarbon Capital = CRD 162946, ERA -> MUST resolve after G3 load.
+--   Prelude Ventures = NO ADV filing exists (documented absence; likely
+--     family-office-exempt / Pritzker capital) -> re-test via Form D issuers
+--     at G5; absence here is a PASS with this annotation.
 -- Fundable Fusion / Rutherford Energy Ventures may be legitimately absent
 -- (too small/new to file ADV) — documented absence = pass; silent miss = fail.
 select o.name, o.org_type, o.is_era, o.state, o.aum,

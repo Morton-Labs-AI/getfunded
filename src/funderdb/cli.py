@@ -47,6 +47,14 @@ def ingest_bmf(dry_run: bool, limit: int | None) -> None:
         )
 
 
+@ingest.command("adv")
+def ingest_adv() -> None:
+    from .sources import sec_adv
+
+    r = sec_adv.ingest()
+    click.echo(f"parsed={r['parsed']:,} inserted={r['inserted']:,} updated={r['updated']:,}")
+
+
 @ingest.command("seed")
 def ingest_seed() -> None:
     from .sources import seed
