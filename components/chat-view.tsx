@@ -447,13 +447,18 @@ function highlightSql(sql: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return esc
-    .replace(/('[^']*')/g, `<span style="color:var(--cat-grant)">$1</span>`)
-    .replace(/(--[^\n]*)/g, `<span style="color:var(--ink-4);font-style:italic">$1</span>`)
-    .replace(
-      SQL_KEYWORDS,
-      (m) => `<span style="color:var(--accent);font-weight:500">${m}</span>`
-    );
+  // Single pass: strings | comments | keywords. Chained replaces would
+  // re-process inserted HTML (e.g. the "--" in var(--cat-grant)).
+  const combined = new RegExp(
+    `('[^']*')|(--[^\\n]*)|${SQL_KEYWORDS.source}`,
+    "gi"
+  );
+  return esc.replace(combined, (m, str, comment) => {
+    if (str) return `<span style="color:var(--cat-grant)">${str}</span>`;
+    if (comment)
+      return `<span style="color:var(--ink-4);font-style:italic">${comment}</span>`;
+    return `<span style="color:var(--accent);font-weight:500">${m}</span>`;
+  });
 }
 
 function SqlBlock({ seg }: { seg: SqlSegment }) {
