@@ -233,12 +233,16 @@ def ingest(files: tuple[str, ...] = REGION_FILES, as_of: date | None = None) -> 
                                     skipped += 1
                                     continue
                                 seen.add(rec.ein)
+                                # raw_source deliberately NULL: at 135k rows the
+                                # duplicated CSV dict cost ~150MB of heap (measured
+                                # 2026-07-25); locator + staged hashed file is the
+                                # provenance, same policy as funding_events.
                                 copy.write_row((
                                     rec.ein, rec.name, rec.name_normalized, rec.street,
                                     rec.city, rec.state, rec.zip, rec.subsection,
                                     rec.foundation, rec.ruling_date, rec.ntee,
                                     rec.asset_amt, rec.income_amt, rec.revenue_amt,
-                                    json.dumps(rec.raw),
+                                    None,
                                 ))
                     cur.execute(_UPDATE_SQL, {"rfid": raw_file_id})
                     updated = cur.rowcount
@@ -251,7 +255,12 @@ def ingest(files: tuple[str, ...] = REGION_FILES, as_of: date | None = None) -> 
                 )
                 results[fname] = {"inserted": inserted, "updated": updated, "skipped": skipped}
             except Exception as exc:
-                conn.rollback()
-                ledger.fail_run(conn, run_id, f"{type(exc).__name__}: {exc}")
+                # The connection may already be dead; never let cleanup mask
+                # the original error.
+                try:
+                    conn.rollback()
+                    ledger.fail_run(conn, run_id, f"{type(exc).__name__}: {exc}")
+                except Exception:
+                    pass
                 raise
     return results

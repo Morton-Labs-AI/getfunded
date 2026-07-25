@@ -36,8 +36,8 @@ The April 2026 predecessor produced 60 files and zero rows. Inverted here:
 | Gate | Content | Status |
 |---|---|---|
 | G0 | Supabase project + schema (10 tables, 7 views) + smoke-verified upsert/guard SQL | ✅ 2026-07-25 |
-| G1 | IRS EO BMF private foundations (~135k orgs, EIN crosswalk) | staged + parser verified (134,927 exact); load pending DATABASE_URL |
-| G2 | Curated federal agencies + programs seed (10 agencies, 16 programs) | CSVs curated, URLs verified; load pending |
+| G1 | IRS EO BMF private foundations (~135k orgs, EIN crosswalk) | ✅ 2026-07-25 — 134,927 loaded (exact), 0 provenance orphans, rerun-idempotency proven at scale |
+| G2 | Curated federal agencies + programs seed (10 agencies, 16 programs) | ✅ 2026-07-25 — B1 fusion query returns all 7 expected programs |
 | G3 | SEC Form ADV firms, RIA + ERA (+ Schedule A/B people, 7B1 funds) | — |
 | G4 | IRS 990-PF XML 2025–26: officers + grants-paid | — |
 | G5 | SEC Form D 2024–26 offerings | — |
@@ -62,6 +62,16 @@ _Populated at G7. Ten queries in [benchmarks/queries.sql](benchmarks/queries.sql
 federal non-dilutive discovery, named VC/philanthropic target resolution
 (Prelude, Lowercarbon, Schmidt, Stellar Energy), FTS discovery queries,
 grants-paid evidence, recent Reg D raisers, provenance round-trip._
+
+## Operational notes
+
+- **Connection**: use the direct host `db.poznaikbjcgnthfmqueo.supabase.co` (IPv6)
+  for bulk loads. The session pooler intermittently kills large COPY streams
+  with `SSL error: bad record mac`.
+- **Size policy**: `raw_source` JSONB is stored only on low-volume rows (seed,
+  future ADV firms); BMF foundations and all funding_events carry locator +
+  hashed staged file instead (measured 2026-07-25: raw_source on 135k BMF rows
+  cost ~150MB of a 500MB free-tier budget).
 
 ## Provenance contract
 
