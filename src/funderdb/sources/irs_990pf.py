@@ -293,8 +293,8 @@ def _load_batch(conn, raw_file_id: int, filings: list[PfFiling], parsed: list[Pa
         cur.execute("""
             insert into internal.processed_filings
               (object_id, ein, return_type, tax_period, raw_file_id)
-            select unnest(%(oids)s), unnest(%(eins)s), '990PF',
-                   unnest(%(periods)s), %(rfid)s
+            select unnest(%(oids)s::text[]), unnest(%(eins)s::text[]), '990PF',
+                   unnest(%(periods)s::text[]), %(rfid)s
             on conflict (object_id) do nothing
         """, {
             "oids": [f.object_id for f in filings],
@@ -305,21 +305,94 @@ def _load_batch(conn, raw_file_id: int, filings: list[PfFiling], parsed: list[Pa
     return counts
 
 
+def _iter_wanted_members(path: Path, todo: list[PfFiling], totals: dict):
+    """Yield (filing, xml_bytes) for the filings we need from a batch zip.
+
+    Fast path: stdlib zipfile random access. Some IRS batches are entirely
+    Deflate64 (compress type 9 — e.g. 2026_TEOS_XML_05A), which stdlib zipfile
+    cannot decompress; those fall back to a sequential stream-unzip pass over
+    the whole archive, keeping only wanted members.
+    """
+    wanted = {f.object_id: f for f in todo}
+    with zipfile.ZipFile(path) as zf:
+        infos = zf.infolist()
+        deflate64 = any(i.compress_type == 9 for i in infos[:200])
+        member_names = {i.filename for i in infos}
+    present = {oid: f for oid, f in wanted.items() if f"{oid}_public.xml" in member_names}
+    if not present:
+        return
+    if not deflate64:
+        with zipfile.ZipFile(path) as zf:
+            for oid, f in present.items():
+                try:
+                    yield f, zf.read(f"{oid}_public.xml")
+                except (NotImplementedError, zipfile.BadZipFile):
+                    totals["member_errors"] += 1
+        return
+
+    # Deflate64 archive (e.g. 2026_TEOS_XML_05A). Prefer 7zz (C-speed random
+    # access); fall back to a sequential stream-unzip pass (pure Python,
+    # ~10min per 500MB archive).
+    import shutil
+    if shutil.which("7zz"):
+        yield from _extract_via_7zz(path, present, totals)
+        return
+
+    from stream_unzip import stream_unzip
+
+    with path.open("rb") as fh:
+        def chunks():
+            while c := fh.read(1 << 20):
+                yield c
+
+        for name, _size, member_chunks in stream_unzip(chunks()):
+            nm = name.decode("utf-8", "replace") if isinstance(name, bytes) else name
+            oid = nm.removesuffix("_public.xml")
+            if oid in present:
+                yield present[oid], b"".join(member_chunks)
+            else:
+                for _ in member_chunks:  # stream must be fully consumed
+                    pass
+
+
+def _extract_via_7zz(path: Path, wanted: dict[str, PfFiling], totals: dict):
+    import subprocess
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="funderdb_7z_") as tmp:
+        listfile = Path(tmp) / "members.txt"
+        listfile.write_text("\n".join(f"{oid}_public.xml" for oid in wanted))
+        outdir = Path(tmp) / "out"
+        outdir.mkdir()
+        subprocess.run(
+            ["7zz", "e", str(path), f"-o{outdir}", f"@{listfile}", "-y", "-bso0", "-bsp0"],
+            check=True, capture_output=True,
+        )
+        for oid, f in wanted.items():
+            member = outdir / f"{oid}_public.xml"
+            if member.exists():
+                yield f, member.read_bytes()
+            else:
+                totals["members_missing"] += 1
+
+
 def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
     totals: dict[str, int] = defaultdict(int)
     with connect() as conn:
         for year in years:
             filings = load_pf_index(year)
-            by_batch: dict[str, list[PfFiling]] = defaultdict(list)
-            for f in filings:
-                by_batch[f.batch_id].append(f)
-
             with conn.cursor() as cur:
                 cur.execute("select object_id from internal.processed_filings")
                 done = {r[0] for r in cur.fetchall()}
+            # The index's XML_BATCH_ID labels are unreliable (~30% of 05A-labeled
+            # 2026 filings are physically elsewhere), so processing is
+            # membership-driven: every remaining filing is offered to every
+            # batch zip; each contributes what it actually contains.
+            remaining = {f.object_id: f for f in filings if f.object_id not in done}
+            batch_ids = sorted({f.batch_id for f in filings})
 
-            for batch_id in sorted(by_batch):
-                todo = [f for f in by_batch[batch_id] if f.object_id not in done]
+            for batch_id in batch_ids:
+                todo = list(remaining.values())
                 if not todo:
                     totals["batches_skipped"] += 1
                     continue
@@ -333,19 +406,12 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                 try:
                     parsed: list[Parsed] = []
                     found: list[PfFiling] = []
-                    with zipfile.ZipFile(staged.path) as zf:
-                        members = set(zf.namelist())
-                        for f in todo:
-                            member = f"{f.object_id}_public.xml"
-                            if member not in members:
-                                totals["members_missing"] += 1
-                                continue
-                            with zf.open(member) as fh:
-                                try:
-                                    parsed.append(parse_filing(fh.read(), f))
-                                    found.append(f)
-                                except etree.XMLSyntaxError:
-                                    totals["xml_errors"] += 1
+                    for f, data in _iter_wanted_members(staged.path, todo, totals):
+                        try:
+                            parsed.append(parse_filing(data, f))
+                            found.append(f)
+                        except etree.XMLSyntaxError:
+                            totals["xml_errors"] += 1
                     counts = _load_batch(conn, raw_file_id, found, parsed)
                     conn.commit()
                     ledger.complete_run(
@@ -356,6 +422,8 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                     for k, v in counts.items():
                         totals[k] += v
                     totals["filings_processed"] += len(found)
+                    for f in found:
+                        remaining.pop(f.object_id, None)
                     print(f"{batch_id}: filings={len(found):,} {counts}", flush=True)
                 except Exception as exc:
                     try:
@@ -364,4 +432,5 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                     except Exception:
                         pass
                     raise
+            totals[f"missing_after_all_batches_{year}"] = len(remaining)
     return dict(totals)
