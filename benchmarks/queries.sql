@@ -24,8 +24,9 @@ order by agency.name;
 -- Verified against the full 2026-07-25 RIA+ERA feed (23,638 firms):
 --   Lowercarbon Capital = CRD 162946, ERA -> MUST resolve after G3 load.
 --   Prelude Ventures = NO ADV filing exists (documented absence; likely
---     family-office-exempt / Pritzker capital) -> re-test via Form D issuers
---     at G5; absence here is a PASS with this annotation.
+--     family-office-exempt / Pritzker capital). G5 re-test: also ZERO Form D
+--     issuers match 2024q1-2026q1 — invisible in SEC filings under its brand.
+--     Absence is a PASS with this annotation.
 -- Fundable Fusion / Rutherford Energy Ventures may be legitimately absent
 -- (too small/new to file ADV) — documented absence = pass; silent miss = fail.
 select o.name, o.org_type, o.is_era, o.state, o.aum,

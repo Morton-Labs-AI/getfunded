@@ -65,12 +65,31 @@ def ingest_990pf(years: tuple[int, ...]) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+@ingest.command("formd")
+@click.option("--start", default="2024q1", help="First quarter to ingest (e.g. 2024q1).")
+def ingest_formd(start: str) -> None:
+    from .sources import sec_formd
+
+    totals = sec_formd.ingest(start=start)
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("adv-schedules")
 def ingest_adv_schedules() -> None:
     from .sources import sec_adv_schedules
 
     counts = sec_adv_schedules.ingest()
     for k, v in counts.items():
+        click.echo(f"{k}: {v:,}")
+
+
+@ingest.command("sbir")
+def ingest_sbir() -> None:
+    from .sources import sbir
+
+    totals = sbir.ingest()
+    for k, v in sorted(totals.items()):
         click.echo(f"{k}: {v:,}")
 
 
