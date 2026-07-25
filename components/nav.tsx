@@ -2,6 +2,7 @@ import Link from "next/link";
 import { OpenRing } from "./open-ring";
 import { ThemeToggle } from "./theme-toggle";
 import { Omnibox } from "./omnibox";
+import { CommandPalette } from "./command-palette";
 
 const links = [
   { href: "/browse", label: "Browse" },
@@ -44,6 +45,7 @@ export function Nav() {
           <ThemeToggle />
         </nav>
       </div>
+      <CommandPalette />
     </header>
   );
 }

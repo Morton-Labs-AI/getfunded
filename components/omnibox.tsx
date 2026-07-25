@@ -14,17 +14,6 @@ export function Omnibox() {
   const ref = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        ref.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   if (pathname === "/") return <div className="w-[480px]" aria-hidden />;
 
   return (

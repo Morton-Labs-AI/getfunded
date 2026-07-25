@@ -1,6 +1,49 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { sql } from "@/lib/db";
-import { GuardError, runGuardedQuery } from "./sql-guard";
+import {
+  GuardError,
+  guardSql,
+  serializeValue,
+  ROW_CAP,
+  type GuardedResult,
+} from "./sql-guard";
+
+async function runGuardedQuery(raw: string): Promise<GuardedResult> {
+  const q = guardSql(raw);
+  const isExplain = /^\s*explain\b/i.test(q);
+  const wrapped = isExplain ? q : `select * from (\n${q}\n) _q limit ${ROW_CAP}`;
+
+  const t0 = performance.now();
+  const result = await sql.begin("read only", (tx) => tx.unsafe(wrapped));
+  const ms = Math.round(performance.now() - t0);
+
+  const rowsIn = result as unknown as Record<string, unknown>[];
+  const columns =
+    (result as unknown as { columns?: { name: string }[] }).columns?.map(
+      (c) => c.name
+    ) ?? Object.keys(rowsIn[0] ?? {});
+
+  // Contact-channel privacy mask: raw contact values never leave the server,
+  // regardless of what the model selected.
+  const maskContacts = /contact_channels/i.test(q);
+  const valueIdx = columns.indexOf("value");
+
+  const rows = rowsIn.map((r) =>
+    columns.map((c, i) =>
+      maskContacts && i === valueIdx && r[c] != null
+        ? "•• on file (internal) ••"
+        : serializeValue(r[c])
+    )
+  );
+
+  return {
+    columns,
+    rows,
+    rowCount: rows.length,
+    ms,
+    capped: !isExplain && rows.length === ROW_CAP,
+  };
+}
 
 /** SSE side-channel: tools emit UI events (sql / rows / chart) while returning
  *  compact text to the model. */

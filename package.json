@@ -8,7 +8,7 @@
     "start": "next start -p 3010",
     "lint": "eslint",
     "db:ping": "node --env-file=.env.local scripts/db-ping.mjs",
-    "guard:test": "node scripts/guard-test.mjs"
+    "guard:test": "node --experimental-strip-types scripts/guard-test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
