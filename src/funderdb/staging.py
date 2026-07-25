@@ -92,8 +92,11 @@ def stage_download(
 
     # Skip re-download if any prior staging of this name exists (BMF/ADV files
     # are point-in-time snapshots; a new vintage gets a new hash prefix anyway
-    # because we pass a dated filename for those).
-    existing = sorted(dest_dir.glob(f"*_{name}"))
+    # because we pass a dated filename for those). In-flight ".partial_" files
+    # are NOT staged — they resume below.
+    existing = sorted(
+        p for p in dest_dir.glob(f"*_{name}") if not p.name.startswith(".partial")
+    )
     if existing:
         path = existing[-1]
         sha = _sha256_of(path)
