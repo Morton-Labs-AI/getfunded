@@ -412,19 +412,30 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                             found.append(f)
                         except etree.XMLSyntaxError:
                             totals["xml_errors"] += 1
-                    counts = _load_batch(conn, raw_file_id, found, parsed)
-                    conn.commit()
+                    # Load in slices — one transaction per ~5k filings keeps
+                    # WAL spikes small (a 39k-filing single transaction filled
+                    # the disk faster than Supabase autoscaling could grow it).
+                    chunk = 5000
+                    agg: dict[str, int] = defaultdict(int)
+                    for i in range(0, len(found), chunk):
+                        counts = _load_batch(
+                            conn, raw_file_id,
+                            found[i:i + chunk], parsed[i:i + chunk],
+                        )
+                        conn.commit()
+                        for k, v in counts.items():
+                            agg[k] += v
+                        for f in found[i:i + chunk]:
+                            remaining.pop(f.object_id, None)
                     ledger.complete_run(
                         conn, run_id,
-                        inserted=counts["grants"] + counts["people"],
-                        notes=f"{batch_id}: {len(found)} filings; {counts}",
+                        inserted=agg["grants"] + agg["people"],
+                        notes=f"{batch_id}: {len(found)} filings; {dict(agg)}",
                     )
-                    for k, v in counts.items():
+                    for k, v in agg.items():
                         totals[k] += v
                     totals["filings_processed"] += len(found)
-                    for f in found:
-                        remaining.pop(f.object_id, None)
-                    print(f"{batch_id}: filings={len(found):,} {counts}", flush=True)
+                    print(f"{batch_id}: filings={len(found):,} {dict(agg)}", flush=True)
                 except Exception as exc:
                     try:
                         conn.rollback()
