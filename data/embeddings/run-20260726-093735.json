@@ -1,0 +1,20 @@
+{
+  "model": "voyage-3.5-512",
+  "build": {
+    "company": {
+      "docs": 34464,
+      "tokens": 4250093,
+      "est_cost_usd": 0.26
+    },
+    "adviser": {
+      "docs": 23626,
+      "tokens": 1204096,
+      "est_cost_usd": 0.07
+    }
+  },
+  "embed": {
+    "embedded": 58090,
+    "tokens": 5454189
+  },
+  "hnsw_created": false
+}

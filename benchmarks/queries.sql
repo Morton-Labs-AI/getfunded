@@ -106,3 +106,45 @@ select count(*) as orgs_total,
 from internal.organizations o
 left join internal.raw_files rf on rf.id = o.raw_file_id
 left join internal.licensing_map lm on lm.license_code = rf.license_code;
+
+-- ===========================================================================
+-- PHASE 2 · SEMANTIC EVAL (E-series). Requires a query embedding, so these run
+-- via `funderdb eval semantic`, not psql alone. Recorded results 2026-07-26
+-- (148,430-doc corpus, voyage-3.5@512, no HNSW yet — sequential scan).
+-- ===========================================================================
+
+-- E1  "fusion energy simulation software" (unfiltered)
+--     PASS on the negative criterion: ZERO medical/bone/protein-fusion orgs in
+--     top 10 (FTS baseline: 80 of 210 "fusion" grant matches are medical).
+--     Returns fusion-simulation COMPANIES (Simmetrix, Woodruff Scientific,
+--     Far-Tech) — semantically right, but companies are recipients, not
+--     funders: funder-discovery queries must pass kinds=[foundation,program,
+--     adviser]. The analyst's tool description now says so.
+
+-- E1b "foundations and programs funding fusion energy and plasma physics"
+--     kinds=[foundation,program] → all 4 fusion programs top the list
+--     (INFUSE, FIRE, Milestone-Based, ARPA-E), then genuinely apt physics
+--     funders: Brinson, Breakthrough Prize, Julian Schwinger Foundation for
+--     Physics Research, Kavli.
+--     KNOWN LIMIT (aggregate dilution): Schmidt and Simons do NOT surface
+--     semantically despite holding the largest real fusion grants — their docs
+--     are dominated by hundreds of non-fusion grants, so the aggregate vector
+--     reads "general science philanthropy". Grant-level evidence still finds
+--     them (B8). This is why the system prompt pairs semantic discovery WITH
+--     a run_query grants-paid follow-up: the two are complementary, not
+--     redundant. Do not "fix" by embedding individual grants (26-char
+--     purposes; measured noise).
+
+-- E2  "climate tech venture capital" kinds=[adviser]
+--     Top 10 are all climate-thesis VCs. Lowercarbon Capital ranks #30 of
+--     23,626 advisers (top 0.13%) despite the word "climate" appearing
+--     nowhere in its document — the semantic win — but ~29 firms literally
+--     named "Climate X" outrank it. Recorded as expected behavior, not a
+--     failure; the original ">=top 10" expectation was optimistic.
+
+-- E3  "funding for fusion energy startups without giving up equity"
+--     kinds=[program] → INFUSE #1 on the vector leg (its doc never says
+--     "startup"), ARPA-E #1 overall via both legs. PASS.
+
+-- Latency (no HNSW, sequential scan over 148k halfvec-512): 155-845ms.
+-- Rebuild with the HNSW index after the disk resize; target <120ms.
