@@ -236,6 +236,7 @@ def ingest(
                 seen: set[str] = set()
                 skipped = 0
                 with conn.cursor() as cur:
+                    cur.execute("set local statement_timeout = '30min'")
                     cur.execute(_STAGE_DDL)
                     with cur.copy(
                         f"copy _bmf_stage ({', '.join(_STAGE_COLUMNS)}) from stdin"
