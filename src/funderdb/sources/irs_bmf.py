@@ -52,6 +52,7 @@ class BmfRecord:
     ein: str
     name: str
     name_normalized: str
+    org_type: str
     street: str | None
     city: str | None
     state: str | None
@@ -80,8 +81,11 @@ def _resolve_headers(fieldnames: list[str]) -> dict[str, str]:
     return resolved
 
 
-def parse_foundations(fh: TextIO) -> Iterator[BmfRecord]:
-    """Yield private-foundation records from one BMF region CSV."""
+def parse_foundations(fh: TextIO, all_orgs: bool = False) -> Iterator[BmfRecord]:
+    """Yield BMF org records. Default: private foundations only (codes
+    02/03/04). all_orgs=True: the full exempt-org spine — every other code
+    lands as org_type='public_charity' (the Phase-2 recipient-resolution
+    universe; the simplification is documented in /data known limits)."""
     reader = csv.DictReader(fh)
     assert reader.fieldnames is not None
     headers = _resolve_headers(list(reader.fieldnames))
@@ -92,7 +96,8 @@ def parse_foundations(fh: TextIO) -> Iterator[BmfRecord]:
 
     for row in reader:
         foundation = get(row, "foundation").zfill(2)
-        if foundation not in FOUNDATION_CODES:
+        is_pf = foundation in FOUNDATION_CODES
+        if not is_pf and not all_orgs:
             continue
         ein = normalize_ein(get(row, "ein"))
         name = get(row, "name")
@@ -102,6 +107,7 @@ def parse_foundations(fh: TextIO) -> Iterator[BmfRecord]:
             ein=ein,
             name=name,
             name_normalized=normalize_name(name),
+            org_type="private_foundation" if is_pf else "public_charity",
             street=get(row, "street") or None,
             city=get(row, "city") or None,
             state=get(row, "state") or None,
@@ -122,6 +128,7 @@ create temp table _bmf_stage (
   ein         text primary key,
   name        text not null,
   name_norm   text not null,
+  org_type    text not null,
   street      text,
   city        text,
   state       text,
@@ -141,6 +148,7 @@ _UPDATE_SQL = """
 update internal.organizations o
 set name = s.name,
     name_normalized = s.name_norm,
+    org_type = s.org_type,
     street = s.street, city = s.city, state = s.state, zip = s.zip,
     ntee_code = s.ntee, subsection_code = s.subsection, foundation_code = s.foundation,
     ruling_date = s.ruling_date,
@@ -166,7 +174,7 @@ with new_rows as (
      ntee_code, subsection_code, foundation_code, ruling_date,
      asset_amount, income_amount, revenue_amount,
      raw_file_id, source_record_locator, raw_source, last_verified_at)
-  select name, name_norm, 'private_foundation', street, city, state, zip,
+  select name, name_norm, org_type, street, city, state, zip,
          ntee, subsection, foundation, ruling_date,
          asset_amt, income_amt, revenue_amt,
          %(rfid)s, 'row:EIN=' || ein, raw, now()
@@ -179,8 +187,9 @@ from ins
 """
 
 _STAGE_COLUMNS = (
-    "ein", "name", "name_norm", "street", "city", "state", "zip", "subsection",
-    "foundation", "ruling_date", "ntee", "asset_amt", "income_amt", "revenue_amt", "raw",
+    "ein", "name", "name_norm", "org_type", "street", "city", "state", "zip",
+    "subsection", "foundation", "ruling_date", "ntee", "asset_amt", "income_amt",
+    "revenue_amt", "raw",
 )
 
 
@@ -207,7 +216,11 @@ def dry_run(files: tuple[str, ...] = REGION_FILES, limit: int | None = None) -> 
     return counts
 
 
-def ingest(files: tuple[str, ...] = REGION_FILES, as_of: date | None = None) -> dict[str, dict]:
+def ingest(
+    files: tuple[str, ...] = REGION_FILES,
+    as_of: date | None = None,
+    all_orgs: bool = False,
+) -> dict[str, dict]:
     """Stage, register, and load each region file (one transaction per file)."""
     results: dict[str, dict] = {}
     with connect() as conn:
@@ -228,7 +241,7 @@ def ingest(files: tuple[str, ...] = REGION_FILES, as_of: date | None = None) -> 
                         f"copy _bmf_stage ({', '.join(_STAGE_COLUMNS)}) from stdin"
                     ) as copy:
                         with staged.path.open(encoding="utf-8", errors="replace") as fh:
-                            for rec in parse_foundations(fh):
+                            for rec in parse_foundations(fh, all_orgs=all_orgs):
                                 if rec.ein in seen:
                                     skipped += 1
                                     continue
@@ -238,7 +251,8 @@ def ingest(files: tuple[str, ...] = REGION_FILES, as_of: date | None = None) -> 
                                 # 2026-07-25); locator + staged hashed file is the
                                 # provenance, same policy as funding_events.
                                 copy.write_row((
-                                    rec.ein, rec.name, rec.name_normalized, rec.street,
+                                    rec.ein, rec.name, rec.name_normalized,
+                                    rec.org_type, rec.street,
                                     rec.city, rec.state, rec.zip, rec.subsection,
                                     rec.foundation, rec.ruling_date, rec.ntee,
                                     rec.asset_amt, rec.income_amt, rec.revenue_amt,

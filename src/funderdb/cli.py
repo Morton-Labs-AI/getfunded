@@ -29,7 +29,9 @@ def ingest() -> None:
 @ingest.command("bmf")
 @click.option("--dry-run", is_flag=True, help="Parse and count locally; no database writes.")
 @click.option("--limit", type=int, default=None, help="Dry-run: stop after N rows per file.")
-def ingest_bmf(dry_run: bool, limit: int | None) -> None:
+@click.option("--all-orgs", is_flag=True,
+              help="Full exempt-org spine: every BMF org, not just private foundations.")
+def ingest_bmf(dry_run: bool, limit: int | None, all_orgs: bool) -> None:
     from .sources import irs_bmf
 
     if dry_run:
@@ -39,7 +41,7 @@ def ingest_bmf(dry_run: bool, limit: int | None) -> None:
             click.echo(f"{fname}: {n:,} private-foundation rows")
         click.echo(f"TOTAL: {total:,}")
         return
-    results = irs_bmf.ingest()
+    results = irs_bmf.ingest(all_orgs=all_orgs)
     for fname, r in results.items():
         click.echo(
             f"{fname}: inserted={r['inserted']:,} updated={r['updated']:,} "
