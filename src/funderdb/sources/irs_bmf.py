@@ -148,7 +148,18 @@ _UPDATE_SQL = """
 update internal.organizations o
 set name = s.name,
     name_normalized = s.name_norm,
-    org_type = s.org_type,
+    -- BMF may promote an org to private_foundation, but must never demote one
+    -- that has 990-PF grant evidence on file: the BMF FOUNDATION column is
+    -- current legal status, while a filed 990-PF is behavioral proof of
+    -- grantmaking, and this product ranks funders by what they actually fund.
+    -- (Measured 2026-07-26: the naive overwrite reclassified 5,114 real
+    -- grantmakers and orphaned 4,651 semantic foundation docs.)
+    org_type = case
+      when o.org_type = 'private_foundation'
+       and s.org_type = 'public_charity'
+       and exists (select 1 from internal.funding_events fe
+                   where fe.funder_org_id = o.id and fe.event_type = 'grant')
+      then o.org_type else s.org_type end,
     street = s.street, city = s.city, state = s.state, zip = s.zip,
     ntee_code = s.ntee, subsection_code = s.subsection, foundation_code = s.foundation,
     ruling_date = s.ruling_date,
