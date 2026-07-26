@@ -146,5 +146,17 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 --     kinds=[program] → INFUSE #1 on the vector leg (its doc never says
 --     "startup"), ARPA-E #1 overall via both legs. PASS.
 
--- Latency (no HNSW, sequential scan over 148k halfvec-512): 155-845ms.
--- Rebuild with the HNSW index after the disk resize; target <120ms.
+-- Latency: 155-845ms pre-index (sequential scan). WITH HNSW (m=16,
+-- ef_construction=64, built 2026-07-26 on 148,430 halfvec-512 vectors):
+-- 268ms cold / 52-58ms warm — a 12x speedup, well inside the <1s budget.
+-- search_documents totals 651MB incl. the index.
+--
+-- E4 END-TO-END (the real test, through the analyst with credits restored):
+--   "Which foundations and federal programs should a fusion energy simulation
+--    software startup approach?" -> the model called semantic_funder_search,
+--   observed it had surfaced peer COMPANIES, re-called it filtered to
+--   foundations, then pulled grant evidence with run_query. Result: Simons
+--   ($10.5M across 31 grants) and Schmidt ($6.0M to MIT PSFC) recovered via
+--   the evidence leg exactly as the E1b known-limit predicts, plus DOE's
+--   1,326 fusion/plasma SBIR awards ($443M). The discovery+evidence pairing
+--   works in practice, including the model's own mid-answer self-correction.
