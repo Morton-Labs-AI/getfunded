@@ -104,6 +104,30 @@ def ingest_seed() -> None:
     )
 
 
+@main.group()
+def embed() -> None:
+    """Semantic-search corpus: build docs + embed via Voyage."""
+
+
+@embed.command("sync")
+@click.option("--dry-run", is_flag=True, help="Build + count + cost estimate; no writes, no API.")
+@click.option("--kind", "kinds", multiple=True,
+              type=click.Choice(["foundation", "company", "adviser", "program"]))
+@click.option("--rebuild", is_flag=True, help="Ignore hashes; re-embed everything.")
+def embed_sync(dry_run: bool, kinds: tuple[str, ...], rebuild: bool) -> None:
+    from . import embed as embed_mod
+
+    result = embed_mod.sync(list(kinds) or None, dry_run=dry_run, rebuild=rebuild)
+    for kind, c in result["build"].items():
+        click.echo(f"{kind}: {c['docs']:,} docs · {c['tokens']:,} tokens · ~${c['est_cost_usd']}")
+        if "sample" in c:
+            click.echo(f"  sample: {c['sample'][:300]}…")
+    if "embed" in result:
+        click.echo(f"embedded: {result['embed']['embedded']:,} docs "
+                   f"({result['embed']['tokens']:,} tokens)")
+        click.echo(f"hnsw created: {result['hnsw_created']}")
+
+
 @main.command()
 def status() -> None:
     """Ledger runs + row counts."""

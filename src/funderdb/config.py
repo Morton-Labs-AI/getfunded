@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # sec.gov requires a declared User-Agent.
     sec_user_agent: str = "MortonLabs zach@mortonlabs.ai"
 
+    # Voyage AI (semantic-search embeddings). Optional so ingest works without it.
+    voyage_api_key: str | None = None
+
     @property
     def raw_dir(self) -> Path:
         return self.data_root / "raw"
