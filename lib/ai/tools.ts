@@ -84,6 +84,40 @@ export const DB_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "semantic_funder_search",
+    description:
+      "Thematic funder discovery over aggregated giving-behavior documents (hybrid " +
+      "vector + keyword search with rank fusion). Use for 'who funds X' questions — " +
+      "it finds funders whose ACTUAL grants/awards/funds relate to a topic even when " +
+      "their names don't contain it, and it demotes false keyword matches (e.g. " +
+      "medical 'bone fusion' foundations for a fusion-energy query). For resolving a " +
+      "NAMED organization, use search_orgs instead. Follow up with run_query to pull " +
+      "grants-paid evidence for the top candidates.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Natural-language description of what needs funding, e.g. 'fusion energy simulation software'.",
+        },
+        kinds: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["foundation", "company", "adviser", "program"],
+          },
+          description: "Restrict document kinds (default: all).",
+        },
+        org_types: { type: "array", items: { type: "string" } },
+        state: { type: "string", description: "Two-letter state filter." },
+        min_size: { type: "number", description: "Minimum assets/AUM in dollars." },
+        limit: { type: "number", description: "Max results (default 15)." },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "render_chart",
     description:
       "Render a chart in the UI from data you already aggregated with run_query. " +
@@ -209,6 +243,54 @@ export async function runDbTool(
         .map(
           (r) =>
             `${r.id} | ${r.name} | ${r.org_type} | ${r.state ?? "∅"} | size=${r.size ?? "∅"} | ${r.ids ?? ""}`
+        )
+        .join("\n");
+    }
+
+    if (name === "semantic_funder_search") {
+      const { embedQuery, vecLiteral } = await import("./embed");
+      const query = String(input.query ?? "").trim();
+      if (!query) return "ERROR: empty query";
+      const limit = Math.min(Number(input.limit) || 15, 30);
+      let vec: number[];
+      try {
+        vec = await embedQuery(query);
+      } catch (err) {
+        return `SEMANTIC SEARCH UNAVAILABLE: ${err instanceof Error ? err.message : err}. Fall back to run_query FTS.`;
+      }
+      const t0 = performance.now();
+      const rows = await sql`
+        select * from internal.hybrid_search(
+          ${query},
+          ${vecLiteral(vec)}::extensions.halfvec(512),
+          ${limit},
+          ${(input.kinds as string[]) ?? null},
+          ${(input.org_types as string[]) ?? null},
+          ${(input.state as string) ?? null},
+          ${(input.min_size as number) ?? null}
+        )`;
+      const ms = Math.round(performance.now() - t0);
+      emit({
+        type: "rows",
+        columns: ["org_id", "name", "doc_kind", "state", "size_amount", "rrf", "snippet"],
+        rows: rows.map((r) => [
+          r.org_id ?? r.program_id,
+          r.name,
+          r.doc_kind,
+          r.state,
+          r.size_amount,
+          Number(r.rrf).toFixed(4),
+          r.snippet,
+        ]),
+        total: rows.length,
+        ms,
+      });
+      if (rows.length === 0)
+        return "0 results. The corpus covers foundations with grants on file, SBIR companies, advisers, and federal programs.";
+      return rows
+        .map(
+          (r) =>
+            `${r.org_id ?? "program:" + r.program_id} | ${r.name} | ${r.doc_kind} | ${r.state ?? "∅"} | rrf=${Number(r.rrf).toFixed(4)} | ${String(r.snippet).slice(0, 140)}`
         )
         .join("\n");
     }
