@@ -370,7 +370,7 @@ def ensure_hnsw() -> bool:
 
 
 def sync(kinds: list[str] | None = None, dry_run: bool = False,
-         rebuild: bool = False) -> dict:
+         rebuild: bool = False, skip_index: bool = False) -> dict:
     if rebuild and not dry_run:
         with connect() as conn, conn.cursor() as cur:
             cur.execute("update internal.search_documents set embedding = null, doc_hash = ''")
@@ -383,7 +383,9 @@ def sync(kinds: list[str] | None = None, dry_run: bool = False,
 
     emb = embed_pending()
     result["embed"] = emb
-    result["hnsw_created"] = ensure_hnsw()
+    # The HNSW build needs ~200MB + temp space in one shot; --skip-index lets
+    # the (resumable, batch-committed) embedding land first on a tight disk.
+    result["hnsw_created"] = False if skip_index else ensure_hnsw()
 
     # Ledger + run manifest (file-first doctrine: the run manifest is the artifact)
     manifest_dir = Path(get_settings().data_root) / "embeddings"

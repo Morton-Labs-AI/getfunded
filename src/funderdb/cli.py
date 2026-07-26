@@ -116,10 +116,14 @@ def embed() -> None:
 @click.option("--kind", "kinds", multiple=True,
               type=click.Choice(["foundation", "company", "adviser", "program"]))
 @click.option("--rebuild", is_flag=True, help="Ignore hashes; re-embed everything.")
-def embed_sync(dry_run: bool, kinds: tuple[str, ...], rebuild: bool) -> None:
+@click.option("--skip-index", is_flag=True,
+              help="Embed but defer the HNSW build (tight disk; run again later to build it).")
+def embed_sync(dry_run: bool, kinds: tuple[str, ...], rebuild: bool,
+               skip_index: bool) -> None:
     from . import embed as embed_mod
 
-    result = embed_mod.sync(list(kinds) or None, dry_run=dry_run, rebuild=rebuild)
+    result = embed_mod.sync(list(kinds) or None, dry_run=dry_run, rebuild=rebuild,
+                            skip_index=skip_index)
     for kind, c in result["build"].items():
         click.echo(f"{kind}: {c['docs']:,} docs · {c['tokens']:,} tokens · ~${c['est_cost_usd']}")
         if "sample" in c:

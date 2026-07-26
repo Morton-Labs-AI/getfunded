@@ -1,0 +1,15 @@
+{
+  "model": "voyage-3.5-512",
+  "build": {
+    "program": {
+      "docs": 16,
+      "tokens": 1541,
+      "est_cost_usd": 0.0
+    }
+  },
+  "embed": {
+    "embedded": 16,
+    "tokens": 1541
+  },
+  "hnsw_created": false
+}
