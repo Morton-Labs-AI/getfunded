@@ -134,6 +134,22 @@ def embed_sync(dry_run: bool, kinds: tuple[str, ...], rebuild: bool,
         click.echo(f"hnsw created: {result['hnsw_created']}")
 
 
+@main.group()
+def resolve() -> None:
+    """Entity resolution: funds -> people -> recipients."""
+
+
+@resolve.command("recipients")
+@click.option("--no-apply", is_flag=True, help="Compute matches without touching funding_events.")
+@click.option("--max-tier", type=int, default=3, show_default=True)
+def resolve_recipients(no_apply: bool, max_tier: int) -> None:
+    from .resolve import recipients
+
+    counts = recipients.run(apply=not no_apply, max_tier=max_tier)
+    for k, v in counts.items():
+        click.echo(f"{k}: {v:,}")
+
+
 @main.command()
 def status() -> None:
     """Ledger runs + row counts."""
