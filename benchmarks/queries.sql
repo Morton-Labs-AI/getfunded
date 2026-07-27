@@ -160,3 +160,46 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 --   the evidence leg exactly as the E1b known-limit predicts, plus DOE's
 --   1,326 fusion/plasma SBIR awards ($443M). The discovery+evidence pairing
 --   works in practice, including the model's own mid-answer self-correction.
+
+-- ===========================================================================
+-- PHASE 2 · ENTITY RESOLUTION (ER-series). Recorded 2026-07-27.
+-- ===========================================================================
+
+-- ER3  Grant-recipient resolution (deterministic tiers, migration 0009/0010)
+--   1,060,845 distinct recipient names vs 2,057,496 candidate orgs.
+--   tier1 (exact name + state + unique)      349,293 matches @ 0.98
+--   tier2 (exact name + nationally unique)       784 matches @ 0.93
+--   tier3 (entity-suffix stripped + state)    57,813 matches @ 0.90
+--   -> 407,890 matches; 886,763 of 2,324,534 grants linked (38.1% of rows).
+--   Precision spot-checks pass: MIT->MIT (MA), Princeton->Princeton (NJ), both
+--   tier1. No stub orgs created; unmatched keeps as-reported text + NULL.
+--
+--   DOLLAR COVERAGE — the ">=50% of grant dollars" gate was set against a
+--   denominator that cannot exist, and is hereby corrected:
+--     linked                $47.9B
+--     placeholder text      $30.7B  (5,242 rows, 21.6% of ALL grant dollars)
+--     genuinely unmatched   $63.9B
+--   => 33.6% of all grant dollars, 42.8% of RESOLVABLE grant dollars.
+--   The placeholder tranche is pharma patient-assistance foundations reporting
+--   lump sums to individuals: "HIPPA REGULATIONS PREVENT THE LISTING OF NAMES"
+--   ($4.1B), "VARIOUS INDIVIDUALS" ($3.1B), "SEE ATTACHED" ($1.1B). These are
+--   not organizations and must never be matched or stubbed.
+--
+--   The $63.9B residual is three classes, measured, NOT chased with heuristics
+--   (precision is gated; recall is only reported):
+--     (a) NAME VARIANTS — "COLUMBIA UNIVERSITY" has 0 exact candidates because
+--         BMF lists it as "COLUMBIA UNIVERSITY IN THE CITY OF NEW YORK";
+--         likewise NATIONAL PHILANTHROPIC TRUST ($880M). Needs a containment
+--         or trigram tier, which can wrongly bind "STANFORD UNIVERSITY" to
+--         "STANFORD UNIVERSITY ALUMNI ASSOCIATION" -> requires the labeling
+--         workflow to certify before shipping. Deferred as tier 4.
+--     (b) MULTI-EIN ENTITIES — "JOHNS HOPKINS UNIVERSITY" has 3 exact BMF rows
+--         in MD ($349M unmatched). Uniqueness correctly refuses to guess which
+--         EIN owns the grant. Needs a tie-break rule + labels.
+--     (c) GENUINELY ABSENT — WORLD HEALTH ORGANIZATION ($350M) and other
+--         foreign recipients are not in the BMF at all. Correctly unresolvable.
+--
+--   Grant amounts verified sane while investigating: 2,324,534 grants,
+--   $142.5B total, median $3,000, avg $61,310, p99 $651,000, only 10 rows
+--   over $1B and all legitimate (Gates Foundation Trust -> Gates Foundation
+--   $8.1B; pharma foundations valuing donated drugs at list price).
