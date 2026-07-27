@@ -30,41 +30,38 @@ CANDIDATE_TYPES = ("company", "private_foundation", "public_charity", "gov_agenc
 STRIPPABLE_SUFFIXES = ("INC", "INCORPORATED", "LLC", "L L C", "CORP", "CORPORATION",
                        "CO", "LTD", "LP", "LLP", "PC", "PA")
 
-_SETUP = """
-create temp table _recips on commit drop as
-  select internal.norm_name(recipient_name) as nn,
-         nullif(btrim(recipient_state), '') as st,
-         count(*) as n_events,
-         sum(amount) as total_amount
-  from internal.funding_events
-  where event_type = 'grant' and recipient_org_id is null
-    and recipient_name is not null
-  group by 1, 2;
-
-create index on _recips (nn);
-
--- Candidate orgs, with per-name and per-(name,state) multiplicity so each tier
--- can require uniqueness rather than silently picking a winner.
-create temp table _cands on commit drop as
-  select o.id, o.name_normalized as nn, o.state as st
-  from internal.organizations o
-  where o.org_type = any(%(types)s) and o.canonical_org_id is null;
-
-create index on _cands (nn);
-create index on _cands (nn, st);
-
-create temp table _name_counts on commit drop as
-  select nn, count(*) as n_national from _cands group by 1;
-create index on _name_counts (nn);
-
-create temp table _name_state_counts on commit drop as
-  select nn, st, count(*) as n_state from _cands group by 1, 2;
-create index on _name_state_counts (nn, st);
-
-create temp table _matches (
-  nn text, st text, org_id uuid, method text, confidence real
-) on commit drop;
-"""
+# psycopg3 prepares parameterized statements, so each must execute separately.
+_SETUP_STEPS: tuple[str, ...] = (
+    """create temp table _recips on commit drop as
+       select internal.norm_name(recipient_name) as nn,
+              nullif(btrim(recipient_state), '') as st,
+              count(*) as n_events,
+              sum(amount) as total_amount
+       from internal.funding_events
+       where event_type = 'grant' and recipient_org_id is null
+         and recipient_name is not null
+       group by 1, 2""",
+    "create index on _recips (nn)",
+    # Candidate orgs, with per-name and per-(name,state) multiplicity so each
+    # tier can require uniqueness rather than silently picking a winner.
+    """create temp table _cands on commit drop as
+       select o.id, o.name_normalized as nn, o.state as st
+       from internal.organizations o
+       where o.org_type = any(%(types)s) and o.canonical_org_id is null""",
+    "create index on _cands (nn)",
+    "create index on _cands (nn, st)",
+    """create temp table _name_counts on commit drop as
+       select nn, count(*) as n_national from _cands group by 1""",
+    "create index on _name_counts (nn)",
+    """create temp table _name_state_counts on commit drop as
+       select nn, st, count(*) as n_state from _cands group by 1, 2""",
+    "create index on _name_state_counts (nn, st)",
+    """create temp table _matches (
+         nn text, st text, org_id uuid, method text, confidence real
+       ) on commit drop""",
+    "analyze _recips",
+    "analyze _cands",
+)
 
 # T1: exact name + same state, exactly one such org in that state.
 _TIER1 = """
@@ -123,25 +120,30 @@ on conflict (recipient_name_normalized, recipient_state) do update set
 where internal.recipient_matches.status = 'auto'
 """
 
-# Apply to events, and un-apply anything a human later rejected.
-_APPLY = """
+# Apply in batches over recipient_matches (a few hundred thousand rows at most),
+# NOT in one statement over 2.32M events: the single-statement version was killed
+# by the server mid-flight (2026-07-27). Uses ix_events_recipient_norm so each
+# matched name is an index lookup rather than a scan.
+_APPLY_BATCH = """
 update internal.funding_events fe
 set recipient_org_id = rm.org_id
 from internal.recipient_matches rm
-where fe.event_type = 'grant'
-  and fe.recipient_org_id is null
+where rm.id between %(lo)s and %(hi)s
   and rm.confidence >= 0.90
   and rm.status in ('auto', 'accepted')
+  and fe.event_type = 'grant'
+  and fe.recipient_org_id is null
   and internal.norm_name(fe.recipient_name) = rm.recipient_name_normalized
   and nullif(btrim(fe.recipient_state), '') is not distinct from rm.recipient_state
 """
 
-_UNAPPLY = """
+_UNAPPLY_BATCH = """
 update internal.funding_events fe
 set recipient_org_id = null
 from internal.recipient_matches rm
-where fe.recipient_org_id = rm.org_id
+where rm.id between %(lo)s and %(hi)s
   and rm.status = 'rejected'
+  and fe.recipient_org_id = rm.org_id
   and internal.norm_name(fe.recipient_name) = rm.recipient_name_normalized
 """
 
@@ -149,6 +151,34 @@ where fe.recipient_org_id = rm.org_id
 def _suffix_regex() -> str:
     alts = "|".join(STRIPPABLE_SUFFIXES)
     return rf"\s+({alts})$"
+
+
+def apply_matches(conn, batch: int = 20_000) -> dict:
+    """Link events to matched orgs, one committed batch of matches at a time.
+
+    Restartable by construction: only rows with recipient_org_id IS NULL are
+    touched, so a re-run picks up exactly where an interrupted one stopped.
+    """
+    counts = {"events_linked": 0, "events_unlinked": 0}
+    with conn.cursor() as cur:
+        cur.execute("select coalesce(min(id), 0), coalesce(max(id), -1) "
+                    "from internal.recipient_matches")
+        lo_id, hi_id = cur.fetchone()
+
+    lo = lo_id
+    while lo <= hi_id:
+        hi = lo + batch - 1
+        with conn.cursor() as cur:
+            cur.execute("set local statement_timeout = '15min'")
+            cur.execute(_APPLY_BATCH, {"lo": lo, "hi": hi})
+            counts["events_linked"] += cur.rowcount
+            cur.execute(_UNAPPLY_BATCH, {"lo": lo, "hi": hi})
+            counts["events_unlinked"] += cur.rowcount
+        conn.commit()
+        print(f"  applied matches {lo:,}-{min(hi, hi_id):,} · "
+              f"{counts['events_linked']:,} events linked", flush=True)
+        lo = hi + 1
+    return counts
 
 
 def run(apply: bool = True, max_tier: int = 3) -> dict:
@@ -176,7 +206,9 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
         try:
             with conn.cursor() as cur:
                 cur.execute("set local statement_timeout = '60min'")
-                cur.execute(_SETUP, {"types": list(CANDIDATE_TYPES)})
+                for step in _SETUP_STEPS:
+                    cur.execute(step, {"types": list(CANDIDATE_TYPES)}
+                                if "%(types)s" in step else None)
                 cur.execute("select count(*) from _recips")
                 counts["distinct_recipients"] = cur.fetchone()[0]
                 cur.execute("select count(*) from _cands")
@@ -193,13 +225,14 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
 
                 cur.execute(_PERSIST, {"rfid": rfid})
                 counts["matches_persisted"] = cur.rowcount
-
-                if apply:
-                    cur.execute(_APPLY)
-                    counts["events_linked"] = cur.rowcount
-                    cur.execute(_UNAPPLY)
-                    counts["events_unlinked"] = cur.rowcount
+            # Commit the matches BEFORE applying: the apply is the fragile,
+            # long-running half, and losing hours of tier work to its failure
+            # (as happened 2026-07-27) is unacceptable.
             conn.commit()
+
+            if apply:
+                counts.update(apply_matches(conn))
+
             ledger.complete_run(conn, run_id,
                                 inserted=counts.get("matches_persisted", 0),
                                 updated=counts.get("events_linked", 0),

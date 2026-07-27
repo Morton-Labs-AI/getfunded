@@ -8,3 +8,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 dist/
+
+# Run manifests (regenerated each run; provenance lives in raw_files + ledger)
+data/resolve/
+data/embeddings/
