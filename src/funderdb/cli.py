@@ -160,8 +160,8 @@ def resolve_funds(do_predict: bool, do_apply: bool, threshold: float, force: boo
 @resolve.command("label")
 @click.argument("job", type=click.Choice(["funds"]))
 @click.option("--n", type=int, default=40, show_default=True)
-@click.option("--stratum", type=click.Choice(["above", "band", "all"]), default="above",
-              show_default=True)
+@click.option("--stratum", type=click.Choice(["people", "nameonly", "band", "all"]),
+              default="people", show_default=True)
 def resolve_label(job: str, n: int, stratum: str) -> None:
     from .resolve import labeling
 

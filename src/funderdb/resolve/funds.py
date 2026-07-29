@@ -274,6 +274,39 @@ def predict(sample_only: bool = False) -> dict:
                     {"method": f"splink:funds@{model_sha}", "rfid": rfid,
                      "auto": AUTO_THRESHOLD})
                 counts["links_loaded"] = cur.rowcount
+
+                # Deterministic candidate class: exact-name pairs WITHOUT people
+                # corroboration score below the model's floor (people arrays are
+                # sparse on the Form D side), but an exact fund-name collision
+                # deserves human review, not a silent drop. Loaded as pending;
+                # the labeling pass measures this class's true precision.
+                cur.execute("""
+                    insert into internal.entity_links
+                      (entity_type, job, id_a, id_b, method, match_probability,
+                       features, status, raw_file_id, source_record_locator)
+                    select 'organization', 'funds_adv_formd',
+                           least(a.id, b.id), greatest(a.id, b.id),
+                           'deterministic:exact_name', null,
+                           jsonb_build_object('exact_name', true,
+                                              'state_match', a.state = b.state),
+                           'pending', %(rfid)s,
+                           'pair:' || least(a.id, b.id) || ':' || greatest(a.id, b.id)
+                    from internal.organizations a
+                    join internal.org_identifiers ai
+                      on ai.org_id = a.id and ai.id_type = 'sec_private_fund_id'
+                    join internal.organizations b
+                      on b.name_normalized = a.name_normalized
+                     and b.org_type = 'fund' and b.id <> a.id
+                    join internal.org_identifiers bi
+                      on bi.org_id = b.id and bi.id_type = 'cik'
+                    where a.org_type = 'fund'
+                      and not exists (select 1 from internal.org_identifiers x
+                                      where x.org_id = b.id
+                                        and x.id_type = 'sec_private_fund_id')
+                    on conflict (job, id_a, id_b) do nothing""",
+                    {"rfid": rfid})
+                counts["nameonly_pending_added"] = cur.rowcount
+
                 cur.execute("""select status, count(*) from internal.entity_links
                                where job='funds_adv_formd' group by 1""")
                 for status, n in cur.fetchall():
@@ -298,24 +331,38 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
     counts: dict[str, int] = {}
     with connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("""select count(*) from internal.er_labels
-                           where job = 'funds_adv_formd'""")
-            n_labels = cur.fetchone()[0]
-            if n_labels < 100 and not force:
+            # Gate: the people-corroborated class must be label-certified
+            # (>=100 labels, Wilson 95% lower bound > 0.90).
+            cur.execute("""
+                select count(*) filter (where l.label = 'match'), count(*)
+                from internal.er_labels l
+                join internal.entity_links el
+                  on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
+                where l.job = 'funds_adv_formd' and l.label <> 'unsure'
+                  and el.method like 'splink:%%'
+                  and coalesce((el.features->>'gamma_people')::int, 0) >= 1""")
+            correct, n_labels = cur.fetchone()
+            from .labeling import _wilson_low
+            low = _wilson_low(correct or 0, n_labels or 0)
+            if (n_labels < 100 or low <= 0.90) and not force:
                 raise RuntimeError(
-                    f"Precision gate: only {n_labels} labels for funds_adv_formd "
-                    "(need >=100). Run `funderdb resolve label funds` first, "
+                    f"Precision gate: people-class labels {correct}/{n_labels}, "
+                    f"Wilson lower bound {low:.3f} (need n>=100 and >0.90). "
+                    "Run `funderdb resolve label funds --stratum people` first, "
                     "or pass --force to apply provisionally."
                 )
+            # Certified links: human-accepted pairs plus the people-corroborated
+            # Splink class. Name-only pairs apply ONLY via explicit acceptance.
             cur.execute("""
                 select id_a, id_b from internal.entity_links
                 where job = 'funds_adv_formd'
                   and (status = 'accepted'
-                       or (status = 'auto' and match_probability >= %s))
+                       or (status in ('auto', 'pending')
+                           and method like 'splink:%%'
+                           and coalesce((features->>'gamma_people')::int, 0) >= 1))
                 except
                 select id_a, id_b from internal.entity_links
-                where job = 'funds_adv_formd' and status = 'rejected'""",
-                (threshold,))
+                where job = 'funds_adv_formd' and status = 'rejected'""")
             pairs = cur.fetchall()
 
         # Union-find with cluster cap.

@@ -35,8 +35,12 @@ def label_funds(n: int, stratum: str) -> None:
     with connect() as conn:
         with conn.cursor() as cur:
             where = {
-                "above": "el.match_probability >= 0.99",
-                "band": "el.match_probability >= 0.5 and el.match_probability < 0.99",
+                # Splink-scored pairs with people corroboration — the auto-tier
+                # candidates the gate certifies first.
+                "people": "el.method like 'splink:%%' and coalesce((el.features->>'gamma_people')::int, 0) >= 1",
+                # Exact-name-only deterministic class — measured separately.
+                "nameonly": "el.method = 'deterministic:exact_name'",
+                "band": "el.method like 'splink:%%' and coalesce((el.features->>'gamma_people')::int, 0) = 0",
                 "all": "true",
             }[stratum]
             cur.execute(f"""
@@ -86,10 +90,24 @@ def label_funds(n: int, stratum: str) -> None:
         click.echo(f"\nrecorded {done} labels")
 
 
-def eval_funds(threshold: float = 0.99) -> None:
+def _wilson_low(correct: int, n: int) -> float:
+    if n == 0:
+        return 0.0
+    phat = correct / n
+    z = 1.96
+    denom = 1 + z * z / n
+    centre = phat + z * z / (2 * n)
+    margin = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n))
+    return (centre - margin) / denom
+
+
+def eval_funds(threshold: float = 0.99) -> None:  # threshold kept for CLI compat
     with connect() as conn, conn.cursor() as cur:
         cur.execute("""
-            select l.label, el.match_probability
+            select l.label,
+                   case when el.method = 'deterministic:exact_name' then 'nameonly'
+                        when coalesce((el.features->>'gamma_people')::int, 0) >= 1 then 'people'
+                        else 'band' end as cls
             from internal.er_labels l
             join internal.entity_links el
               on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
@@ -99,24 +117,27 @@ def eval_funds(threshold: float = 0.99) -> None:
         click.echo("No labels yet. Run `funderdb resolve label funds` first.")
         return
 
-    above = [(lab, p) for lab, p in rows if float(p) >= threshold]
-    correct = sum(1 for lab, _ in above if lab == "match")
-    n = len(above)
-    click.echo(f"labels total: {len(rows)} · above threshold {threshold}: {n}")
-    if n:
-        phat = correct / n
-        z = 1.96
-        denom = 1 + z * z / n
-        centre = phat + z * z / (2 * n)
-        margin = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n))
-        wilson_low = (centre - margin) / denom
-        click.echo(f"precision above threshold: {correct}/{n} = {phat:.3f} · "
-                   f"Wilson 95% lower bound = {wilson_low:.3f}")
-        click.echo("GATE " + ("PASSED — lower bound > 0.90"
-                              if wilson_low > 0.90 and n >= 200
-                              else f"not yet ({'need >=200 labeled above-threshold pairs' if n < 200 else 'lower bound <= 0.90 — raise the threshold'})"))
-    band = [(lab, p) for lab, p in rows if float(p) < threshold]
-    if band:
-        band_correct = sum(1 for lab, _ in band if lab == "match")
-        click.echo(f"review band: {band_correct}/{len(band)} are matches "
-                   "(informs threshold placement)")
+    click.echo(f"labels total (excl. unsure): {len(rows)}\n")
+    gate_passed = False
+    for cls, description, auto_rule in (
+        ("people", "exact/near name + shared people (Splink auto-tier candidates)",
+         "auto-accept if certified"),
+        ("nameonly", "exact name, no people evidence (deterministic class)",
+         "auto-accept ONLY if this class certifies separately"),
+        ("band", "fuzzy name, weak evidence", "stays pending"),
+    ):
+        sub = [lab for lab, c in rows if c == cls]
+        if not sub:
+            click.echo(f"{cls:>9}: no labels yet — {description}")
+            continue
+        correct = sum(1 for lab in sub if lab == "match")
+        low = _wilson_low(correct, len(sub))
+        verdict = "CERTIFIED (>0.90)" if low > 0.90 and len(sub) >= 100 else \
+                  f"not yet (n={len(sub)}, need >=100 and lower bound > 0.90)"
+        click.echo(f"{cls:>9}: {correct}/{len(sub)} match · Wilson low {low:.3f} · {verdict}")
+        click.echo(f"           {description} → {auto_rule}")
+        if cls == "people" and low > 0.90 and len(sub) >= 100:
+            gate_passed = True
+    click.echo("\nGATE " + ("PASSED for the people class — `resolve funds --apply` unlocked "
+                            "for people-corroborated links"
+                            if gate_passed else "not yet passed"))
