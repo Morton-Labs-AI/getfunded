@@ -157,6 +157,26 @@ def resolve_funds(do_predict: bool, do_apply: bool, threshold: float, force: boo
             click.echo(f"{k}: {v:,}")
 
 
+@resolve.command("people")
+@click.option("--predict", "do_predict", is_flag=True, help="Export, train, score, load links.")
+@click.option("--apply", "do_apply", is_flag=True, help="Recompute the canonical map (gated on labels).")
+@click.option("--threshold", type=float, default=0.99, show_default=True)
+@click.option("--force", is_flag=True,
+              help="On --predict: run without the funds canonical map (recall-only "
+                   "degradation). On --apply: skip the label gate (provisional).")
+def resolve_people(do_predict: bool, do_apply: bool, threshold: float, force: bool) -> None:
+    from .resolve import people
+
+    if not (do_predict or do_apply):
+        raise click.UsageError("Pass --predict and/or --apply.")
+    if do_predict:
+        for k, v in people.predict(force=force).items():
+            click.echo(f"{k}: {v:,}")
+    if do_apply:
+        for k, v in people.apply(threshold=threshold, force=force).items():
+            click.echo(f"{k}: {v:,}")
+
+
 @resolve.command("label")
 @click.argument("job", type=click.Choice(["funds", "people"]))
 @click.option("--n", type=int, default=40, show_default=True)
