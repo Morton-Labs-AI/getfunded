@@ -139,6 +139,44 @@ def resolve() -> None:
     """Entity resolution: funds -> people -> recipients."""
 
 
+@resolve.command("funds")
+@click.option("--predict", "do_predict", is_flag=True, help="Export, train, score, load links.")
+@click.option("--apply", "do_apply", is_flag=True, help="Recompute the canonical map (gated on labels).")
+@click.option("--threshold", type=float, default=0.99, show_default=True)
+@click.option("--force", is_flag=True, help="Apply without the label gate (provisional).")
+def resolve_funds(do_predict: bool, do_apply: bool, threshold: float, force: bool) -> None:
+    from .resolve import funds
+
+    if not (do_predict or do_apply):
+        raise click.UsageError("Pass --predict and/or --apply.")
+    if do_predict:
+        for k, v in funds.predict().items():
+            click.echo(f"{k}: {v:,}")
+    if do_apply:
+        for k, v in funds.apply(threshold=threshold, force=force).items():
+            click.echo(f"{k}: {v:,}")
+
+
+@resolve.command("label")
+@click.argument("job", type=click.Choice(["funds"]))
+@click.option("--n", type=int, default=40, show_default=True)
+@click.option("--stratum", type=click.Choice(["above", "band", "all"]), default="above",
+              show_default=True)
+def resolve_label(job: str, n: int, stratum: str) -> None:
+    from .resolve import labeling
+
+    labeling.label_funds(n, stratum)
+
+
+@resolve.command("eval")
+@click.argument("job", type=click.Choice(["funds"]))
+@click.option("--threshold", type=float, default=0.99, show_default=True)
+def resolve_eval(job: str, threshold: float) -> None:
+    from .resolve import labeling
+
+    labeling.eval_funds(threshold)
+
+
 @resolve.command("recipients")
 @click.option("--no-apply", is_flag=True, help="Compute matches without touching funding_events.")
 @click.option("--max-tier", type=int, default=3, show_default=True)
