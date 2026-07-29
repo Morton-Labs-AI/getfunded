@@ -29,7 +29,7 @@ from ..config import get_settings
 from ..db import connect
 
 AUTO_THRESHOLD = 0.99   # provisional until `resolve eval funds` certifies
-REVIEW_FLOOR = 0.50
+REVIEW_FLOOR = 0.20     # wide pending band; the labeling pass locates the cliff
 CLUSTER_CAP = 4
 
 # Person names are TOKEN-SORTED before comparison: ADV Schedule A/B stores
@@ -193,12 +193,25 @@ def predict(sample_only: bool = False) -> dict:
         recall=0.7,
     )
     linker.training.estimate_u_using_random_sampling(max_pairs=5_000_000)
+    # Two EM passes: a variable's m-values can't be trained inside its own
+    # blocking rule, so name_norm trains in the (first_token, state) session
+    # and people/state/fund_type train in the name_norm session.
     linker.training.estimate_parameters_using_expectation_maximisation(
         block_on("name_norm")
+    )
+    linker.training.estimate_parameters_using_expectation_maximisation(
+        block_on("first_token", "state")
     )
 
     preds = linker.inference.predict(threshold_match_probability=REVIEW_FLOOR)
     df = preds.as_pandas_dataframe()
+
+    import numpy as np
+    hist, edges = np.histogram(df["match_probability"],
+                               bins=[0.2, 0.5, 0.8, 0.95, 0.99, 1.0001])
+    print("probability distribution:",
+          {f"{edges[i]:.2f}-{edges[i+1]:.2f}": int(hist[i]) for i in range(len(hist))},
+          flush=True)
 
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     pred_path = er_dir / f"funds_predictions_{ts}.parquet"

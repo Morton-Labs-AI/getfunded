@@ -76,9 +76,12 @@ def load_pf_index(year: int) -> list[PfFiling]:
 
 
 def stage_batch(year: int, batch_id: str) -> staging.StagedFile:
+    # The 2024 index writes some batch ids lowercase ('2024_TEOS_XML_05a')
+    # while the published zips are uppercase ('...05A.zip') — normalize.
+    batch = batch_id.strip().upper()
     return staging.stage_download(
-        DATASET, BATCH_URL.format(year=year, batch=batch_id),
-        filename=f"{batch_id}.zip", timeout=600.0,
+        DATASET, BATCH_URL.format(year=year, batch=batch),
+        filename=f"{batch}.zip", timeout=600.0,
     )
 
 
@@ -317,15 +320,24 @@ def _iter_wanted_members(path: Path, todo: list[PfFiling], totals: dict):
     with zipfile.ZipFile(path) as zf:
         infos = zf.infolist()
         deflate64 = any(i.compress_type == 9 for i in infos[:200])
-        member_names = {i.filename for i in infos}
-    present = {oid: f for oid, f in wanted.items() if f"{oid}_public.xml" in member_names}
+        # 2024-era zips nest members in a '<batch>/' folder; 2025+ are flat.
+        # Map basename -> full member path so both layouts resolve.
+        member_by_base = {
+            i.filename.rsplit("/", 1)[-1]: i.filename
+            for i in infos if not i.is_dir()
+        }
+    present = {
+        oid: (f, member_by_base[f"{oid}_public.xml"])
+        for oid, f in wanted.items()
+        if f"{oid}_public.xml" in member_by_base
+    }
     if not present:
         return
     if not deflate64:
         with zipfile.ZipFile(path) as zf:
-            for oid, f in present.items():
+            for oid, (f, member) in present.items():
                 try:
-                    yield f, zf.read(f"{oid}_public.xml")
+                    yield f, zf.read(member)
                 except (NotImplementedError, zipfile.BadZipFile):
                     totals["member_errors"] += 1
         return
@@ -340,6 +352,7 @@ def _iter_wanted_members(path: Path, todo: list[PfFiling], totals: dict):
 
     from stream_unzip import stream_unzip
 
+    by_base = {f"{oid}_public.xml": (oid, f) for oid, (f, _m) in present.items()}
     with path.open("rb") as fh:
         def chunks():
             while c := fh.read(1 << 20):
@@ -347,33 +360,35 @@ def _iter_wanted_members(path: Path, todo: list[PfFiling], totals: dict):
 
         for name, _size, member_chunks in stream_unzip(chunks()):
             nm = name.decode("utf-8", "replace") if isinstance(name, bytes) else name
-            oid = nm.removesuffix("_public.xml")
-            if oid in present:
-                yield present[oid], b"".join(member_chunks)
+            base = nm.rsplit("/", 1)[-1]
+            if base in by_base:
+                yield by_base[base][1], b"".join(member_chunks)
             else:
                 for _ in member_chunks:  # stream must be fully consumed
                     pass
 
 
-def _extract_via_7zz(path: Path, wanted: dict[str, PfFiling], totals: dict):
+def _extract_via_7zz(path: Path, present: dict[str, tuple[PfFiling, str]], totals: dict):
+    """`present` maps object_id -> (filing, full member path inside the zip).
+    7zz 'e' flattens on extraction, so outputs are basenames either way."""
     import subprocess
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="funderdb_7z_") as tmp:
         listfile = Path(tmp) / "members.txt"
-        listfile.write_text("\n".join(f"{oid}_public.xml" for oid in wanted))
+        listfile.write_text("\n".join(member for _f, member in present.values()))
         outdir = Path(tmp) / "out"
         outdir.mkdir()
         subprocess.run(
             ["7zz", "e", str(path), f"-o{outdir}", f"@{listfile}", "-y", "-bso0", "-bsp0"],
             check=True, capture_output=True,
         )
-        for oid, f in wanted.items():
-            member = outdir / f"{oid}_public.xml"
-            if member.exists():
-                yield f, member.read_bytes()
+        for oid, (f, _member) in present.items():
+            out = outdir / f"{oid}_public.xml"
+            if out.exists():
+                yield f, out.read_bytes()
             else:
-                totals["members_missing"] += 1
+                totals["member_errors"] += 1
 
 
 def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
@@ -396,7 +411,16 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                 if not todo:
                     totals["batches_skipped"] += 1
                     continue
-                staged = stage_batch(year, batch_id)
+                try:
+                    staged = stage_batch(year, batch_id)
+                except Exception as exc:
+                    # Membership-driven processing tolerates a missing zip:
+                    # other batches may carry the filings; the year-end missing
+                    # count reports what nothing carried.
+                    print(f"{batch_id}: download failed ({exc}) — skipping batch",
+                          flush=True)
+                    totals["batches_unavailable"] += 1
+                    continue
                 raw_file_id = staging.register_raw_file(
                     conn, staged, license_code="us_public_domain",
                     content_type="application/zip",
