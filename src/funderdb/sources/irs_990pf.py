@@ -54,12 +54,14 @@ def stage_index(year: int) -> staging.StagedFile:
     )
 
 
-def load_pf_index(year: int) -> list[PfFiling]:
+def load_index(year: int, return_type: str = "990PF") -> list[PfFiling]:
+    """Index rows for one RETURN_TYPE. The Schedule I loader shares this with
+    return_type='990'; PfFiling is return-type-agnostic."""
     staged = stage_index(year)
     out: list[PfFiling] = []
     with staged.path.open(encoding="utf-8", errors="replace") as fh:
         for row in csv.DictReader(fh):
-            if (row.get("RETURN_TYPE") or "").strip() != "990PF":
+            if (row.get("RETURN_TYPE") or "").strip() != return_type:
                 continue
             ein = normalize_ein(row.get("EIN") or "")
             oid = (row.get("OBJECT_ID") or "").strip()
@@ -73,6 +75,10 @@ def load_pf_index(year: int) -> list[PfFiling]:
                 batch_id=batch,
             ))
     return out
+
+
+def load_pf_index(year: int) -> list[PfFiling]:
+    return load_index(year, return_type="990PF")
 
 
 def stage_batch(year: int, batch_id: str) -> staging.StagedFile:

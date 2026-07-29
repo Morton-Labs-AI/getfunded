@@ -67,6 +67,23 @@ def ingest_990pf(years: tuple[int, ...]) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+@ingest.command("990")
+@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025))
+@click.option("--dry-run", is_flag=True,
+              help="Measure Schedule I prevalence over already-staged zips; "
+                   "no DB writes, no downloads.")
+@click.option("--limit", type=int, default=None,
+              help="Dry-run: stop after N filings scanned.")
+def ingest_990(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None:
+    """Public-charity 990 Schedule I grants (shares the 990-PF staging)."""
+    from .sources import irs_990_sched_i
+
+    totals = (irs_990_sched_i.dry_run(years=years, limit=limit)
+              if dry_run else irs_990_sched_i.ingest(years=years))
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("formd")
 @click.option("--start", default="2024q1", help="First quarter to ingest (e.g. 2024q1).")
 def ingest_formd(start: str) -> None:
