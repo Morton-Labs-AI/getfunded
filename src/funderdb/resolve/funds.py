@@ -32,15 +32,32 @@ AUTO_THRESHOLD = 0.99   # provisional until `resolve eval funds` certifies
 REVIEW_FLOOR = 0.50
 CLUSTER_CAP = 4
 
-_ADV_FRAME_SQL = """
+# Person names are TOKEN-SORTED before comparison: ADV Schedule A/B stores
+# "Last, First Middle" while Form D stores "First Last", so raw normalization
+# never intersects ("BONDICK GREGORY JOHN" vs "GREGORY JOHN BONDICK"). Sorting
+# tokens makes both sides "BONDICK GREGORY JOHN". Entity GPs listed as Form D
+# related persons (names containing LLC/LP/FUND/...) are filtered out — they
+# are organizations, not people, and pollute the discriminator.
+_PERSON_KEY = """
+(select string_agg(t, ' ' order by t)
+   from unnest(string_to_array(internal.norm_name(p.full_name), ' ')) t)
+"""
+_ENTITY_NAME_RE = (
+    r"\m(LLC|L L C|LTD|INC|CORP|GP|LP|L P|LLP|FUND|FUNDS|GROUP|PARTNERS|"
+    r"CAPITAL|MANAGEMENT|HOLDINGS|ADVISORS|ADVISERS|COMPANY|TRUST)\M"
+)
+
+_ADV_FRAME_SQL = f"""
 select f.id::text as unique_id,
        f.name_normalized as name_norm,
        split_part(f.name_normalized, ' ', 1) as first_token,
        f.state,
        f.focus_areas[1] as fund_type,
        max(a.name_normalized) as adviser_name,
-       coalesce(array_agg(distinct internal.norm_name(p.full_name))
-                filter (where p.id is not null), '{}') as people
+       coalesce(array_agg(distinct {_PERSON_KEY})
+                filter (where p.id is not null
+                        and internal.norm_name(p.full_name) !~ %(entity_re)s),
+                '{{}}') as people
 from internal.organizations f
 join internal.org_identifiers fi
   on fi.org_id = f.id and fi.id_type = 'sec_private_fund_id'
@@ -55,15 +72,17 @@ where f.org_type = 'fund'
 group by f.id, f.name_normalized, f.state, f.focus_areas
 """
 
-_FORMD_FRAME_SQL = """
+_FORMD_FRAME_SQL = f"""
 select f.id::text as unique_id,
        f.name_normalized as name_norm,
        split_part(f.name_normalized, ' ', 1) as first_token,
        f.state,
        null::text as fund_type,
        null::text as adviser_name,
-       coalesce(array_agg(distinct internal.norm_name(p.full_name))
-                filter (where p.id is not null), '{}') as people
+       coalesce(array_agg(distinct {_PERSON_KEY})
+                filter (where p.id is not null
+                        and internal.norm_name(p.full_name) !~ %(entity_re)s),
+                '{{}}') as people
 from internal.organizations f
 join internal.org_identifiers fi on fi.org_id = f.id and fi.id_type = 'cik'
 left join internal.relationships pr
@@ -85,7 +104,7 @@ def _export_frames(er_dir: Path) -> tuple[Path, Path, int, int]:
         for label, sql_text in (("adv", _ADV_FRAME_SQL), ("formd", _FORMD_FRAME_SQL)):
             with conn.cursor() as cur:
                 cur.execute("set local statement_timeout = '30min'")
-                cur.execute(sql_text)
+                cur.execute(sql_text, {"entity_re": _ENTITY_NAME_RE})
                 rows = cur.fetchall()
                 cols = [d.name for d in cur.description]
             table = pa.table(

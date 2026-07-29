@@ -126,6 +126,12 @@ def _download_with_resume(
     while True:
         offset = tmp.stat().st_size if tmp.exists() else 0
         req_headers = dict(headers or {})
+        # IRS/Akamai intermittently 404-redirects default python UAs (observed
+        # on the 2024 index, 2026-07-29); identify as a normal client.
+        req_headers.setdefault(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh) MortonLabs-funderdb (zach@mortonlabs.ai)",
+        )
         if offset:
             req_headers["Range"] = f"bytes={offset}-"
         try:

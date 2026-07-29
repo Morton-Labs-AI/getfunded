@@ -33,7 +33,7 @@ from pathlib import Path
 from .. import ledger, staging
 from ..config import get_settings
 from ..db import connect
-from ..normalize import normalize_crd, normalize_name, parse_amount
+from ..normalize import normalize_crd, normalize_name, parse_amount, state_code
 
 DATASET = "sec_form_adv_filings"
 
@@ -236,7 +236,10 @@ def ingest() -> dict:
                                         copy.write_row((
                                             fund_id, w.crd, fund_name,
                                             normalize_name(fund_name),
-                                            (row.get("State") or "").strip() or None,
+                                            # 7B1 carries full state names
+                                            # ("Delaware"); store codes like
+                                            # every other source.
+                                            state_code(row.get("State")),
                                             (row.get("Country") or "").strip() or None,
                                             (row.get("Fund Type") or "").strip() or None,
                                             parse_amount(row.get("Gross Asset Value") or ""),
