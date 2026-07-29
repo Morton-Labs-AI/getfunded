@@ -60,12 +60,17 @@ export default async function OrgPage({
   const isAdviser = ["vc", "pe", "investment_adviser"].includes(org.org_type);
   const isFund = org.org_type === "fund";
   const isAgency = org.org_type === "gov_agency";
+  // Public charities are grantmakers too once Schedule I lands; unlike
+  // foundations they keep the Funding-received section (they are also
+  // grant recipients). Renders nothing new while they have no grant rows.
+  const isCharity = org.org_type === "public_charity";
+  const isGrantmaker = isFoundation || isAgency || isCharity;
 
   const [grants, received, byYear, funds, managers, programs] =
     await Promise.all([
-      isFoundation || isAgency ? orgGrantsPaid(memberIds) : Promise.resolve([]),
+      isGrantmaker ? orgGrantsPaid(memberIds) : Promise.resolve([]),
       !isAgency && !isFoundation ? orgEventsReceived(memberIds) : Promise.resolve([]),
-      isFoundation || isAgency ? orgGrantsByYear(memberIds) : Promise.resolve([]),
+      isGrantmaker ? orgGrantsByYear(memberIds) : Promise.resolve([]),
       isAdviser ? orgFundsManaged(id) : Promise.resolve([]),
       isFund ? orgManagedBy(id) : Promise.resolve([]),
       isAgency ? orgProgramsAdministered(id) : Promise.resolve([]),
@@ -105,7 +110,8 @@ export default async function OrgPage({
             href={`/?q=${encodeURIComponent(`Tell me about ${org.name} (org id ${org.id})`)}`}
             className="rounded-[8px] border border-accent-border px-3 py-1.5 text-[12.5px] font-medium text-accent transition-colors duration-[90ms] hover:bg-accent-tint"
           >
-            Ask about this {isFoundation ? "foundation" : isAdviser ? "firm" : "organization"}
+            Ask about this{" "}
+            {isFoundation ? "foundation" : isAdviser ? "firm" : isCharity ? "charity" : "organization"}
           </Link>
         </div>
         <h1 className="mt-2 text-[26px] font-[650] leading-8 tracking-[-0.02em] text-ink-1">
@@ -160,7 +166,7 @@ export default async function OrgPage({
 
       {/* stat row */}
       <section className="flex flex-wrap gap-8 border-b border-border-1 py-6">
-        {isFoundation && (
+        {(isFoundation || isCharity) && (
           <>
             <MoneyStat label="assets" value={org.asset_amount} prov={prov} />
             <MoneyStat label="income" value={org.income_amount} prov={prov} />
@@ -174,10 +180,10 @@ export default async function OrgPage({
           </>
         )}
         {isFund && <MoneyStat label="gross asset value" value={org.fund_size} prov={prov} />}
-        {(isFoundation || isAgency) && nGiven > 0 && (
+        {isGrantmaker && nGiven > 0 && (
           <div className="flex flex-col gap-1">
             <span className="mono-label">
-              {isFoundation ? "grants on file" : "awards on file"}
+              {isAgency ? "awards on file" : "grants on file"}
             </span>
             <span className="tnum text-[30px] font-semibold leading-9 tracking-[-0.02em] text-ink-1">
               {countFull(nGiven)}
@@ -207,9 +213,9 @@ export default async function OrgPage({
       )}
 
       {/* grants paid */}
-      {(isFoundation || isAgency) && grants.length > 0 && (
+      {isGrantmaker && grants.length > 0 && (
         <Section
-          title={isFoundation ? "Grants paid" : "Awards made"}
+          title={isAgency ? "Awards made" : "Grants paid"}
           aside={
             byYear.length > 0 ? (
               <YearBars data={byYear} fill="var(--cat-grant-fill)" unitLabel="grants" />
