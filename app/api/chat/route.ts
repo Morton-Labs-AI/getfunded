@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { DB_TOOLS, runDbTool } from "@/lib/ai/tools";
-import { SYSTEM_PROMPT } from "@/lib/ai/system-prompt";
+import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,10 +50,12 @@ export async function POST(req: Request) {
   }
 
   const client = new Anthropic();
+  // Census-driven but frozen after first successful build — stays
+  // cache-stable per process (see buildSystemPrompt).
   const system: Anthropic.TextBlockParam[] = [
     {
       type: "text",
-      text: SYSTEM_PROMPT,
+      text: await buildSystemPrompt(),
       cache_control: { type: "ephemeral" },
     },
   ];

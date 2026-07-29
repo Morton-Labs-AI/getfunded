@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Chart, type ChartSpec } from "./chart";
 import { moneyFull, MDASH } from "@/lib/format";
+import { AS_REPORTED_NOTE } from "@/lib/content/facts";
 
 /* ----------------------------------------------------------------- types */
 
@@ -658,10 +659,7 @@ function Cell({
   if (col === "recipient_name") {
     return (
       <td className="px-3.5 py-2 text-ink-2">
-        <span
-          className="as-reported"
-          title="As reported in the filing; no resolved org record (unmatched recipients stay as-reported — never stubbed)"
-        >
+        <span className="as-reported" title={AS_REPORTED_NOTE}>
           {String(value)}
         </span>
       </td>

@@ -19,6 +19,7 @@ import {
 import { SourceGlyph } from "@/components/source-glyph";
 import { TrichotomyBadge, CategoryRule } from "@/components/trichotomy-badge";
 import { YearBars } from "@/components/year-bars";
+import { AS_REPORTED_NOTE, PERSON_CAVEAT } from "@/lib/content/facts";
 import {
   moneyCompact,
   moneyFull,
@@ -206,9 +207,7 @@ export default async function OrgPage({
               <PersonChipEl key={p.person_id} p={p} />
             ))}
           </div>
-          <p className="mt-3 text-[11.5px] text-ink-4">
-            Person records are per-source until Phase 2 entity resolution.
-          </p>
+          <p className="mt-3 text-[11.5px] text-ink-4">{PERSON_CAVEAT}</p>
         </Section>
       )}
 
@@ -440,10 +439,7 @@ function EventsTable({
                         {e.recipient_name}
                       </Link>
                     ) : (
-                      <span
-                        className="as-reported"
-                        title="As reported in the filing; no resolved org record (unmatched recipients stay as-reported — never stubbed)"
-                      >
+                      <span className="as-reported" title={AS_REPORTED_NOTE}>
                         {e.recipient_name}
                       </span>
                     )}
