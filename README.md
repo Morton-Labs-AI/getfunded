@@ -31,6 +31,26 @@ The April 2026 predecessor produced 60 files and zero rows. Inverted here:
 3. If a gate slips >2 days, shrink the data slice — never retreat into
    refactoring or schema redesign.
 
+## Phase-2 gates (status 2026-07-29)
+
+| Gate | Content | Status |
+|---|---|---|
+| G0 | Re-ingest + baseline on grown DB | ✅ |
+| G1 | Hybrid semantic search (148k-doc corpus, voyage-3.5@512, HNSW, `internal.hybrid_search`) | ✅ + **0011 regression fix**: filtered queries take an exact vector leg (HNSW post-filtering had silently zeroed minority-kind results; caught by `funderdb eval semantic`) |
+| G2 | 990-PF back-years | 🟡 2024 complete (126,982/126,982 indexed filings — zero missing; +1.7M grants); 2023/2022/2021 gated on the 16GB disk bump |
+| G3 | Full BMF exempt spine (2.26M orgs; never-demote-a-grantmaker) | ✅ |
+| G4 | Entity resolution | 🟡 recipients tiers 1–3 applied (886,763 grant rows); funds: 25,208 links staged, apply gated on labeling (n≥100, Wilson>0.90); people job BUILT (org-evidence-gated auto-accept, the Eric Schmidt rule enforced twice), runs after funds apply |
+| G5 | Schedule I (public-charity grants) | 🟡 parser built + fixture-tested + real-data dry-run (11.3% of 990s carry Schedule I; 89.6% of rows carry recipient EIN → direct resolution); runs after back-years + size gate, newest-first |
+| G6 | UI v2 | 🟡 ungated commits shipped (recipient links, canonical plumbing incl. redirect + identifier union, shared YearBars, charity variant, /browse thesis blend, facts.ts + census prompt + /data ER section); person pages gated on the people precision gate |
+| Suite v2 | `uv run funderdb eval all` — B1–B10 verbatim + E-series semantic + ER floors | ✅ 28 PASS · 0 FAIL · 3 REPORT/SKIP (link jobs SKIP until applied) |
+
+**Benchmark v2:** one command — `uv run funderdb eval all` (subsets: `eval sql`,
+`eval semantic`, `eval er`). B-series executes verbatim from
+[benchmarks/queries.sql](benchmarks/queries.sql) (append-only record; the
+runner prints a paste-ready dated block); assertions live in
+[benchmarks/expectations.py](benchmarks/expectations.py). Link-job precision
+reports SKIP until a job applies; an uncertified (forced) apply reads as FAIL.
+
 ## Phase-1 gates — ALL COMPLETE (2026-07-25)
 
 | Gate | Content | Status |
