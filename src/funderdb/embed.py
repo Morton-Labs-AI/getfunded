@@ -291,6 +291,23 @@ def build_docs(kinds: list[str] | None = None, dry_run: bool = False) -> dict:
     return counts
 
 
+def query_embed(text: str) -> list[float]:
+    """One query-side embedding (input_type='query') — the E-series evals."""
+    settings = get_settings()
+    api_key = getattr(settings, "voyage_api_key", None)
+    if not api_key:
+        raise RuntimeError("VOYAGE_API_KEY is not set in .env")
+    resp = httpx.post(
+        VOYAGE_URL,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": MODEL, "input": [text],
+              "input_type": "query", "output_dimension": DIMS},
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    return resp.json()["data"][0]["embedding"]
+
+
 def embed_pending(limit: int | None = None) -> dict:
     """Embed all docs with embedding IS NULL, in Voyage batches."""
     settings = get_settings()

@@ -203,3 +203,58 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 --   $142.5B total, median $3,000, avg $61,310, p99 $651,000, only 10 rows
 --   over $1B and all legitimate (Gates Foundation Trust -> Gates Foundation
 --   $8.1B; pharma foundations valuing donated drugs at list price).
+
+-- ===========================================================================
+-- 2026-07-29 · SUITE V2 FIRST RUN (`funderdb eval all`) + HNSW REGRESSION
+-- ===========================================================================
+-- The one-command runner (src/funderdb/evalsuite.py + benchmarks/
+-- expectations.py) executes B1-B10 VERBATIM from this file, the E-series
+-- against internal.hybrid_search with real query embeddings, and the ER
+-- series against the recorded ER3 floors. Its first run caught a real
+-- regression:
+--
+-- REGRESSION (found by E1b/E2; fixed by migration 0011): the HNSW build
+-- (2026-07-26) silently broke KIND-FILTERED semantic search. The index scan
+-- yields global-nearest tuples that are then post-filtered, and the
+-- embedding space clusters by doc_kind — so kinds=['adviser'] returned ZERO
+-- vector-leg rows (E2 recorded Lowercarbon at #30) and
+-- kinds=['foundation','program'] surfaced 0 of the 4 fusion programs (E1b
+-- recorded all 4 on top). iterative_scan cannot cross the cluster gap.
+-- Every recorded E-result had been measured on the pre-index exact path.
+-- Fix: filtered queries now take an exact vector leg (`(dist) + 0.0`
+-- defeats the index; ranks within the filtered universe, ~150-800ms);
+-- unfiltered queries keep the 52ms HNSW path. Verified: E1b back to 4/4
+-- programs in top 6, E2 back to Lowercarbon rank=30 exactly.
+--
+-- Results after 0011, on the grown DB (2024 back-year complete: 4.35M
+-- events, 289,775 PF filings, 2.26M orgs):
+--      B1 [B] PASS: 7 programs; INFUSE present with funds_lab_not_company=True
+--      B2 [B] PASS: 5 distinct SBIR/STTR agencies
+--      B3 [B] PASS: Lowercarbon CRD 162946 resolved; Prelude rows=5 name-adjacent
+--             non-ADV rows (documented absence from ADV/FormD holds)
+--      B4 [B] PASS: 50 climate/energy advisers (floor 40)
+--      B5 [B] PASS: 25 Schmidt-family foundation rows
+--      B6 [B] PASS: 50 energy/science foundations >$10M (floor 40)
+--      B7 [B] PASS: 4 IL science/energy foundations >$10M (floor 4)
+--      B8 [B] PASS: 50 energy/science grant rows (floor 40)
+--      B9 [B] PASS: 50 Reg D offerings in last 12mo (floor 40)
+--     B10 [B] PASS: 2,264,888 orgs, 0 provenance orphans
+--     B5b [B] PASS: Stellar Energy Foundation org row present (public_charity);
+--             flips to a grants-visible gate when Schedule I lands
+--      E1 [E] PASS: 0 medical-fusion contaminants in top 10
+--     E1b [E] PASS: 4/4 fusion programs in top 6
+--      E2 [E] PASS: top10 all advisers; Lowercarbon rank=30 (recorded: #30)
+--      E3 [E] PASS: INFUSE #1 for non-dilutive fusion phrasing
+--      E4 [E] REPORT: end-to-end analyst test not asserted headlessly
+--      E5 [E] PASS: 3/3 known climate funders in top 10
+--      E7 [E] PASS: negative control (youth ballet) — 0 energy orgs
+--      E8 [E] PASS: state filter respected (30/30 CA)
+--      E9 [E] PASS: min_size filter respected (30/30 >= $1B)
+--     E10 [E] PASS: FTS leg — Lowercarbon #1 for its own name
+--   ER-tier1/2/3 [ER] PASS: 349,293 / 784 / 57,813 (== recorded floors)
+--   ER-linked [ER] PASS: 886,763 grant rows resolved
+--   ER-spot [ER] PASS x3: MIT->MA tier1, Princeton->NJ tier1 (the plain
+--             'PRINCETON UNIVERSITY' row; 'TRUSTEES OF...' resolves in WA),
+--             zero placeholder-text matches
+--   ER-funds [ER] SKIP: not applied yet (labels 2/2, Wilson 0.342)
+--   ER-people [ER] SKIP: not applied yet

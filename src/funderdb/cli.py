@@ -226,6 +226,39 @@ def resolve_recipients(no_apply: bool, max_tier: int) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+@main.group("eval")
+def eval_group() -> None:
+    """Benchmark suite v2: B-series SQL, E-series semantic, ER precision."""
+
+
+@eval_group.command("sql")
+def eval_sql() -> None:
+    from . import evalsuite
+
+    evalsuite.main("sql")
+
+
+@eval_group.command("semantic")
+def eval_semantic() -> None:
+    from . import evalsuite
+
+    evalsuite.main("semantic")
+
+
+@eval_group.command("er")
+def eval_er() -> None:
+    from . import evalsuite
+
+    evalsuite.main("er")
+
+
+@eval_group.command("all")
+def eval_all() -> None:
+    from . import evalsuite
+
+    evalsuite.main("all")
+
+
 @main.command()
 def status() -> None:
     """Ledger runs + row counts."""
