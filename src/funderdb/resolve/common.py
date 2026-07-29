@@ -89,8 +89,14 @@ def export_query_to_parquet(conn, sql: str, params, path, batch_rows: int = 50_0
     n = 0
     writer = None
     try:
-        with conn.cursor() as cur:
-            cur.execute("set local statement_timeout = '30min'")
+        # set local needs a plain cursor (it also opens the transaction the
+        # named cursor below participates in); the NAMED cursor makes this a
+        # true server-side stream — a client-side cursor would buffer the
+        # whole result set in Python at execute().
+        with conn.cursor() as setup:
+            setup.execute("set local statement_timeout = '30min'")
+        with conn.cursor(name="er_parquet_export") as cur:
+            cur.itersize = batch_rows
             cur.execute(sql, params)
             cols = [d.name for d in cur.description]
             while True:

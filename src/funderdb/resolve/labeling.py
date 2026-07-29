@@ -32,8 +32,13 @@ select o.id, o.name, o.state, o.fund_size::text,
 from internal.organizations o where o.id = any(%s)
 """
 
-# Org evidence is displayed canonical-routed (org_resolve), exactly as the
-# people job's frame computes it — the reviewer sees what the model saw.
+# Org evidence is displayed with the SAME three arms the people job's frame
+# computes — direct edges ∪ one-hop manages_fund ∪ primary org, all
+# canonical-routed — so the reviewer sees exactly what the model saw. The
+# hop arm is load-bearing: ADV person edges point at the adviser while
+# Form D edges point at the fund, so cross-source shared evidence exists
+# ONLY via the hop; a direct-only display would tell the labeler "name
+# evidence only" on precisely the pairs the org gate certifies.
 _PERSON_DETAIL = """
 select p.id, p.full_name, p.primary_title,
        split_part(p.source_natural_key, ':', 1) as source,
@@ -45,7 +50,26 @@ select p.id, p.full_name, p.primary_title,
                   from internal.relationships rel
                   join internal.org_resolve orr on orr.org_id = rel.to_org_id
                   join internal.organizations og on og.id = orr.canonical_id
-                 where rel.from_person_id = p.id) x), '[]'::jsonb) as orgs
+                 where rel.from_person_id = p.id
+                   and rel.rel_type in ('owner_of','executive_of','officer_of',
+                                        'director_of','trustee_of','poc_for')
+                union
+                select distinct fr.canonical_id::text,
+                       og2.name || ' [fund]'
+                  from internal.relationships rel2
+                  join internal.relationships mf
+                    on mf.from_org_id = rel2.to_org_id
+                   and mf.rel_type = 'manages_fund'
+                  join internal.org_resolve fr on fr.org_id = mf.to_org_id
+                  join internal.organizations og2 on og2.id = fr.canonical_id
+                 where rel2.from_person_id = p.id
+                   and rel2.rel_type in ('owner_of','executive_of','officer_of',
+                                         'director_of','trustee_of','poc_for')
+                union
+                select r3.canonical_id::text, og3.name || ' [primary]'
+                  from internal.org_resolve r3
+                  join internal.organizations og3 on og3.id = r3.canonical_id
+                 where r3.org_id = p.primary_org_id) x), '[]'::jsonb) as orgs
 from internal.people p
 left join internal.organizations po on po.id = p.primary_org_id
 where p.id = any(%s)

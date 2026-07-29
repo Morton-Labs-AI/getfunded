@@ -309,6 +309,9 @@ def predict(force: bool = False) -> dict:
                         ))
                 # THE POLICY, in the status CASE: auto requires the org
                 # comparison to have fired, not just a high probability.
+                # The conflict WHERE freezes human-decided rows entirely —
+                # not just their status but the evidence snapshot (features,
+                # method, probability) the human actually ruled on.
                 cur.execute("""
                     insert into internal.entity_links
                       (entity_type, job, id_a, id_b, method, match_weight,
@@ -327,9 +330,8 @@ def predict(force: bool = False) -> dict:
                       features = excluded.features,
                       method = excluded.method,
                       raw_file_id = excluded.raw_file_id,
-                      status = case when internal.entity_links.status in ('auto','pending')
-                                    then excluded.status
-                                    else internal.entity_links.status end""",
+                      status = excluded.status
+                    where internal.entity_links.status in ('auto', 'pending')""",
                     {"job": JOB, "method": f"splink:people@{model_sha}",
                      "rfid": rfid, "auto": AUTO_THRESHOLD})
                 counts["links_loaded"] = cur.rowcount
@@ -436,13 +438,15 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
                     if i != rep:
                         mapping.append((i, rep))
 
+            # Full reset, NOT scoped to ids currently in entity_links: a pair
+            # merged by a prior apply can vanish from entity_links entirely on
+            # re-predict (renamed person exits the blocking keys; evidence
+            # shifts below the floor), and an el-scoped reset would leave that
+            # merge as permanent unauditable state. This job is the sole
+            # writer of canonical_person_id, so the blanket reset is safe.
             cur.execute("""
                 update internal.people set canonical_person_id = null
-                where canonical_person_id is not null
-                  and id in (select id_a from internal.entity_links where job = %(job)s
-                             union
-                             select id_b from internal.entity_links where job = %(job)s)""",
-                {"job": JOB})
+                where canonical_person_id is not null""")
             cur.execute("""
                 create temp table _map (dup uuid, rep uuid) on commit drop""")
             with cur.copy("copy _map (dup, rep) from stdin") as copy:
