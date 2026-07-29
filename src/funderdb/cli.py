@@ -198,6 +198,15 @@ def resolve_eval(job: str, threshold: float | None) -> None:
     labeling.eval_job(job, threshold)
 
 
+@resolve.command("export-labels")
+def resolve_export_labels() -> None:
+    """Export internal.er_labels to data/seed/er_labels/<job>.csv (CC-BY)."""
+    from .resolve import labeling
+
+    for job, n in labeling.export_labels().items():
+        click.echo(f"{job}: {n:,} labels exported")
+
+
 @resolve.command("status")
 def resolve_status() -> None:
     """Per-job link counts, label counts, gate progress, canonical totals."""

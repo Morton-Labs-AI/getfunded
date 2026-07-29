@@ -187,6 +187,40 @@ def eval_job(job_key: str, threshold: float | None = None) -> None:
                             if gate_passed else "not yet passed"))
 
 
+def export_labels(out_dir: str | None = None) -> dict[str, int]:
+    """Write data/seed/er_labels/<job>.csv (CC-BY, committed) — the durable,
+    reviewable form of the hand-labeling investment. Full-file rewrite per
+    job; the DB stays the source of truth and the CSV is its export."""
+    import csv
+    from pathlib import Path
+
+    from ..config import get_settings
+
+    out = Path(out_dir) if out_dir else \
+        Path(get_settings().data_root) / "seed" / "er_labels"
+    out.mkdir(parents=True, exist_ok=True)
+    written: dict[str, int] = {}
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("select distinct job from internal.er_labels order by 1")
+        jobs = [j for (j,) in cur.fetchall()]
+        for job in jobs:
+            cur.execute("""
+                select id_a, id_b, recipient_name_normalized, org_id, label,
+                       labeled_by, notes, created_at
+                from internal.er_labels where job = %s
+                order by created_at, id_a, id_b""", (job,))
+            rows = cur.fetchall()
+            path = out / f"{job}.csv"
+            with open(path, "w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["id_a", "id_b", "recipient_name_normalized",
+                            "org_id", "label", "labeled_by", "notes",
+                            "created_at"])
+                w.writerows(rows)
+            written[job] = len(rows)
+    return written
+
+
 def status_report() -> None:
     """Per-job link/label/gate/canonical summary for `resolve status`."""
     with connect() as conn, conn.cursor() as cur:
