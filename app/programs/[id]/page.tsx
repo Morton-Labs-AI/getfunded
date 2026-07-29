@@ -7,6 +7,7 @@ import {
   programAwardCount,
 } from "@/lib/queries/programs";
 import { SourceGlyph } from "@/components/source-glyph";
+import { YearBars } from "@/components/year-bars";
 import { moneyCompact, moneyFull, countFull, MDASH } from "@/lib/format";
 
 export default async function ProgramPage({
@@ -115,27 +116,8 @@ export default async function ProgramPage({
       </div>
 
       {byYear.length > 0 && (
-        <div className="flex items-end gap-2.5 border-t border-border-1 pt-6">
-          {byYear
-            .slice()
-            .reverse()
-            .map((d) => {
-              const max = Math.max(...byYear.map((y) => Number(y.total ?? 0)), 1);
-              return (
-                <div key={d.fy} className="flex flex-col items-center gap-1">
-                  <span className="tnum font-mono text-[10px] text-ink-3">{moneyCompact(d.total)}</span>
-                  <div
-                    className="w-9 rounded-t-[2px]"
-                    style={{
-                      height: Math.max(6, (Number(d.total ?? 0) / max) * 56),
-                      background: "var(--cat-federal-fill)",
-                    }}
-                    title={`FY${d.fy}: ${countFull(d.n)} awards`}
-                  />
-                  <span className="tnum font-mono text-[10px] text-ink-4">{d.fy}</span>
-                </div>
-              );
-            })}
+        <div className="flex border-t border-border-1 pt-6">
+          <YearBars data={byYear} fill="var(--cat-federal-fill)" unitLabel="awards" />
         </div>
       )}
 

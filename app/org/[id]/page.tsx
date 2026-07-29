@@ -18,6 +18,7 @@ import {
 } from "@/lib/queries/orgs";
 import { SourceGlyph } from "@/components/source-glyph";
 import { TrichotomyBadge, CategoryRule } from "@/components/trichotomy-badge";
+import { YearBars } from "@/components/year-bars";
 import {
   moneyCompact,
   moneyFull,
@@ -209,7 +210,11 @@ export default async function OrgPage({
       {(isFoundation || isAgency) && grants.length > 0 && (
         <Section
           title={isFoundation ? "Grants paid" : "Awards made"}
-          aside={byYear.length > 0 ? <YearBars data={byYear} /> : undefined}
+          aside={
+            byYear.length > 0 ? (
+              <YearBars data={byYear} fill="var(--cat-grant-fill)" unitLabel="grants" />
+            ) : undefined
+          }
         >
           <EventsTable rows={grants} prov={prov} showType={isAgency} />
         </Section>
@@ -382,30 +387,6 @@ function PersonChipEl({ p }: { p: PersonChip }) {
         {(p.title ?? REL_LABEL[p.rel_type] ?? "").toLowerCase().slice(0, 26)}
       </span>
     </span>
-  );
-}
-
-function YearBars({ data }: { data: { fy: number; n: string; total: string | null }[] }) {
-  const max = Math.max(...data.map((d) => Number(d.total ?? 0)), 1);
-  return (
-    <div className="flex items-end gap-2.5">
-      {data.map((d) => (
-        <div key={d.fy} className="flex flex-col items-center gap-1">
-          <span className="tnum font-mono text-[10px] text-ink-3">
-            {moneyCompact(d.total)}
-          </span>
-          <div
-            className="w-8 rounded-t-[2px]"
-            style={{
-              height: Math.max(6, (Number(d.total ?? 0) / max) * 48),
-              background: "var(--cat-grant-fill)",
-            }}
-            title={`FY${d.fy}: ${countFull(d.n)} grants · ${moneyFull(d.total)}`}
-          />
-          <span className="tnum font-mono text-[10px] text-ink-4">{d.fy}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
