@@ -32,20 +32,11 @@ AUTO_THRESHOLD = 0.99   # provisional until `resolve eval funds` certifies
 REVIEW_FLOOR = 0.20     # wide pending band; the labeling pass locates the cliff
 CLUSTER_CAP = 4
 
-# Person names are TOKEN-SORTED before comparison: ADV Schedule A/B stores
-# "Last, First Middle" while Form D stores "First Last", so raw normalization
-# never intersects ("BONDICK GREGORY JOHN" vs "GREGORY JOHN BONDICK"). Sorting
-# tokens makes both sides "BONDICK GREGORY JOHN". Entity GPs listed as Form D
-# related persons (names containing LLC/LP/FUND/...) are filtered out — they
-# are organizations, not people, and pollute the discriminator.
-_PERSON_KEY = """
-(select string_agg(t, ' ' order by t)
-   from unnest(string_to_array(internal.norm_name(p.full_name), ' ')) t)
-"""
-_ENTITY_NAME_RE = (
-    r"\m(LLC|L L C|LTD|INC|CORP|GP|LP|L P|LLP|FUND|FUNDS|GROUP|PARTNERS|"
-    r"CAPITAL|MANAGEMENT|HOLDINGS|ADVISORS|ADVISERS|COMPANY|TRUST)\M"
-)
+# Token-sorted person-name key + entity-GP filter live in common.py (shared
+# with the people dedupe job); aliased here so the frame SQL reads unchanged.
+from .common import ENTITY_NAME_RE as _ENTITY_NAME_RE
+from .common import PERSON_KEY_SQL as _PERSON_KEY
+from .common import union_find_clusters, wilson_low
 
 _ADV_FRAME_SQL = f"""
 select f.id::text as unique_id,
@@ -342,8 +333,7 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
                   and el.method like 'splink:%%'
                   and coalesce((el.features->>'gamma_people')::int, 0) >= 1""")
             correct, n_labels = cur.fetchone()
-            from .labeling import _wilson_low
-            low = _wilson_low(correct or 0, n_labels or 0)
+            low = wilson_low(correct or 0, n_labels or 0)
             if (n_labels < 100 or low <= 0.90) and not force:
                 raise RuntimeError(
                     f"Precision gate: people-class labels {correct}/{n_labels}, "
@@ -365,33 +355,7 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
                 where job = 'funds_adv_formd' and status = 'rejected'""")
             pairs = cur.fetchall()
 
-        # Union-find with cluster cap.
-        parent: dict[str, str] = {}
-
-        def find(x: str) -> str:
-            while parent.get(x, x) != x:
-                parent[x] = parent.get(parent[x], parent[x])
-                x = parent[x]
-            return x
-
-        members: dict[str, set[str]] = {}
-        oversize: set[str] = set()
-        for a, b in pairs:
-            a, b = str(a), str(b)
-            ra, rb = find(a), find(b)
-            if ra == rb:
-                continue
-            ma = members.setdefault(ra, {ra})
-            mb = members.setdefault(rb, {rb})
-            if len(ma) + len(mb) > CLUSTER_CAP:
-                oversize.update(ma | mb)
-                continue
-            parent[rb] = ra
-            ma |= mb
-            members.pop(rb, None)
-
-        clusters = [sorted(m) for m in members.values()
-                    if len(m) > 1 and not (m & oversize)]
+        clusters, oversize = union_find_clusters(pairs, CLUSTER_CAP)
         counts["pairs_used"] = len(pairs)
         counts["clusters"] = len(clusters)
         counts["oversize_skipped"] = len(oversize)
