@@ -1,24 +1,26 @@
-"""Interactive labeling + precision eval for the ER gate.
+"""Interactive labeling + precision eval for the ER gates (job-generic).
 
-`funderdb resolve label funds` shows candidate pairs with all the evidence and
-records y/n/u into internal.er_labels. Sampling is stratified by match
-probability so the eval can place the threshold: above-auto pairs certify
-precision; band pairs locate the cliff.
+`funderdb resolve label <job>` shows candidate pairs with all the evidence and
+records y/n/u into internal.er_labels. Sampling is stratified (see
+common.JOBS[job].strata) so the eval can place the threshold: gate-stratum
+pairs certify precision; band pairs locate the cliff.
 
-Pass rule (per plan): on >=200 labeled above-threshold pairs, >=188 correct —
-the 95% Wilson lower bound then clears 0.90. `resolve eval funds` reports
-progress against that bar at any label count.
+Pass rule (per plan): >=100 labeled gate-stratum pairs with a 95% Wilson lower
+bound above 0.90. At n=200 that means >=189 correct (189/200 -> 0.904;
+188/200 -> 0.898 and does NOT clear — an earlier docstring said 188).
+`resolve eval <job>` reports progress against that bar at any label count.
 """
 
 from __future__ import annotations
 
-import math
+import json
 
 import click
 
 from ..db import connect
+from .common import JOBS, wilson_low
 
-_PAIR_DETAIL = """
+_FUND_DETAIL = """
 select o.id, o.name, o.state, o.fund_size::text,
        (select a.name from internal.relationships r
           join internal.organizations a on a.id = r.from_org_id
@@ -30,114 +32,190 @@ select o.id, o.name, o.state, o.fund_size::text,
 from internal.organizations o where o.id = any(%s)
 """
 
+# Org evidence is displayed canonical-routed (org_resolve), exactly as the
+# people job's frame computes it — the reviewer sees what the model saw.
+_PERSON_DETAIL = """
+select p.id, p.full_name, p.primary_title,
+       split_part(p.source_natural_key, ':', 1) as source,
+       po.name as primary_org, po.state,
+       coalesce((select jsonb_agg(jsonb_build_object('cid', x.cid, 'label', x.label)
+                        order by x.label)
+          from (select distinct orr.canonical_id::text as cid,
+                       og.name || ' [' || rel.rel_type || ']' as label
+                  from internal.relationships rel
+                  join internal.org_resolve orr on orr.org_id = rel.to_org_id
+                  join internal.organizations og on og.id = orr.canonical_id
+                 where rel.from_person_id = p.id) x), '[]'::jsonb) as orgs
+from internal.people p
+left join internal.organizations po on po.id = p.primary_org_id
+where p.id = any(%s)
+"""
 
-def label_funds(n: int, stratum: str) -> None:
+
+def _show_fund_pair(conn, id_a, id_b) -> None:
+    with conn.cursor() as cur:
+        cur.execute(_FUND_DETAIL, ([str(id_a), str(id_b)],))
+        rows = {str(r[0]): r for r in cur.fetchall()}
+    for oid in (str(id_a), str(id_b)):
+        r = rows.get(oid)
+        if not r:
+            continue
+        side = "ADV " if "sec_private_fund_id" in (r[6] or "") else "FormD"
+        click.echo(f"  [{side}] {r[1]}")
+        click.echo(f"         state={r[2] or '—'}  gav={r[3] or '—'}  "
+                   f"adviser={r[4] or '—'}  offerings={r[5]}")
+
+
+def _show_person_pair(conn, id_a, id_b) -> None:
+    with conn.cursor() as cur:
+        cur.execute(_PERSON_DETAIL, ([str(id_a), str(id_b)],))
+        rows = {str(r[0]): r for r in cur.fetchall()}
+    org_sets: dict[str, dict[str, str]] = {}
+    for pid in (str(id_a), str(id_b)):
+        r = rows.get(pid)
+        if not r:
+            continue
+        orgs = r[6] if isinstance(r[6], list) else json.loads(r[6] or "[]")
+        org_sets[pid] = {o["cid"]: o["label"] for o in orgs}
+        shown = " · ".join(o["label"] for o in orgs[:4])
+        more = f"  (+{len(orgs) - 4} more)" if len(orgs) > 4 else ""
+        click.echo(f"  [{r[3]:<8}] {r[1]} — {r[2] or 'no title'}")
+        click.echo(f"             primary: {r[4] or '—'} ({r[5] or '—'})")
+        click.echo(f"             orgs: {shown or '—'}{more}")
+    sets = list(org_sets.values())
+    shared = set(sets[0]) & set(sets[1]) if len(sets) == 2 else set()
+    if shared:
+        click.echo("  SHARED orgs (canonical): "
+                   + " · ".join(sorted(sets[0][c] for c in shared)))
+    else:
+        click.echo("  SHARED orgs: none — name evidence only")
+
+
+_PAIR_RENDERERS = {"funds": _show_fund_pair, "people": _show_person_pair}
+
+
+def label(job_key: str, n: int, stratum: str | None) -> None:
+    spec = JOBS[job_key]
+    stratum = stratum or spec.gate_stratum
+    if stratum not in spec.strata:
+        raise click.UsageError(
+            f"Unknown stratum {stratum!r} for job {job_key!r}; "
+            f"valid: {', '.join(spec.strata)}")
+    where = spec.strata[stratum]
+    # Common-name oversample surfaces high-TF names first: TF adjustment is
+    # exactly what depresses their probability, so ascending order finds them.
+    order = ("el.match_probability asc nulls last, random()"
+             if stratum == "common" else "random()")
+    show_pair = _PAIR_RENDERERS[job_key]
+
     with connect() as conn:
         with conn.cursor() as cur:
-            where = {
-                # Splink-scored pairs with people corroboration — the auto-tier
-                # candidates the gate certifies first.
-                "people": "el.method like 'splink:%%' and coalesce((el.features->>'gamma_people')::int, 0) >= 1",
-                # Exact-name-only deterministic class — measured separately.
-                "nameonly": "el.method = 'deterministic:exact_name'",
-                "band": "el.method like 'splink:%%' and coalesce((el.features->>'gamma_people')::int, 0) = 0",
-                "all": "true",
-            }[stratum]
             cur.execute(f"""
                 select el.id, el.id_a, el.id_b, el.match_probability, el.features
                 from internal.entity_links el
-                where el.job = 'funds_adv_formd' and {where}
+                where el.job = %(job)s and {where}
                   and not exists (select 1 from internal.er_labels l
                                   where l.job = el.job and l.id_a = el.id_a
                                     and l.id_b = el.id_b)
-                order by random() limit %s""", (n,))
+                order by {order} limit %(n)s""",
+                {"job": spec.job, "n": n, "threshold": spec.auto_threshold})
             pairs = cur.fetchall()
 
         if not pairs:
             click.echo("No unlabeled pairs in this stratum.")
             return
 
-        click.echo(f"{len(pairs)} pairs · y = same real-world fund · "
+        click.echo(f"{len(pairs)} pairs · y = same real-world {spec.prompt_noun} · "
                    "n = different · u = unsure · q = quit\n")
         done = 0
-        for link_id, id_a, id_b, prob, features in pairs:
-            with conn.cursor() as cur:
-                cur.execute(_PAIR_DETAIL, ([str(id_a), str(id_b)],))
-                rows = {str(r[0]): r for r in cur.fetchall()}
+        for _link_id, id_a, id_b, prob, features in pairs:
             click.echo("─" * 76)
-            for oid in (str(id_a), str(id_b)):
-                r = rows.get(oid)
-                if not r:
-                    continue
-                side = "ADV " if "sec_private_fund_id" in (r[6] or "") else "FormD"
-                click.echo(f"  [{side}] {r[1]}")
-                click.echo(f"         state={r[2] or '—'}  gav={r[3] or '—'}  "
-                           f"adviser={r[4] or '—'}  offerings={r[5]}")
-            click.echo(f"  p={prob:.4f}  evidence={features}")
-            ans = click.prompt("  same fund?", type=click.Choice(["y", "n", "u", "q"]),
+            show_pair(conn, id_a, id_b)
+            p_str = f"{prob:.4f}" if prob is not None else "—"
+            click.echo(f"  p={p_str}  evidence={features}")
+            ans = click.prompt(f"  same {spec.prompt_noun}?",
+                               type=click.Choice(["y", "n", "u", "q"]),
                                show_choices=False)
             if ans == "q":
                 break
-            label = {"y": "match", "n": "not_match", "u": "unsure"}[ans]
+            lab = {"y": "match", "n": "not_match", "u": "unsure"}[ans]
             with conn.cursor() as cur:
                 cur.execute("""
                     insert into internal.er_labels (job, id_a, id_b, label)
-                    values ('funds_adv_formd', %s, %s, %s)
+                    values (%s, %s, %s, %s)
                     on conflict on constraint uq_er_labels
-                    do update set label = excluded.label""", (id_a, id_b, label))
+                    do update set label = excluded.label""",
+                    (spec.job, id_a, id_b, lab))
             conn.commit()
             done += 1
         click.echo(f"\nrecorded {done} labels")
 
 
-def _wilson_low(correct: int, n: int) -> float:
-    if n == 0:
-        return 0.0
-    phat = correct / n
-    z = 1.96
-    denom = 1 + z * z / n
-    centre = phat + z * z / (2 * n)
-    margin = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n))
-    return (centre - margin) / denom
-
-
-def eval_funds(threshold: float = 0.99) -> None:  # threshold kept for CLI compat
+def eval_job(job_key: str, threshold: float | None = None) -> None:
+    spec = JOBS[job_key]
+    thr = spec.auto_threshold if threshold is None else threshold
     with connect() as conn, conn.cursor() as cur:
-        cur.execute("""
-            select l.label,
-                   case when el.method = 'deterministic:exact_name' then 'nameonly'
-                        when coalesce((el.features->>'gamma_people')::int, 0) >= 1 then 'people'
-                        else 'band' end as cls
+        cur.execute(f"""
+            select l.label, {spec.class_case_sql} as cls
             from internal.er_labels l
             join internal.entity_links el
               on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
-            where l.job = 'funds_adv_formd' and l.label <> 'unsure'""")
+            where l.job = %(job)s and l.label <> 'unsure'""",
+            {"job": spec.job, "threshold": thr})
         rows = cur.fetchall()
     if not rows:
-        click.echo("No labels yet. Run `funderdb resolve label funds` first.")
+        click.echo(f"No labels yet. Run `funderdb resolve label {job_key}` first.")
         return
 
     click.echo(f"labels total (excl. unsure): {len(rows)}\n")
     gate_passed = False
-    for cls, description, auto_rule in (
-        ("people", "exact/near name + shared people (Splink auto-tier candidates)",
-         "auto-accept if certified"),
-        ("nameonly", "exact name, no people evidence (deterministic class)",
-         "auto-accept ONLY if this class certifies separately"),
-        ("band", "fuzzy name, weak evidence", "stays pending"),
-    ):
+    for cls, description, auto_rule in spec.class_info:
         sub = [lab for lab, c in rows if c == cls]
         if not sub:
             click.echo(f"{cls:>9}: no labels yet — {description}")
             continue
         correct = sum(1 for lab in sub if lab == "match")
-        low = _wilson_low(correct, len(sub))
+        low = wilson_low(correct, len(sub))
         verdict = "CERTIFIED (>0.90)" if low > 0.90 and len(sub) >= 100 else \
                   f"not yet (n={len(sub)}, need >=100 and lower bound > 0.90)"
         click.echo(f"{cls:>9}: {correct}/{len(sub)} match · Wilson low {low:.3f} · {verdict}")
         click.echo(f"           {description} → {auto_rule}")
-        if cls == "people" and low > 0.90 and len(sub) >= 100:
+        if cls == spec.gate_stratum and low > 0.90 and len(sub) >= 100:
             gate_passed = True
-    click.echo("\nGATE " + ("PASSED for the people class — `resolve funds --apply` unlocked "
-                            "for people-corroborated links"
+    click.echo("\nGATE " + (f"PASSED for the {spec.gate_stratum} class — "
+                            f"`resolve {job_key} --apply` unlocked"
                             if gate_passed else "not yet passed"))
+
+
+def status_report() -> None:
+    """Per-job link/label/gate/canonical summary for `resolve status`."""
+    with connect() as conn, conn.cursor() as cur:
+        for job_key, spec in JOBS.items():
+            cur.execute("""
+                select status, count(*) from internal.entity_links
+                where job = %s group by 1 order by 1""", (spec.job,))
+            links = {s: c for s, c in cur.fetchall()}
+            cur.execute("""
+                select label, count(*) from internal.er_labels
+                where job = %s group by 1 order by 1""", (spec.job,))
+            labels = {s: c for s, c in cur.fetchall()}
+            gate_where = spec.strata[spec.gate_stratum]
+            cur.execute(f"""
+                select count(*) filter (where l.label = 'match'), count(*)
+                from internal.er_labels l
+                join internal.entity_links el
+                  on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
+                where l.job = %(job)s and l.label <> 'unsure' and {gate_where}""",
+                {"job": spec.job, "threshold": spec.auto_threshold})
+            correct, n = cur.fetchone()
+            low = wilson_low(correct or 0, n or 0)
+            table, col = (("internal.organizations", "canonical_org_id")
+                          if spec.entity_type == "organization"
+                          else ("internal.people", "canonical_person_id"))
+            cur.execute(f"select count({col}) from {table}")
+            (n_canon,) = cur.fetchone()
+            gate = ("PASSED" if (n or 0) >= 100 and low > 0.90
+                    else f"open (n={n or 0}, Wilson low {low:.3f})")
+            click.echo(f"{job_key}: links={links or '—'}  labels={labels or '—'}")
+            click.echo(f"{'':>{len(job_key) + 2}}gate[{spec.gate_stratum}]={gate}  "
+                       f"canonicalized={n_canon:,}")

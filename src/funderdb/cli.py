@@ -158,23 +158,32 @@ def resolve_funds(do_predict: bool, do_apply: bool, threshold: float, force: boo
 
 
 @resolve.command("label")
-@click.argument("job", type=click.Choice(["funds"]))
+@click.argument("job", type=click.Choice(["funds", "people"]))
 @click.option("--n", type=int, default=40, show_default=True)
-@click.option("--stratum", type=click.Choice(["people", "nameonly", "band", "all"]),
-              default="people", show_default=True)
-def resolve_label(job: str, n: int, stratum: str) -> None:
+@click.option("--stratum", default=None,
+              help="Sampling stratum (job-specific; defaults to the gate stratum).")
+def resolve_label(job: str, n: int, stratum: str | None) -> None:
     from .resolve import labeling
 
-    labeling.label_funds(n, stratum)
+    labeling.label(job, n, stratum)
 
 
 @resolve.command("eval")
-@click.argument("job", type=click.Choice(["funds"]))
-@click.option("--threshold", type=float, default=0.99, show_default=True)
-def resolve_eval(job: str, threshold: float) -> None:
+@click.argument("job", type=click.Choice(["funds", "people"]))
+@click.option("--threshold", type=float, default=None,
+              help="Classification threshold (defaults to the job's auto threshold).")
+def resolve_eval(job: str, threshold: float | None) -> None:
     from .resolve import labeling
 
-    labeling.eval_funds(threshold)
+    labeling.eval_job(job, threshold)
+
+
+@resolve.command("status")
+def resolve_status() -> None:
+    """Per-job link counts, label counts, gate progress, canonical totals."""
+    from .resolve import labeling
+
+    labeling.status_report()
 
 
 @resolve.command("recipients")
