@@ -1,9 +1,11 @@
 import { sql } from "@/lib/db";
+import { embedQuery, vecLiteral } from "@/lib/ai/embed";
 
 export interface BrowseFilters {
   segment: "foundations" | "advisers" | "funds" | "companies" | "agencies";
   state?: string;
   q?: string;
+  thesis?: string;
   minAssets?: number;
   maxAssets?: number;
   ntee?: string;
@@ -74,6 +76,94 @@ export async function browseOrgs(f: BrowseFilters, limit = 50): Promise<BrowseRo
     order by o.name_normalized ${f.dir === "prev" ? sql`desc` : sql`asc`}, o.id ${f.dir === "prev" ? sql`desc` : sql`asc`}
     limit ${limit}`;
   return f.dir === "prev" ? rows.reverse() : rows;
+}
+
+// Segments with semantic-corpus docs (funds and agencies have none —
+// thesis matching silently degrades to the plain path there).
+const SEGMENT_KINDS: Partial<Record<BrowseFilters["segment"], string[]>> = {
+  foundations: ["foundation"],
+  advisers: ["adviser"],
+  companies: ["company"],
+};
+
+export interface ThesisResult {
+  rows: BrowseRow[];
+  /** Post-filter match count within the top-200 RRF set; -1 on fallback. */
+  totalMatched: number;
+  /** True when the semantic leg was unavailable and keyword search ran. */
+  fallback: boolean;
+}
+
+export function thesisCapable(segment: BrowseFilters["segment"]): boolean {
+  return segment in SEGMENT_KINDS;
+}
+
+/** Hybrid-search-backed browse: top-200 RRF-ordered matches, post-filtered
+    by the controls hybrid_search can't take, offset-paged within that fixed
+    set (keyset cursors don't apply to rank order). */
+export async function browseOrgsByThesis(
+  f: BrowseFilters & { thesis: string },
+  page = 0,
+  perPage = 50
+): Promise<ThesisResult> {
+  const kinds = SEGMENT_KINDS[f.segment];
+  if (!kinds) return { rows: await browseOrgs(f), totalMatched: -1, fallback: true };
+
+  let vec: number[];
+  try {
+    vec = await embedQuery(f.thesis);
+  } catch {
+    // Voyage unavailable — keyword fallback, flagged so the page says so.
+    return {
+      rows: await browseOrgs({ ...f, q: f.thesis }),
+      totalMatched: -1,
+      fallback: true,
+    };
+  }
+
+  const types = SEGMENT_TYPES[f.segment];
+  const sizeCol =
+    f.segment === "foundations"
+      ? sql`o.asset_amount`
+      : f.segment === "advisers"
+        ? sql`coalesce(o.aum, o.fund_size)`
+        : sql`o.fund_size`;
+
+  // row_number() over () preserves the SRF's RRF output order; the outer
+  // order by ord keeps it through the joins and post-filters.
+  const rows = await sql<BrowseRow[]>`
+    with hits as (
+      select h.org_id, row_number() over () as ord
+      from internal.hybrid_search(
+             ${f.thesis},
+             ${vecLiteral(vec)}::extensions.halfvec(512),
+             200,
+             ${kinds}::text[],
+             ${types}::text[],
+             ${f.state ? f.state.toUpperCase() : null},
+             ${f.minAssets ?? null}) h
+      where h.org_id is not null
+    )
+    select o.id, o.name, o.name_normalized, o.org_type, o.city, o.state,
+           o.ntee_code, o.asset_amount::text, o.aum::text, o.fund_size::text,
+           o.is_era, o.focus_areas,
+           g.n::text as grants_n, g.total::text as grants_total
+    from hits h
+    join internal.organizations o on o.id = h.org_id
+    left join internal.mv_funder_event_stats g
+      on g.org_id = o.id and g.event_type = 'grant'
+    where o.canonical_org_id is null
+    ${f.ntee ? sql`and o.ntee_code like ${f.ntee + "%"}` : sql``}
+    ${f.era === "era" ? sql`and o.is_era = true` : f.era === "ria" ? sql`and o.is_era = false` : sql``}
+    ${f.fundType ? sql`and ${f.fundType} = any(o.focus_areas)` : sql``}
+    ${f.maxAssets ? sql`and ${sizeCol} <= ${f.maxAssets}` : sql``}
+    order by h.ord`;
+
+  return {
+    rows: rows.slice(page * perPage, (page + 1) * perPage),
+    totalMatched: rows.length,
+    fallback: false,
+  };
 }
 
 export async function segmentCounts(): Promise<Record<string, number>> {

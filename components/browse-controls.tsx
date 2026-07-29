@@ -38,6 +38,7 @@ export function BrowseControls({ segment }: { segment: string }) {
     const next = new URLSearchParams(params.toString());
     next.delete("cursor");
     next.delete("dir");
+    next.delete("page");
     for (const [k, v] of Object.entries(kv)) {
       if (v === null || v === "") next.delete(k);
       else next.set(k, v);
@@ -62,6 +63,7 @@ export function BrowseControls({ segment }: { segment: string }) {
         if (f.segment) next.set("segment", String(f.segment));
         if (f.state) next.set("state", String(f.state));
         if (f.q) next.set("q", String(f.q));
+        if (f.thesis) next.set("thesis", String(f.thesis));
         if (f.minAssets) next.set("min", String(f.minAssets));
         if (f.maxAssets) next.set("max", String(f.maxAssets));
         if (f.ntee) next.set("ntee", String(f.ntee));
@@ -80,6 +82,7 @@ export function BrowseControls({ segment }: { segment: string }) {
   const chipDefs: [string, (v: string) => string][] = [
     ["state", (v) => `state: ${v}`],
     ["q", (v) => `“${v}”`],
+    ["thesis", (v) => `✦ thesis: ${v}`],
     ["min", (v) => `≥ $${Number(v).toLocaleString()}`],
     ["max", (v) => `≤ $${Number(v).toLocaleString()}`],
     ["ntee", (v) => `NTEE ${v} — ${NTEE[v] ?? v}`],
@@ -195,7 +198,7 @@ export function BrowseControls({ segment }: { segment: string }) {
           ))}
           <button
             onClick={() =>
-              setParam({ state: null, q: null, min: null, max: null, ntee: null, era: null, fundType: null })
+              setParam({ state: null, q: null, thesis: null, min: null, max: null, ntee: null, era: null, fundType: null })
             }
             className="text-[12px] text-ink-4 hover:text-ink-2"
           >

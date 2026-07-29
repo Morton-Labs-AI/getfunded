@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { browseOrgs, segmentCounts, type BrowseFilters } from "@/lib/queries/browse";
+import {
+  browseOrgs,
+  browseOrgsByThesis,
+  segmentCounts,
+  thesisCapable,
+  type BrowseFilters,
+} from "@/lib/queries/browse";
 import { BrowseControls } from "@/components/browse-controls";
 import { TrichotomyBadge } from "@/components/trichotomy-badge";
 import { countCompact, moneyCompact, MDASH, ORG_TYPE_LABELS } from "@/lib/format";
@@ -26,6 +32,7 @@ export default async function BrowsePage({
     segment,
     state: sp.state,
     q: sp.q,
+    thesis: sp.thesis,
     minAssets: sp.min ? Number(sp.min) : undefined,
     maxAssets: sp.max ? Number(sp.max) : undefined,
     ntee: sp.ntee,
@@ -37,7 +44,22 @@ export default async function BrowsePage({
     dir: sp.dir === "prev" ? "prev" : "next",
   };
 
-  const [rows, counts] = await Promise.all([browseOrgs(filters), segmentCounts()]);
+  // Thesis mode: RRF rank order over the semantic corpus, offset-paged
+  // within the fixed top-200 set. Keyset cursors don't apply to rank order,
+  // so thesis and cursor are mutually exclusive.
+  const thesisMode = Boolean(sp.thesis) && thesisCapable(segment);
+  const page = thesisMode ? Math.max(0, Number(sp.page) || 0) : 0;
+  const [result, counts] = await Promise.all([
+    thesisMode
+      ? browseOrgsByThesis(filters as BrowseFilters & { thesis: string }, page)
+      : browseOrgs(filters).then((rows) => ({
+          rows,
+          totalMatched: -1,
+          fallback: false,
+        })),
+    segmentCounts(),
+  ]);
+  const rows = result.rows;
   const isFoundations = segment === "foundations";
   const isAdvisers = segment === "advisers";
 
@@ -61,7 +83,7 @@ export default async function BrowsePage({
       {/* segmented control */}
       <div className="flex flex-wrap gap-1 border-b border-border-1">
         {SEGMENTS.map((s) => {
-          const next = qsWithout(["cursor", "dir", "ntee", "era", "fundType", "segment"]);
+          const next = qsWithout(["cursor", "dir", "page", "ntee", "era", "fundType", "segment"]);
           next.set("segment", s.key);
           const active = s.key === segment;
           return (
@@ -87,6 +109,18 @@ export default async function BrowsePage({
       <div className="mt-5">
         <BrowseControls segment={segment} />
       </div>
+
+      {sp.thesis && !thesisCapable(segment) && (
+        <p className="mt-3 text-[12.5px] text-ink-4">
+          Thesis matching isn&apos;t available for this segment (no giving-behavior
+          corpus) — showing the standard listing.
+        </p>
+      )}
+      {thesisMode && result.fallback && (
+        <p className="mt-3 text-[12.5px] text-ink-4">
+          Semantic search unavailable — matched &ldquo;{sp.thesis}&rdquo; as keywords instead.
+        </p>
+      )}
 
       {/* results */}
       <div className="mt-5 overflow-hidden rounded-[10px] border border-border-1 bg-surface">
@@ -201,24 +235,49 @@ export default async function BrowsePage({
         {rows.length > 0 && (
           <div className="flex items-center justify-between border-t border-border-1 px-3.5 py-2">
             <span className="tnum font-mono text-[11px] text-ink-3">
-              {rows.length} per page · keyset-paginated
+              {thesisMode && !result.fallback
+                ? `rank-ordered · top ${result.totalMatched} by thesis match`
+                : `${rows.length} per page · keyset-paginated`}
             </span>
             <div className="flex gap-2">
-              {sp.cursor && (
-                <Link
-                  href={cursorHref(rows[0], "prev")}
-                  className="rounded-[8px] border border-border-1 px-3 py-1 text-[12.5px] text-ink-2 hover:border-border-2"
-                >
-                  ← Prev
-                </Link>
-              )}
-              {rows.length === 50 && (
-                <Link
-                  href={cursorHref(rows[rows.length - 1], "next")}
-                  className="rounded-[8px] border border-border-1 px-3 py-1 text-[12.5px] text-ink-2 hover:border-border-2"
-                >
-                  Next →
-                </Link>
+              {thesisMode && !result.fallback ? (
+                <>
+                  {page > 0 && (
+                    <Link
+                      href={`/browse?${(() => { const n = qsWithout(["page"]); n.set("page", String(page - 1)); return n.toString(); })()}`}
+                      className="rounded-[8px] border border-border-1 px-3 py-1 text-[12.5px] text-ink-2 hover:border-border-2"
+                    >
+                      ← Prev
+                    </Link>
+                  )}
+                  {(page + 1) * 50 < result.totalMatched && (
+                    <Link
+                      href={`/browse?${(() => { const n = qsWithout(["page"]); n.set("page", String(page + 1)); return n.toString(); })()}`}
+                      className="rounded-[8px] border border-border-1 px-3 py-1 text-[12.5px] text-ink-2 hover:border-border-2"
+                    >
+                      Next →
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <>
+                  {sp.cursor && (
+                    <Link
+                      href={cursorHref(rows[0], "prev")}
+                      className="rounded-[8px] border border-border-1 px-3 py-1 text-[12.5px] text-ink-2 hover:border-border-2"
+                    >
+                      ← Prev
+                    </Link>
+                  )}
+                  {rows.length === 50 && (
+                    <Link
+                      href={cursorHref(rows[rows.length - 1], "next")}
+                      className="rounded-[8px] border border-border-1 px-3 py-1 text-[12.5px] text-ink-2 hover:border-border-2"
+                    >
+                      Next →
+                    </Link>
+                  )}
+                </>
               )}
             </div>
           </div>

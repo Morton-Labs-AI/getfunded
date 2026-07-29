@@ -19,7 +19,14 @@ const FILTER_TOOL: Anthropic.Tool = {
         enum: ["foundations", "advisers", "funds", "companies", "agencies"],
       },
       state: { type: "string", description: "Two-letter US state code" },
-      q: { type: "string", description: "Keyword full-text terms (names/thesis), e.g. 'science energy'" },
+      q: { type: "string", description: "Keyword full-text terms for NAMES and PLACES, e.g. 'rockefeller'" },
+      thesis: {
+        type: "string",
+        description:
+          "Topical description of what they FUND (semantic match over giving " +
+          "behavior), e.g. 'climate adaptation' or 'fusion energy research'. " +
+          "Prefer this over q for any subject-matter description.",
+      },
       minAssets: { type: "number", description: "Minimum assets/AUM in dollars" },
       maxAssets: { type: "number" },
       ntee: {
@@ -51,7 +58,10 @@ export async function POST(req: Request) {
       "Translate funder-discovery descriptions into browse filters via set_filters. " +
       "foundations = private foundations/charities (IRS; assets, NTEE); advisers = VC/PE/RIAs (SEC; AUM, era); " +
       "funds = private funds; companies = SBIR awardees; agencies = federal. " +
-      "NTEE major groups: U=science/tech research, T=philanthropy, others by letter. Always call the tool.",
+      "NTEE major groups: U=science/tech research, T=philanthropy, others by letter. " +
+      "Subject-matter descriptions ('funds ocean cleanup') go in thesis (semantic, over giving " +
+      "behavior); q is only for name/place keywords. thesis works for foundations, advisers, " +
+      "and companies. Always call the tool.",
     tools: [FILTER_TOOL],
     tool_choice: { type: "tool", name: "set_filters" },
     messages: [{ role: "user", content: text }],
