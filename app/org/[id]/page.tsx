@@ -419,12 +419,21 @@ function EventsTable({
                 )}
                 {!received && (
                   <td className="max-w-[260px] px-3.5 py-2 text-ink-2">
-                    <span
-                      className="as-reported"
-                      title="As reported in the filing; not yet resolved to an org record (Phase 2)"
-                    >
-                      {e.recipient_name}
-                    </span>
+                    {e.recipient_org_id ? (
+                      <Link
+                        href={`/org/${e.recipient_org_id}`}
+                        className="font-medium text-accent hover:text-accent-hover"
+                      >
+                        {e.recipient_name}
+                      </Link>
+                    ) : (
+                      <span
+                        className="as-reported"
+                        title="As reported in the filing; no resolved org record (unmatched recipients stay as-reported — never stubbed)"
+                      >
+                        {e.recipient_name}
+                      </span>
+                    )}
                     {(e.recipient_city || e.recipient_state) && (
                       <span className="text-ink-4">
                         {" "}

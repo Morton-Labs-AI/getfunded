@@ -660,7 +660,7 @@ function Cell({
       <td className="px-3.5 py-2 text-ink-2">
         <span
           className="as-reported"
-          title="As reported in the filing; not yet resolved to an org record (Phase 2)"
+          title="As reported in the filing; no resolved org record (unmatched recipients stay as-reported — never stubbed)"
         >
           {String(value)}
         </span>
