@@ -56,6 +56,7 @@ export async function browseOrgs(f: BrowseFilters, limit = 50): Promise<BrowseRo
     left join internal.mv_funder_event_stats g
       on g.org_id = o.id and g.event_type = 'grant'
     where o.org_type = any(${types})
+    and o.canonical_org_id is null
     ${f.state ? sql`and o.state = ${f.state.toUpperCase()}` : sql``}
     ${f.ntee ? sql`and o.ntee_code like ${f.ntee + "%"}` : sql``}
     ${f.era === "era" ? sql`and o.is_era = true` : f.era === "ria" ? sql`and o.is_era = false` : sql``}

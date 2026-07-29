@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   getOrg,
+  orgMergedRecords,
   orgIdentifiers,
   orgPeople,
   orgGrantsPaid,
@@ -29,19 +30,28 @@ import {
 
 export default async function OrgPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
 
   const org = await getOrg(id);
   if (!org) notFound();
+  // Non-canonical rows redirect to their survivor (temporary, not permanent:
+  // the canonical map is recomputed on every ER apply and the rep can change).
+  if (org.canonical_org_id) redirect(`/org/${org.canonical_org_id}?from=${id}`);
+
+  const merged = await orgMergedRecords(id);
+  const memberIds = [id, ...merged.map((m) => m.id)];
 
   const [ids, people, funderStats, contactCount] = await Promise.all([
     orgIdentifiers(id),
-    orgPeople(id),
-    orgFunderStats(id),
+    orgPeople(memberIds),
+    orgFunderStats(memberIds),
     orgContactCount(id),
   ]);
 
@@ -52,9 +62,9 @@ export default async function OrgPage({
 
   const [grants, received, byYear, funds, managers, programs] =
     await Promise.all([
-      isFoundation || isAgency ? orgGrantsPaid(id) : Promise.resolve([]),
-      !isAgency && !isFoundation ? orgEventsReceived(id) : Promise.resolve([]),
-      isFoundation || isAgency ? orgGrantsByYear(id) : Promise.resolve([]),
+      isFoundation || isAgency ? orgGrantsPaid(memberIds) : Promise.resolve([]),
+      !isAgency && !isFoundation ? orgEventsReceived(memberIds) : Promise.resolve([]),
+      isFoundation || isAgency ? orgGrantsByYear(memberIds) : Promise.resolve([]),
       isAdviser ? orgFundsManaged(id) : Promise.resolve([]),
       isFund ? orgManagedBy(id) : Promise.resolve([]),
       isAgency ? orgProgramsAdministered(id) : Promise.resolve([]),
@@ -79,6 +89,12 @@ export default async function OrgPage({
     <div className="page-enter mx-auto w-full max-w-[1200px] px-6 pb-16">
       {/* header */}
       <header className="pt-10">
+        {from && (
+          <div className="mb-3 text-[12.5px] text-ink-4">
+            Redirected from a duplicate record (same real-world entity;
+            provenance preserved on both rows).
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="mono-label">
             {[org.city, org.state].filter(Boolean).join(", ") || org.country}
@@ -110,6 +126,16 @@ export default async function OrgPage({
           {ids.map((i) => (
             <IdChip key={`${i.id_type}:${i.id_value}`} idType={i.id_type} value={i.id_value} />
           ))}
+          {merged.length > 0 && (
+            <span
+              className="rounded-[5px] bg-inset px-2 py-[3px] font-mono text-[10.5px] uppercase tracking-[0.08em] text-ink-3"
+              title={merged
+                .map((m) => `${m.dataset_name} · ${m.source_record_locator}`)
+                .join("\n")}
+            >
+              {merged.length} merged record{merged.length > 1 ? "s" : ""}
+            </span>
+          )}
           {org.website && (
             <a
               href={org.website.startsWith("http") ? org.website : `https://${org.website}`}

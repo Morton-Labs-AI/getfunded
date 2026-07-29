@@ -13,6 +13,7 @@ export async function GET(req: Request) {
              coalesce(asset_amount, aum, fund_size)::text as size
       from internal.organizations
       where name_normalized like ${q.toUpperCase() + "%"}
+        and canonical_org_id is null
       order by coalesce(asset_amount, aum, fund_size) desc nulls last
       limit 8`;
     return Response.json({ orgs, programs: [] });
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
       select o.id, o.name, o.org_type, o.state,
              coalesce(o.asset_amount, o.aum, o.fund_size)::text as size
       from internal.organizations o, websearch_to_tsquery('english', ${q}) query
-      where o.search_tsv @@ query
+      where o.search_tsv @@ query and o.canonical_org_id is null
       order by ts_rank_cd(o.search_tsv, query) desc,
                coalesce(o.asset_amount, o.aum, o.fund_size) desc nulls last
       limit 8`,
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
       select o.id, o.name, o.org_type, o.state,
              coalesce(o.asset_amount, o.aum, o.fund_size)::text as size
       from internal.organizations o
-      where o.name % ${q}
+      where o.name % ${q} and o.canonical_org_id is null
       order by similarity(o.name, ${q}) desc
       limit 8`;
     const seen = new Set(orgs.map((r) => r.id));

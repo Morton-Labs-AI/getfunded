@@ -219,7 +219,7 @@ export async function runDbTool(
                (select string_agg(i.id_type || ':' || i.id_value, ' ')
                   from internal.org_identifiers i where i.org_id = o.id) as ids
         from internal.organizations o, websearch_to_tsquery('english', ${query}) q
-        where o.search_tsv @@ q
+        where o.search_tsv @@ q and o.canonical_org_id is null
         order by ts_rank_cd(o.search_tsv, q) desc,
                  coalesce(o.asset_amount, o.aum, o.fund_size) desc nulls last
         limit ${limit}`;
@@ -231,7 +231,7 @@ export async function runDbTool(
                  (select string_agg(i.id_type || ':' || i.id_value, ' ')
                     from internal.org_identifiers i where i.org_id = o.id) as ids
           from internal.organizations o
-          where o.name % ${query}
+          where o.name % ${query} and o.canonical_org_id is null
           order by similarity(o.name, ${query}) desc
           limit ${limit}`;
         const seen = new Set(rows.map((r) => r.id));

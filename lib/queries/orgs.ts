@@ -23,6 +23,7 @@ export interface OrgFull {
   status: string;
   last_verified_at: string | null;
   source_record_locator: string;
+  canonical_org_id: string | null;
   // provenance (joined)
   dataset_name: string;
   source_url: string | null;
@@ -38,7 +39,7 @@ export async function getOrg(id: string): Promise<OrgFull | null> {
            o.ruling_date::text, o.asset_amount::text, o.income_amount::text,
            o.revenue_amount::text, o.aum::text, o.fund_size::text, o.is_era,
            o.focus_areas, o.status, o.last_verified_at::text,
-           o.source_record_locator,
+           o.source_record_locator, o.canonical_org_id,
            rf.dataset_name, rf.source_url, rf.sha256, lm.license_name,
            rf.downloaded_at::text
     from internal.organizations o
@@ -48,13 +49,30 @@ export async function getOrg(id: string): Promise<OrgFull | null> {
   return rows[0] ?? null;
 }
 
+export interface MergedRecord {
+  id: string;
+  name: string;
+  source_record_locator: string;
+  dataset_name: string;
+}
+/** Non-canonical rows merged into this org (empty until an ER apply runs). */
+export async function orgMergedRecords(id: string): Promise<MergedRecord[]> {
+  return await sql<MergedRecord[]>`
+    select o.id, o.name, o.source_record_locator, rf.dataset_name
+    from internal.organizations o
+    join internal.raw_files rf on rf.id = o.raw_file_id
+    where o.canonical_org_id = ${id}
+    order by rf.dataset_name, o.name`;
+}
+
 export interface IdentifierRow {
   id_type: string;
   id_value: string;
 }
+/** Identifier union across the canonical cluster (identity pre-apply). */
 export async function orgIdentifiers(id: string): Promise<IdentifierRow[]> {
   return await sql<IdentifierRow[]>`
-    select id_type, id_value from internal.org_identifiers
+    select distinct id_type, id_value from internal.org_identifiers_canonical
     where org_id = ${id} order by id_type`;
 }
 
@@ -65,17 +83,26 @@ export interface PersonChip {
   rel_type: string;
   dataset_name: string;
 }
-export async function orgPeople(id: string, limit = 40): Promise<PersonChip[]> {
+/** memberIds = the canonical org + its merged records ([id] pre-apply).
+    distinct-on dedupes a person appearing via more than one member row;
+    the outer order restores the role-precedence-then-name chip order. */
+export async function orgPeople(memberIds: string[], limit = 40): Promise<PersonChip[]> {
   return await sql<PersonChip[]>`
-    select p.id as person_id, p.full_name, coalesce(r.title, p.primary_title) as title,
-           r.rel_type, rf.dataset_name
-    from internal.relationships r
-    join internal.people p on p.id = r.from_person_id
-    join internal.raw_files rf on rf.id = p.raw_file_id
-    where r.to_org_id = ${id} and r.from_person_id is not null
-    order by case r.rel_type when 'owner_of' then 0 when 'officer_of' then 1
-             when 'trustee_of' then 2 when 'director_of' then 3 else 4 end,
-             p.full_name
+    select person_id, full_name, title, rel_type, dataset_name from (
+      select distinct on (p.id)
+             p.id as person_id, p.full_name,
+             coalesce(r.title, p.primary_title) as title,
+             r.rel_type, rf.dataset_name,
+             case r.rel_type when 'owner_of' then 0 when 'officer_of' then 1
+               when 'trustee_of' then 2 when 'director_of' then 3 else 4 end as role_rank
+      from internal.relationships r
+      join internal.people p on p.id = r.from_person_id
+      join internal.raw_files rf on rf.id = p.raw_file_id
+      where r.to_org_id = any(${memberIds}::uuid[]) and r.from_person_id is not null
+      order by p.id, case r.rel_type when 'owner_of' then 0 when 'officer_of' then 1
+               when 'trustee_of' then 2 when 'director_of' then 3 else 4 end
+    ) t
+    order by role_rank, full_name
     limit ${limit}`;
 }
 
@@ -94,7 +121,7 @@ export interface EventRow {
 }
 
 export async function orgGrantsPaid(
-  id: string,
+  memberIds: string[],
   q?: string,
   limit = 25
 ): Promise<EventRow[]> {
@@ -105,7 +132,7 @@ export async function orgGrantsPaid(
              fe.purpose_text, fe.fiscal_year, fe.event_date::text,
              fe.source_record_locator
       from internal.funding_events fe
-      where fe.funder_org_id = ${id}
+      where fe.funder_org_id = any(${memberIds}::uuid[])
         and fe.search_tsv @@ websearch_to_tsquery('english', ${q})
       order by fe.amount desc nulls last limit ${limit}`;
   }
@@ -115,18 +142,21 @@ export async function orgGrantsPaid(
            fe.purpose_text, fe.fiscal_year, fe.event_date::text,
            fe.source_record_locator
     from internal.funding_events fe
-    where fe.funder_org_id = ${id}
+    where fe.funder_org_id = any(${memberIds}::uuid[])
     order by fe.amount desc nulls last limit ${limit}`;
 }
 
-export async function orgEventsReceived(id: string, limit = 25): Promise<EventRow[]> {
+/** Member-array predicate (not org_resolve coalesce) keeps the btree on
+    recipient_org_id — this is what surfaces a merged fund's Form D
+    offerings on the canonical page. */
+export async function orgEventsReceived(memberIds: string[], limit = 25): Promise<EventRow[]> {
   return await sql<EventRow[]>`
     select fe.id, fe.event_type, fe.recipient_name, fe.recipient_city,
            fe.recipient_state, fe.recipient_org_id, fe.amount::text,
            fe.purpose_text, fe.fiscal_year, fe.event_date::text,
            fe.source_record_locator
     from internal.funding_events fe
-    where fe.recipient_org_id = ${id}
+    where fe.recipient_org_id = any(${memberIds}::uuid[])
     order by fe.event_date desc nulls last, fe.fiscal_year desc nulls last
     limit ${limit}`;
 }
@@ -138,10 +168,13 @@ export interface FunderStats {
   first_fy: number | null;
   last_fy: number | null;
 }
-export async function orgFunderStats(id: string): Promise<FunderStats[]> {
+export async function orgFunderStats(memberIds: string[]): Promise<FunderStats[]> {
   return await sql<FunderStats[]>`
-    select event_type, n::text, total::text, first_fy, last_fy
-    from internal.mv_funder_event_stats where org_id = ${id}`;
+    select event_type, sum(n)::text as n, sum(total)::text as total,
+           min(first_fy) as first_fy, max(last_fy) as last_fy
+    from internal.mv_funder_event_stats
+    where org_id = any(${memberIds}::uuid[])
+    group by event_type`;
 }
 
 export interface YearBar {
@@ -149,11 +182,11 @@ export interface YearBar {
   n: string;
   total: string | null;
 }
-export async function orgGrantsByYear(id: string): Promise<YearBar[]> {
+export async function orgGrantsByYear(memberIds: string[]): Promise<YearBar[]> {
   return await sql<YearBar[]>`
     select fiscal_year as fy, count(*)::text as n, sum(amount)::text as total
     from internal.funding_events
-    where funder_org_id = ${id} and fiscal_year is not null
+    where funder_org_id = any(${memberIds}::uuid[]) and fiscal_year is not null
     group by 1 order by 1`;
 }
 
