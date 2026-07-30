@@ -56,7 +56,12 @@ def stage_index(year: int) -> staging.StagedFile:
 
 def load_index(year: int, return_type: str = "990PF") -> list[PfFiling]:
     """Index rows for one RETURN_TYPE. The Schedule I loader shares this with
-    return_type='990'; PfFiling is return-type-agnostic."""
+    return_type='990'; PfFiling is return-type-agnostic.
+
+    Pre-2024 indexes (2021-2023) carry NO XML_BATCH_ID column — those rows
+    get batch_id='' and callers discover the batch zips via probe_batches()
+    (the zips exist under the same naming pattern; processing is
+    membership-driven anyway, so the label only enumerates downloads)."""
     staged = stage_index(year)
     out: list[PfFiling] = []
     with staged.path.open(encoding="utf-8", errors="replace") as fh:
@@ -66,7 +71,7 @@ def load_index(year: int, return_type: str = "990PF") -> list[PfFiling]:
             ein = normalize_ein(row.get("EIN") or "")
             oid = (row.get("OBJECT_ID") or "").strip()
             batch = (row.get("XML_BATCH_ID") or "").strip()
-            if not ein or not oid or not batch:
+            if not ein or not oid:
                 continue
             out.append(PfFiling(
                 object_id=oid, ein=ein,
@@ -79,6 +84,44 @@ def load_index(year: int, return_type: str = "990PF") -> list[PfFiling]:
 
 def load_pf_index(year: int) -> list[PfFiling]:
     return load_index(year, return_type="990PF")
+
+
+_PROBE_UA = "Mozilla/5.0 (Macintosh) MortonLabs-funderdb (zach@mortonlabs.ai)"
+
+
+def probe_batches(year: int) -> list[str]:
+    """Discover a year's batch zips by HEAD probe (pre-2024 indexes don't
+    name them). Numbers are contiguous from 01; letters are contiguous per
+    number (e.g. 11A-11D). Only a 200 counts — the IRS host 302s missing
+    zips to an error page."""
+    import httpx
+
+    found: list[str] = []
+    with httpx.Client(headers={"User-Agent": _PROBE_UA}, timeout=30.0,
+                      follow_redirects=False) as client:
+        for i in range(1, 31):
+            first = f"{year}_TEOS_XML_{i:02d}A"
+            if client.head(BATCH_URL.format(year=year, batch=first)).status_code != 200:
+                break
+            found.append(first)
+            for letter in "BCDEFGH":
+                batch = f"{year}_TEOS_XML_{i:02d}{letter}"
+                if client.head(BATCH_URL.format(year=year, batch=batch)).status_code != 200:
+                    break
+                found.append(batch)
+    return found
+
+
+def batch_ids_for(year: int, filings: list[PfFiling]) -> list[str]:
+    """Batch ids from the index when present; probed from the host when the
+    index predates XML_BATCH_ID."""
+    ids = sorted({f.batch_id for f in filings if f.batch_id})
+    if ids:
+        return ids
+    ids = probe_batches(year)
+    print(f"{year}: index carries no batch ids (pre-2024 layout); "
+          f"probed {len(ids)} zips: {ids[:4]}…", flush=True)
+    return ids
 
 
 def stage_batch(year: int, batch_id: str) -> staging.StagedFile:
@@ -94,7 +137,7 @@ def stage_batch(year: int, batch_id: str) -> staging.StagedFile:
 def stage_all(years: tuple[int, ...]) -> None:
     for year in years:
         filings = load_pf_index(year)
-        batches = sorted({f.batch_id for f in filings})
+        batches = batch_ids_for(year, filings)
         print(f"{year}: {len(filings):,} 990-PF filings across {len(batches)} batches")
         for b in batches:
             s = stage_batch(year, b)
@@ -410,7 +453,7 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
             # membership-driven: every remaining filing is offered to every
             # batch zip; each contributes what it actually contains.
             remaining = {f.object_id: f for f in filings if f.object_id not in done}
-            batch_ids = sorted({f.batch_id for f in filings})
+            batch_ids = batch_ids_for(year, filings)
 
             for batch_id in batch_ids:
                 todo = list(remaining.values())

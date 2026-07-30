@@ -41,7 +41,7 @@ from ..config import get_settings
 from ..db import connect
 from ..normalize import normalize_ein, normalize_name, parse_amount
 from .irs_990pf import (DATASET, NS, PfFiling, _iter_wanted_members, _text,
-                        load_index, stage_batch)
+                        batch_ids_for, load_index, stage_batch)
 
 ROW_CAP = 50_000
 
@@ -251,7 +251,7 @@ def dry_run(years: tuple[int, ...], limit: int | None = None) -> dict:
     for year in years:
         filings = load_index(year, return_type="990")
         totals[f"indexed_990_{year}"] = len(filings)
-        batch_ids = sorted({f.batch_id for f in filings})
+        batch_ids = batch_ids_for(year, filings)
         remaining = {f.object_id: f for f in filings}
         for batch_id in batch_ids:
             path = _staged_zip(batch_id)
@@ -305,7 +305,7 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                 f.object_id: f for f in filings
                 if f.object_id not in done and f.ein not in daf_eins
             }
-            batch_ids = sorted({f.batch_id for f in filings})
+            batch_ids = batch_ids_for(year, filings)
 
             for batch_id in batch_ids:
                 todo = list(remaining.values())
