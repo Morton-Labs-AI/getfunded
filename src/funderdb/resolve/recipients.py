@@ -158,30 +158,60 @@ where internal.recipient_matches.status = 'auto'
 """
 
 # Apply in batches over recipient_matches (a few hundred thousand rows at most),
-# NOT in one statement over 2.32M events: the single-statement version was killed
-# by the server mid-flight (2026-07-27). Uses ix_events_recipient_norm so each
-# matched name is an index lookup rather than a scan.
+# NOT in one statement over the events table: the single-statement version was
+# killed by the server mid-flight (2026-07-27).
+#
+# The join is written as a LATERAL probe per match row, ON PURPOSE. The flat
+# `update ... from rm where norm_name(fe.recipient_name) = rm...` form leaves
+# the join direction to the planner, and at 9M unlinked rows the expression's
+# n_distinct estimate collapses (placeholder names dominate the sample; a
+# probe was estimated at ~50k rows), so the planner "correctly" rejected the
+# ix_events_recipient_norm path and chose plans that sorted or scanned the
+# whole table per batch — one of which OOM-crashed the instance three times
+# (2026-07-30). The lateral form has no join to invert: one index probe per
+# match, whatever the statistics think. The OFFSET 0 is the flattening
+# fence: without it the planner decorrelates the lateral back into the
+# invertible join (observed).
 _APPLY_BATCH = """
 update internal.funding_events fe
-set recipient_org_id = rm.org_id
-from internal.recipient_matches rm
-where rm.id between %(lo)s and %(hi)s
-  and rm.confidence >= 0.90
-  and rm.status in ('auto', 'accepted')
-  and fe.event_type = 'grant'
-  and fe.recipient_org_id is null
-  and internal.norm_name(fe.recipient_name) = rm.recipient_name_normalized
-  and nullif(btrim(fe.recipient_state), '') is not distinct from rm.recipient_state
+set recipient_org_id = t.org_id
+from (
+  select hit.id as event_id, rm.org_id
+  from internal.recipient_matches rm
+  cross join lateral (
+    select fe2.id
+    from internal.funding_events fe2
+    where internal.norm_name(fe2.recipient_name) = rm.recipient_name_normalized
+      and fe2.event_type = 'grant'
+      and fe2.recipient_org_id is null
+      and nullif(btrim(fe2.recipient_state), '') is not distinct from rm.recipient_state
+    offset 0
+  ) hit
+  where rm.id between %(lo)s and %(hi)s
+    and rm.confidence >= 0.90
+    and rm.status in ('auto', 'accepted')
+) t
+where fe.id = t.event_id
 """
 
 _UNAPPLY_BATCH = """
 update internal.funding_events fe
 set recipient_org_id = null
-from internal.recipient_matches rm
-where rm.id between %(lo)s and %(hi)s
-  and rm.status = 'rejected'
-  and fe.recipient_org_id = rm.org_id
-  and internal.norm_name(fe.recipient_name) = rm.recipient_name_normalized
+from (
+  select hit.id as event_id
+  from internal.recipient_matches rm
+  cross join lateral (
+    select fe2.id
+    from internal.funding_events fe2
+    where internal.norm_name(fe2.recipient_name) = rm.recipient_name_normalized
+      and fe2.event_type = 'grant'
+      and fe2.recipient_org_id = rm.org_id
+    offset 0
+  ) hit
+  where rm.id between %(lo)s and %(hi)s
+    and rm.status = 'rejected'
+) t
+where fe.id = t.event_id
 """
 
 
@@ -207,6 +237,14 @@ def apply_matches(conn, batch: int = 20_000) -> dict:
         hi = lo + batch - 1
         with conn.cursor() as cur:
             cur.execute("set local statement_timeout = '15min'")
+            # At 9M unlinked rows the planner flips this batch UPDATE to a
+            # merge join that seq-scans and SORTS the entire events table —
+            # per batch (observed 2026-07-30; the sort OOM-crashed the
+            # instance on every attempt). Forbid the set-based joins so it
+            # stays on nested-loop lookups against ix_events_recipient_norm,
+            # which is the plan this batching was designed around.
+            cur.execute("set local enable_mergejoin = off")
+            cur.execute("set local enable_hashjoin = off")
             cur.execute(_APPLY_BATCH, {"lo": lo, "hi": hi})
             counts["events_linked"] += cur.rowcount
             cur.execute(_UNAPPLY_BATCH, {"lo": lo, "hi": hi})
