@@ -13,4 +13,12 @@ def connect() -> psycopg.Connection:
             "DATABASE_URL is not set. Copy the session-pooler connection string from the "
             "Supabase dashboard (project open-funder-db -> Connect -> Session pooler) into .env."
         )
-    return psycopg.connect(settings.database_url, autocommit=False)
+    # TCP keepalives: interactive sessions (labeling) can sit idle long
+    # enough for NAT/pooler timeouts to silently kill the socket — the
+    # failure then surfaces on the NEXT write as "server closed the
+    # connection unexpectedly".
+    return psycopg.connect(
+        settings.database_url, autocommit=False,
+        keepalives=1, keepalives_idle=30,
+        keepalives_interval=10, keepalives_count=3,
+    )

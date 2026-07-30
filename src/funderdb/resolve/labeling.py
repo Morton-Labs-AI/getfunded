@@ -16,9 +16,30 @@ from __future__ import annotations
 import json
 
 import click
+import psycopg
 
 from ..db import connect
 from .common import JOBS, wilson_low
+
+
+def _fresh(conn):
+    """Replace a dead connection (best-effort close, then reconnect)."""
+    try:
+        conn.close()
+    except Exception:
+        pass
+    return connect()
+
+
+def _write_label(conn, job: str, id_a, id_b, lab: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute("""
+            insert into internal.er_labels (job, id_a, id_b, label)
+            values (%s, %s, %s, %s)
+            on conflict on constraint uq_er_labels
+            do update set label = excluded.label""",
+            (job, id_a, id_b, lab))
+    conn.commit()
 
 _FUND_DETAIL = """
 select o.id, o.name, o.state, o.fund_size::text,
@@ -132,7 +153,8 @@ def label(job_key: str, n: int, stratum: str | None) -> None:
              if stratum == "common" else "random()")
     show_pair = _PAIR_RENDERERS[job_key]
 
-    with connect() as conn:
+    conn = connect()
+    try:
         with conn.cursor() as cur:
             cur.execute(f"""
                 select el.id, el.id_a, el.id_b, el.match_probability, el.features
@@ -154,7 +176,15 @@ def label(job_key: str, n: int, stratum: str | None) -> None:
         done = 0
         for _link_id, id_a, id_b, prob, features in pairs:
             click.echo("─" * 76)
-            show_pair(conn, id_a, id_b)
+            # An interactive session can idle long enough for the socket to
+            # die under it; reconnect-and-retry so a drop never loses an
+            # answer or kills the run.
+            try:
+                show_pair(conn, id_a, id_b)
+            except psycopg.OperationalError:
+                click.echo("  (connection dropped — reconnecting)")
+                conn = _fresh(conn)
+                show_pair(conn, id_a, id_b)
             p_str = f"{prob:.4f}" if prob is not None else "—"
             click.echo(f"  p={p_str}  evidence={features}")
             ans = click.prompt(f"  same {spec.prompt_noun}?",
@@ -163,16 +193,19 @@ def label(job_key: str, n: int, stratum: str | None) -> None:
             if ans == "q":
                 break
             lab = {"y": "match", "n": "not_match", "u": "unsure"}[ans]
-            with conn.cursor() as cur:
-                cur.execute("""
-                    insert into internal.er_labels (job, id_a, id_b, label)
-                    values (%s, %s, %s, %s)
-                    on conflict on constraint uq_er_labels
-                    do update set label = excluded.label""",
-                    (spec.job, id_a, id_b, lab))
-            conn.commit()
+            try:
+                _write_label(conn, spec.job, id_a, id_b, lab)
+            except psycopg.OperationalError:
+                click.echo("  (connection dropped — reconnecting; your answer is kept)")
+                conn = _fresh(conn)
+                _write_label(conn, spec.job, id_a, id_b, lab)
             done += 1
         click.echo(f"\nrecorded {done} labels")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def eval_job(job_key: str, threshold: float | None = None) -> None:
