@@ -14,8 +14,11 @@ and says so.
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 from pathlib import Path
+
+import psycopg
 
 from .. import ledger, staging
 from ..config import get_settings
@@ -219,7 +222,12 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
     counts: dict[str, int] = {}
     settings = get_settings()
 
-    with connect() as conn:
+    # Not a `with` block: the apply phase reconnects on connection loss (the
+    # loaded instance stalls long enough for TCP to give up — observed
+    # 2026-07-30 during a 269s checkpoint), and a context manager would try
+    # to commit/rollback the DEAD original connection on exit.
+    conn = connect()
+    try:
         # Run artifact first: recipient_matches.raw_file_id is NOT NULL, so the
         # provenance chain covers derived matches too (B10 stays at zero orphans).
         manifest_dir = Path(settings.data_root) / "resolve"
@@ -273,7 +281,25 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
             conn.commit()
 
             if apply:
-                counts.update(apply_matches(conn))
+                # The apply is restartable by construction (only NULL
+                # recipient_org_id rows are touched), so a dead connection —
+                # the loaded instance can stall past TCP patience — costs a
+                # reconnect and a fast rescan, not the run.
+                for attempt in range(6):
+                    try:
+                        counts.update(apply_matches(conn))
+                        break
+                    except psycopg.OperationalError:
+                        if attempt == 5:
+                            raise
+                        print(f"  apply connection lost — reconnecting "
+                              f"(attempt {attempt + 1}/5)", flush=True)
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        time.sleep(15)
+                        conn = connect()
 
             ledger.complete_run(conn, run_id,
                                 inserted=counts.get("matches_persisted", 0),
@@ -286,4 +312,9 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
             except Exception:
                 pass
             raise
-    return counts
+        return counts
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
