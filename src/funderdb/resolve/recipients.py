@@ -30,17 +30,51 @@ CANDIDATE_TYPES = ("company", "private_foundation", "public_charity", "gov_agenc
 STRIPPABLE_SUFFIXES = ("INC", "INCORPORATED", "LLC", "L L C", "CORP", "CORPORATION",
                        "CO", "LTD", "LP", "LLP", "PC", "PA")
 
+# Memory guards for every statement in the run: the single-statement _recips
+# build OOM'd and CRASHED the 2GB Small instance once the unlinked-grant set
+# hit 9.1M rows (2026-07-30, post-back-years; postgres logs show WAL redo
+# recovery). Parallel hash aggregation multiplies work_mem per worker —
+# disable it and keep the hash modest so big aggregates spill to disk
+# instead of taking the server down.
+_MEMORY_GUARDS: tuple[str, ...] = (
+    "set local max_parallel_workers_per_gather = 0",
+    "set local work_mem = '32MB'",
+    "set local hash_mem_multiplier = 1.0",
+)
+
+# _recips is built in fiscal-year slices (~1-2M rows each) of PARTIAL
+# aggregates, then merged — no statement ever aggregates the full 9M+ rows
+# of raw grant events at once.
+_RECIPS_SLICES: tuple[str, ...] = (
+    "fiscal_year is null",
+    "fiscal_year < 2021",
+    "fiscal_year = 2021",
+    "fiscal_year = 2022",
+    "fiscal_year = 2023",
+    "fiscal_year = 2024",
+    "fiscal_year >= 2025",
+)
+
+_RECIPS_RAW_DDL = """create temp table _recips_raw (
+  nn text, st text, n_events bigint, total_amount numeric
+) on commit drop"""
+
+_RECIPS_SLICE = """
+insert into _recips_raw
+select internal.norm_name(recipient_name),
+       nullif(btrim(recipient_state), ''),
+       count(*), sum(amount)
+from internal.funding_events
+where event_type = 'grant' and recipient_org_id is null
+  and recipient_name is not null and {pred}
+group by 1, 2"""
+
+_RECIPS_MERGE = """create temp table _recips on commit drop as
+   select nn, st, sum(n_events) as n_events, sum(total_amount) as total_amount
+   from _recips_raw group by 1, 2"""
+
 # psycopg3 prepares parameterized statements, so each must execute separately.
 _SETUP_STEPS: tuple[str, ...] = (
-    """create temp table _recips on commit drop as
-       select internal.norm_name(recipient_name) as nn,
-              nullif(btrim(recipient_state), '') as st,
-              count(*) as n_events,
-              sum(amount) as total_amount
-       from internal.funding_events
-       where event_type = 'grant' and recipient_org_id is null
-         and recipient_name is not null
-       group by 1, 2""",
     "create index on _recips (nn)",
     # Candidate orgs, with per-name and per-(name,state) multiplicity so each
     # tier can require uniqueness rather than silently picking a winner.
@@ -206,6 +240,14 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
         try:
             with conn.cursor() as cur:
                 cur.execute("set local statement_timeout = '60min'")
+                for guard in _MEMORY_GUARDS:
+                    cur.execute(guard)
+                cur.execute(_RECIPS_RAW_DDL)
+                for pred in _RECIPS_SLICES:
+                    cur.execute(_RECIPS_SLICE.format(pred=pred))
+                    print(f"  _recips slice [{pred}]: {cur.rowcount:,} partials",
+                          flush=True)
+                cur.execute(_RECIPS_MERGE)
                 for step in _SETUP_STEPS:
                     cur.execute(step, {"types": list(CANDIDATE_TYPES)}
                                 if "%(types)s" in step else None)
