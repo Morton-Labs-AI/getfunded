@@ -220,17 +220,35 @@ def _suffix_regex() -> str:
     return rf"\s+({alts})$"
 
 
+def _cursor_path() -> Path:
+    return Path(get_settings().data_root) / "resolve" / "apply_cursor.txt"
+
+
 def apply_matches(conn, batch: int = 20_000) -> dict:
     """Link events to matched orgs, one committed batch of matches at a time.
 
     Restartable by construction: only rows with recipient_org_id IS NULL are
-    touched, so a re-run picks up exactly where an interrupted one stopped.
+    touched. A local cursor file additionally remembers the last completed
+    batch so a reconnect resumes mid-sweep instead of re-scanning from id 1
+    (the sweep itself is idempotent; the cursor only saves time). The file is
+    removed on completion so the next full run starts clean.
     """
     counts = {"events_linked": 0, "events_unlinked": 0}
     with conn.cursor() as cur:
         cur.execute("select coalesce(min(id), 0), coalesce(max(id), -1) "
                     "from internal.recipient_matches")
         lo_id, hi_id = cur.fetchone()
+
+    cursor_file = _cursor_path()
+    if cursor_file.exists():
+        try:
+            resumed = int(cursor_file.read_text().strip())
+            if lo_id <= resumed <= hi_id:
+                print(f"  resuming apply from match id {resumed:,} "
+                      f"(cursor file)", flush=True)
+                lo_id = resumed
+        except ValueError:
+            pass
 
     lo = lo_id
     while lo <= hi_id:
@@ -250,9 +268,12 @@ def apply_matches(conn, batch: int = 20_000) -> dict:
             cur.execute(_UNAPPLY_BATCH, {"lo": lo, "hi": hi})
             counts["events_unlinked"] += cur.rowcount
         conn.commit()
+        cursor_file.parent.mkdir(parents=True, exist_ok=True)
+        cursor_file.write_text(str(hi + 1))
         print(f"  applied matches {lo:,}-{min(hi, hi_id):,} · "
               f"{counts['events_linked']:,} events linked", flush=True)
         lo = hi + 1
+    cursor_file.unlink(missing_ok=True)
     return counts
 
 
