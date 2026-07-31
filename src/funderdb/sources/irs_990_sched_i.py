@@ -161,8 +161,13 @@ def _load_batch(conn, raw_file_id: int, filings: list[PfFiling],
             " city, state, purpose, amount, fy) from stdin"
         ) as copy:
             for p in parsed:
-                for row in p.grants:
-                    copy.write_row(row)
+                # Parse tuples lead with the filer EIN; the stage table leads
+                # with record_key — unpack and reorder (the raw tuple once
+                # went straight through and EINs collided in the key column).
+                for (ein, key, locator, recipient, r_ein, city, state,
+                     purpose, amount, fy) in p.grants:
+                    copy.write_row((key, ein, locator, recipient, r_ein,
+                                    city, state, purpose, amount, fy))
 
         cur.execute("analyze _si_orgs"); cur.execute("analyze _si_grants")
 
