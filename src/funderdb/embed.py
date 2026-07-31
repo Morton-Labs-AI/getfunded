@@ -90,7 +90,9 @@ geo as (
 )
 select o.id as org_id, o.org_type, o.state, o.asset_amount as size_amount,
   left(
-    o.name || ' - private foundation in ' ||
+    o.name || ' - ' ||
+    case when o.org_type = 'public_charity' then 'grantmaking public charity'
+         else 'private foundation' end || ' in ' ||
     coalesce(o.city || ', ', '') || coalesce(o.state, 'US') || '. ' ||
     coalesce('%(ntee_case)s' || '. ', '') ||
     coalesce('Assets $' || o.asset_amount::bigint || '. ', '') ||
@@ -105,8 +107,13 @@ join grant_stats gs on gs.org_id = o.id
 left join purposes p on p.funder_org_id = o.id
 left join recipients r on r.funder_org_id = o.id
 left join geo g on g.funder_org_id = o.id
-where o.org_type = 'private_foundation'
+where o.org_type in ('private_foundation', 'public_charity')
 """
+# Public charities joined the 'foundation' doc kind when Schedule I landed
+# (2026-07-31): the inner join on grant_stats limits docs to actual
+# grantmakers, so grantless charities (the 1.8M-row BMF thin spine) never
+# get docs. doc_kind stays 'foundation' — it means "grantmaker" to the
+# search layer, and the schema CHECK allows only the four kinds.
 
 COMPANY_DOCS_SQL = f"""
 with awards as (
