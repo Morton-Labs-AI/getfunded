@@ -96,11 +96,17 @@ SQL_INLINE = [
                   join internal.org_identifiers i
                     on i.org_id = o.id and i.id_type = 'ein'
                   where i.id_value = '812567715'""",
-        # Flips from REPORT to a hard gate when Schedule I lands (grants visible
-        # is the B5-full-closure check in the ER/G5 section).
+        # The org row is the whole achievable gate. Stellar's grantmaking is a
+        # DOCUMENTED STRUCTURAL ABSENCE: its EIN appears in zero e-file index
+        # years (2021-2026) — as a $0-asset micro-charity it files the 990-N
+        # postcard, which carries no Schedule I and no grant data. Verified
+        # 2026-07-31 against all six staged index CSVs. Same honest-absence
+        # doctrine as Prelude Ventures on the SEC side.
         "assert": lambda rows: (
-            None if not rows else len(rows) >= 1,
-            f"Stellar Energy Foundation org row: {'present as ' + rows[0][1] if rows else 'MISSING'}"),
+            len(rows) >= 1,
+            f"Stellar org row {'present as ' + rows[0][1] if rows else 'MISSING'}; "
+            "grants structurally absent (990-N filer — no e-filed 990/EZ in any "
+            "index year; documented absence)"),
     },
 ]
 
