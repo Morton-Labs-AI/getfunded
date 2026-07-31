@@ -285,3 +285,31 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 --   Embed corpus: 111,869 foundation docs (was 90,324); 108,394 re-embedded
 --   (~$1.15); HNSW index retained (unfiltered path), filtered path exact
 --   per migration 0011.
+
+-- ===========================================================================
+-- 2026-07-31 · G5 SCHEDULE I COMPLETE — THE FULL BASE CORPUS
+-- ===========================================================================
+-- All six Schedule I years (2021-2026) ingested: 4,228,100 public-charity
+-- grants ($835.5B), 79.2% recipient-resolved AT LOAD via filer-asserted
+-- EINs; median $20k (above the PF $3k, consistent with the $5k reporting
+-- floor); all 22 >$1B rows individually inspected and legitimate
+-- (UL->ULSE, Gothic Corp->Duke, Mayo group return, MGB, NYU Langone).
+-- Mega-DAF exclusion held across every year (sponsor EINs resolved from
+-- the DB); zero missing filings for 2021-2024; 2025/2026 carry the usual
+-- not-yet-zipped tail that future re-runs collect. Final name-tier pass
+-- added 135,751 matches (+91,742 events). Grantmaking public charities
+-- joined the semantic corpus (doc builder widened; 249,769 embedded docs).
+--
+-- STELLAR (B5b) RE-SCOPED: EIN 812567715 appears in ZERO e-file index
+-- years — a 990-N postcard filer whose grantmaking is structurally
+-- invisible in IRS bulk data. Documented absence, same doctrine as Prelude.
+--
+-- E5 fixture updated: grantmaking charities displaced the original
+-- private-foundation trio with the actual climate-philanthropy heavyweights
+-- (ClimateWorks, Energy Foundation, Breakthrough Energy, Hewlett) — better
+-- answers, stricter assertion (>=2 of 7).
+--
+-- GRAND TOTALS: 14,512,429 events · 14,203,751 grants · $845.5B linked
+-- grant dollars · 7,203,038 grant rows resolved · 2,301,084 orgs ·
+-- 249,769 embedded docs · DB 15GB.
+-- Suite: 27 PASS · 0 FAIL · 3 REPORT/SKIP (funds/people ER await labels).

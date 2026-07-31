@@ -146,9 +146,17 @@ def e4(_rows):
 
 
 def e5(rows):
+    # Fixture updated 2026-07-31 when grantmaking charities joined the corpus:
+    # the climate-philanthropy heavyweights (ClimateWorks, Energy Foundation,
+    # Breakthrough Energy, Hewlett) are mostly public charities and displaced
+    # the original private-foundation trio — a better answer, not a
+    # regression. Set spans both org populations; floor raised to 2.
+    known = ("SEQUOIA CLIMATE", "SEA CHANGE", "CO2 FOUNDATION",
+             "CLIMATEWORKS", "ENERGY FOUNDATION", "BREAKTHROUGH ENERGY",
+             "HEWLETT")
     top10 = " ".join(str(r[4] or "").upper() for r in rows[:10])
-    hits = sum(1 for k in ("SEQUOIA CLIMATE", "SEA CHANGE", "CO2 FOUNDATION") if k in top10)
-    return hits >= 1, f"{hits}/3 known climate funders in top 10 (need >=1)"
+    hits = sum(1 for k in known if k in top10)
+    return hits >= 2, f"{hits}/{len(known)} known climate funders in top 10 (need >=2)"
 
 
 def e7(rows):
