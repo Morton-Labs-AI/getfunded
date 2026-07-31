@@ -258,3 +258,30 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 --             zero placeholder-text matches
 --   ER-funds [ER] SKIP: not applied yet (labels 2/2, Wilson 0.342)
 --   ER-people [ER] SKIP: not applied yet
+
+-- ===========================================================================
+-- 2026-07-31 · BACK-YEARS FINALIZE (`funderdb eval all` on the 10.3M-event DB)
+-- ===========================================================================
+-- All four back-years complete (2021-2024; ONE filing missing across 640,157
+-- indexed PF filings). Recipient resolution re-run over the grown corpus.
+-- Getting here surfaced and fixed three scale failures, all committed with
+-- narratives: (1) the single-statement _recips aggregate OOM-crashed the 2GB
+-- Small instance at 9.1M unlinked rows -> sliced partial aggregates + memory
+-- guards; (2) the flat apply UPDATE's plan collapsed (expression n_distinct
+-- poisoned by placeholder names; a probe costed at ~50k rows) into per-batch
+-- full-table sorts that crashed the server -> fenced LATERAL index probes;
+-- (3) reconnect-resume machinery (cursor file) after repeated instance
+-- stalls. Compute bumped Small->Medium mid-apply (Zach-approved); the final
+-- sweep ran with zero disconnects.
+--
+-- Suite: 27 PASS · 0 FAIL · 3 REPORT/SKIP (E4 by design; funds/people ER
+-- await the label gates). Changes vs 2026-07-30:
+--   ER-tier1  416,962 (was 349,293)   ER-tier2  2,005 (was 784)
+--   ER-tier3   90,521 (was 57,813)    ER-linked 3,747,209 (was 886,763)
+--   Dollars linked: $171.0B (was $47.9B).
+--   E1b now 3/4 fusion programs in top 6 (was 4/4; the deepened foundation
+--   corpus displaced one program from the top block — assertion floor is
+--   >=3, still PASS; watch on future re-embeds).
+--   Embed corpus: 111,869 foundation docs (was 90,324); 108,394 re-embedded
+--   (~$1.15); HNSW index retained (unfiltered path), filtered path exact
+--   per migration 0011.
