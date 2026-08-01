@@ -15,11 +15,32 @@ import {
   orgContactCount,
   type PersonChip,
 } from "@/lib/queries/orgs";
+import {
+  orgGrantsPage,
+  orgGrantGeography,
+  orgTopRecipients,
+  orgFunderStatsExtended,
+  orgProvenanceFiles,
+  type GrantPageRow,
+  type GeoRow,
+  type TopRecipientRow,
+  type FunderStatsExtended,
+  type ProvFileRow,
+} from "@/lib/queries/org-profile";
 import { EventsTable } from "@/components/events-table";
+import { GeoTable } from "@/components/org/geo-table";
+import { TopRecipients } from "@/components/org/top-recipients";
+import { PeopleGroups } from "@/components/org/people-groups";
+import { GrantsPager } from "@/components/org/grants-pager";
 import { SourceGlyph } from "@/components/source-glyph";
 import { TrichotomyBadge, CategoryRule } from "@/components/trichotomy-badge";
 import { YearBars } from "@/components/year-bars";
-import { PERSON_CAVEAT } from "@/lib/content/facts";
+import {
+  PERSON_CAVEAT,
+  NTEE_CAVEAT,
+  RESOLVED_COVERAGE_NOTE,
+} from "@/lib/content/facts";
+import { nteeMajorLabel } from "@/lib/content/ntee";
 import {
   moneyCompact,
   moneyFull,
@@ -29,15 +50,18 @@ import {
   REL_LABEL,
 } from "@/lib/format";
 
+const GRANTS_PAGE_SIZE = 50;
+
 export default async function OrgPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; q?: string; page?: string }>;
 }) {
   const { id } = await params;
-  const { from } = await searchParams;
+  const { from, q, page: pageParam } = await searchParams;
+  const grantsPageNum = Math.max(1, Number(pageParam) || 1);
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
 
   const org = await getOrg(id);
@@ -66,15 +90,42 @@ export default async function OrgPage({
   const isCharity = org.org_type === "public_charity";
   const isGrantmaker = isFoundation || isAgency || isCharity;
 
-  const [grants, received, byYear, funds, managers, programs] =
-    await Promise.all([
-      isGrantmaker ? orgGrantsPaid(memberIds) : Promise.resolve([]),
-      !isAgency && !isFoundation ? orgEventsReceived(memberIds) : Promise.resolve([]),
-      isGrantmaker ? orgGrantsByYear(memberIds) : Promise.resolve([]),
-      isAdviser ? orgFundsManaged(id) : Promise.resolve([]),
-      isFund ? orgManagedBy(id) : Promise.resolve([]),
-      isAgency ? orgProgramsAdministered(id) : Promise.resolve([]),
-    ]);
+  const [
+    grants,
+    received,
+    byYear,
+    funds,
+    managers,
+    programs,
+    grantsPage,
+    geo,
+    topRecipients,
+    extStats,
+    provFiles,
+  ] = await Promise.all([
+    // Foundations move to the paged query below; agencies and charities keep
+    // the top-25 path unchanged.
+    isGrantmaker && !isFoundation ? orgGrantsPaid(memberIds) : Promise.resolve([]),
+    !isAgency && !isFoundation ? orgEventsReceived(memberIds) : Promise.resolve([]),
+    isGrantmaker ? orgGrantsByYear(memberIds) : Promise.resolve([]),
+    isAdviser ? orgFundsManaged(id) : Promise.resolve([]),
+    isFund ? orgManagedBy(id) : Promise.resolve([]),
+    isAgency ? orgProgramsAdministered(id) : Promise.resolve([]),
+    isFoundation
+      ? orgGrantsPage(memberIds, { q, page: grantsPageNum, pageSize: GRANTS_PAGE_SIZE })
+      : Promise.resolve([] as GrantPageRow[]),
+    isFoundation ? orgGrantGeography(memberIds) : Promise.resolve([] as GeoRow[]),
+    isFoundation ? orgTopRecipients(memberIds, 15) : Promise.resolve([] as TopRecipientRow[]),
+    isFoundation
+      ? orgFunderStatsExtended(memberIds)
+      : Promise.resolve(null as FunderStatsExtended | null),
+    isFoundation
+      ? orgProvenanceFiles(memberIds, org.raw_file_id)
+      : Promise.resolve([] as ProvFileRow[]),
+  ]);
+  const grantsTotal = grantsPage[0]?.total_rows ?? 0;
+  const grantsPageCount = Math.max(1, Math.ceil(grantsTotal / GRANTS_PAGE_SIZE));
+  const nteeLabel = nteeMajorLabel(org.ntee_code);
 
   const prov = {
     dataset: org.dataset_name,
@@ -103,7 +154,12 @@ export default async function OrgPage({
         )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="mono-label">
-            {[org.city, org.state].filter(Boolean).join(", ") || org.country}
+            {[
+              isFoundation ? org.street : null,
+              [org.city, org.state].filter(Boolean).join(", ") || org.country,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             {org.status !== "active" ? ` · ${org.status}` : ""}
           </span>
           <Link
@@ -130,9 +186,25 @@ export default async function OrgPage({
               ERA
             </span>
           )}
+          {isFoundation && org.ntee_code && (
+            <span
+              className="rounded-[5px] bg-inset px-2 py-[3px] font-mono text-[10.5px] tracking-[0.08em] text-ink-3"
+              title={NTEE_CAVEAT}
+            >
+              {`NTEE ${org.ntee_code}${nteeLabel ? ` · ${nteeLabel}` : ""}`}
+            </span>
+          )}
           {ids.map((i) => (
             <IdChip key={`${i.id_type}:${i.id_value}`} idType={i.id_type} value={i.id_value} />
           ))}
+          {isFoundation && org.ruling_date && (
+            <span
+              className="text-[12.5px] text-ink-4"
+              title="Year the IRS ruled the organization tax-exempt (ruling date from the Business Master File)"
+            >
+              {`exempt since ${org.ruling_date.slice(0, 4)}`}
+            </span>
+          )}
           {merged.length > 0 && (
             <span
               className="rounded-[5px] bg-inset px-2 py-[3px] font-mono text-[10.5px] uppercase tracking-[0.08em] text-ink-3"
@@ -196,22 +268,108 @@ export default async function OrgPage({
             </span>
           </div>
         )}
+        {isFoundation && extStats?.median_amount && (
+          <div className="flex flex-col gap-1">
+            <span className="mono-label">median grant</span>
+            <span
+              className="tnum text-[30px] font-[620] leading-9 tracking-[-0.02em] text-ink-1"
+              title={moneyFull(extStats.median_amount)}
+            >
+              {moneyCompact(extStats.median_amount)}
+            </span>
+          </div>
+        )}
+        {isFoundation && extStats && extStats.distinct_recipients > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="mono-label">distinct recipients</span>
+            <span className="tnum text-[30px] font-[620] leading-9 tracking-[-0.02em] text-ink-1">
+              {countFull(extStats.distinct_recipients)}
+            </span>
+          </div>
+        )}
+        {isFoundation &&
+          extStats?.resolved_rows_pct != null &&
+          extStats.resolved_dollars_pct != null && (
+            <div className="flex flex-col gap-1">
+              <span className="mono-label">resolved coverage</span>
+              <span
+                className="tnum text-[30px] font-[620] leading-9 tracking-[-0.02em] text-ink-1"
+                title={RESOLVED_COVERAGE_NOTE(
+                  extStats.resolved_rows_pct,
+                  extStats.resolved_dollars_pct
+                )}
+              >
+                {`${extStats.resolved_rows_pct}%`}
+                <span className="ml-2 text-[15px] font-normal text-ink-3">
+                  {`of rows · ${extStats.resolved_dollars_pct}% of $`}
+                </span>
+              </span>
+            </div>
+          )}
       </section>
 
       {/* people */}
       {people.length > 0 && (
         <Section title={isAdviser ? "Owners & executives" : "People"}>
-          <div className="flex flex-wrap gap-2">
-            {people.map((p) => (
-              <PersonChipEl key={p.person_id} p={p} />
-            ))}
-          </div>
-          <p className="mt-3 text-[11.5px] text-ink-4">{PERSON_CAVEAT}</p>
+          {isFoundation ? (
+            <PeopleGroups people={people} />
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {people.map((p) => (
+                  <PersonChipEl key={p.person_id} p={p} />
+                ))}
+              </div>
+              <p className="mt-3 text-[11.5px] text-ink-4">{PERSON_CAVEAT}</p>
+            </>
+          )}
         </Section>
       )}
 
-      {/* grants paid */}
-      {isGrantmaker && grants.length > 0 && (
+      {/* grant geography (foundations) */}
+      {isFoundation && geo.length > 0 && (
+        <Section title="Grant geography">
+          <GeoTable rows={geo} />
+        </Section>
+      )}
+
+      {/* top recipients (foundations) */}
+      {isFoundation && topRecipients.length > 0 && (
+        <Section title="Top recipients">
+          <TopRecipients rows={topRecipients} />
+        </Section>
+      )}
+
+      {/* grants paid — foundations get search + pagination over the full set */}
+      {isFoundation && (grantsTotal > 0 || q) && (
+        <Section
+          title="Grants paid"
+          aside={
+            byYear.length > 0 ? (
+              <YearBars data={byYear} fill="var(--cat-grant-fill)" unitLabel="grants" />
+            ) : undefined
+          }
+        >
+          <GrantsPager
+            orgId={org.id}
+            from={from}
+            q={q}
+            page={grantsPageNum}
+            pageCount={grantsPageCount}
+            total={grantsTotal}
+          />
+          {grantsPage.length > 0 ? (
+            <EventsTable rows={grantsPage} prov={prov} />
+          ) : (
+            <p className="text-[13px] text-ink-3">
+              No grants match this search.
+            </p>
+          )}
+        </Section>
+      )}
+
+      {/* grants paid (agencies, charities — unchanged top-25 path) */}
+      {!isFoundation && isGrantmaker && grants.length > 0 && (
         <Section
           title={isAgency ? "Awards made" : "Grants paid"}
           aside={
@@ -306,13 +464,56 @@ export default async function OrgPage({
 
       {/* provenance */}
       <Section title="Provenance">
-        <div className="rounded-[10px] border border-border-1 bg-surface px-4 py-3.5 text-[13px] text-ink-2">
-          <SourceGlyph prov={prov}>
-            <span className="font-mono text-[12px]">{org.dataset_name}</span>
-          </SourceGlyph>
-          <span className="text-ink-3"> · {org.license_name} · record </span>
-          <span className="font-mono text-[12px] text-ink-3">{org.source_record_locator}</span>
-        </div>
+        {isFoundation && provFiles.length > 0 ? (
+          <div className="flex flex-col gap-2 rounded-[10px] border border-border-1 bg-surface px-4 py-3.5 text-[13px] text-ink-2">
+            {provFiles.map((f) => (
+              <div key={f.raw_file_id}>
+                <SourceGlyph
+                  prov={{
+                    dataset: f.dataset_name,
+                    sourceUrl: f.source_url,
+                    sha256: f.sha256,
+                    license: f.license_name,
+                    locator:
+                      f.raw_file_id === org.raw_file_id
+                        ? org.source_record_locator
+                        : null,
+                    ingested: f.downloaded_at,
+                  }}
+                >
+                  <span className="font-mono text-[12px]">{f.dataset_name}</span>
+                </SourceGlyph>
+                <span className="text-ink-3"> · {f.license_name}</span>
+                {f.raw_file_id === org.raw_file_id && (
+                  <>
+                    <span className="text-ink-3"> · record </span>
+                    <span className="font-mono text-[12px] text-ink-3">
+                      {org.source_record_locator}
+                    </span>
+                  </>
+                )}
+                {Number(f.n_events) > 0 && (
+                  <span className="text-ink-4">
+                    {` · ${countFull(f.n_events)} grant row${Number(f.n_events) > 1 ? "s" : ""}`}
+                    {f.first_fy
+                      ? f.first_fy === f.last_fy
+                        ? ` · FY${f.first_fy}`
+                        : ` · FY${f.first_fy}–${f.last_fy}`
+                      : ""}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[10px] border border-border-1 bg-surface px-4 py-3.5 text-[13px] text-ink-2">
+            <SourceGlyph prov={prov}>
+              <span className="font-mono text-[12px]">{org.dataset_name}</span>
+            </SourceGlyph>
+            <span className="text-ink-3"> · {org.license_name} · record </span>
+            <span className="font-mono text-[12px] text-ink-3">{org.source_record_locator}</span>
+          </div>
+        )}
       </Section>
     </div>
   );

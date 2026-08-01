@@ -16,6 +16,15 @@ export const PERSON_CAVEAT =
   "Person records are resolved across sources only where the entity-resolution " +
   "precision gate certifies; otherwise they stay per-source.";
 
+export const NTEE_CAVEAT =
+  "IRS-classified NTEE category from the Business Master File. Assigned at " +
+  "exemption; often reflects the original filing, not current giving.";
+
+export const RESOLVED_COVERAGE_NOTE = (rowsPct: number, dollarsPct: number) =>
+  `${rowsPct}% of this foundation's grant rows (${dollarsPct}% of dollars) ` +
+  "are resolved to organization records by precision-gated matching; the " +
+  "rest stay as-reported text, never stubbed.";
+
 export const KNOWN_LIMITS = [
   "Semantic search runs over aggregated giving-behavior documents, one per " +
     "funder — a funder whose few on-topic grants are buried under hundreds of " +

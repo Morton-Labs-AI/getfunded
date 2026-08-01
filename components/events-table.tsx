@@ -32,7 +32,22 @@ export function EventsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((e) => (
+            {rows.map((e) => {
+              // Per-row file provenance when the query supplies it (grant rows
+              // come from per-FY 990 e-files, not the org's BMF row); page-level
+              // prov otherwise.
+              const rowProv =
+                e.dataset_name && e.sha256 && e.license_name
+                  ? {
+                      dataset: e.dataset_name,
+                      sourceUrl: e.source_url ?? null,
+                      sha256: e.sha256,
+                      license: e.license_name,
+                      locator: e.source_record_locator,
+                      ingested: e.downloaded_at ?? null,
+                    }
+                  : { ...prov, locator: e.source_record_locator };
+              return (
               <tr key={e.id} className="border-b border-border-1 last:border-0 align-top">
                 {showType && (
                   <td className="whitespace-nowrap px-3.5 py-2">
@@ -72,7 +87,7 @@ export function EventsTable({
                   )}
                 </td>
                 <td className="tnum whitespace-nowrap px-3.5 py-2 text-right font-mono text-[12.5px] text-ink-1">
-                  <SourceGlyph prov={{ ...prov, locator: e.source_record_locator }}>
+                  <SourceGlyph prov={rowProv}>
                     {e.amount ? moneyFull(e.amount) : MDASH}
                   </SourceGlyph>
                 </td>
@@ -80,7 +95,8 @@ export function EventsTable({
                   {e.fiscal_year ?? e.event_date ?? MDASH}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
