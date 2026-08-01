@@ -20,6 +20,11 @@ export const NTEE_CAVEAT =
   "IRS-classified NTEE category from the Business Master File. Assigned at " +
   "exemption; often reflects the original filing, not current giving.";
 
+export const WEB_FACTS_NOTE =
+  "Extracted from the foundation's own website by a language model and " +
+  "human-confirmed; internal research data — not from an IRS filing and " +
+  "never republished.";
+
 export const SIMILAR_PROFILES_NOTE =
   "Nearest by size, location, and giving pattern in the semantic corpus — " +
   "geography weighs heavily. Ordering is the signal; treat it as a starting " +

@@ -181,3 +181,53 @@ export async function similarOrgs(id: string): Promise<SimilarOrgRow[]> {
     return [];
   }
 }
+
+export interface WebFactsPerson {
+  full_name: string;
+  title?: string | null;
+  role: "program_officer" | "executive" | "staff" | "board";
+  source_page: string;
+}
+export interface OrgWebFactsRow {
+  website_url: string;
+  focus_areas: string[];
+  giving_priorities: string | null;
+  application_info: string | null;
+  application_url: string | null;
+  accepts_unsolicited: boolean | null;
+  geographic_focus: string[];
+  people: WebFactsPerson[] | null;
+  extracted_summary: string | null;
+  extraction_model: string;
+  extracted_at: string;
+  source_record_locator: string;
+  dataset_name: string;
+  sha256: string;
+  source_url: string | null;
+  license_name: string;
+  downloaded_at: string;
+}
+/** The confirmed website enrichment for this org, if any (migration 0012).
+    Internal-only display data — model-extracted, human-confirmed, never
+    filing-sourced. Soft-fails to null so the profile never depends on it. */
+export async function orgWebFacts(memberIds: string[]): Promise<OrgWebFactsRow | null> {
+  try {
+    const rows = await sql<OrgWebFactsRow[]>`
+      select w.website_url, w.focus_areas, w.giving_priorities,
+             w.application_info, w.application_url, w.accepts_unsolicited,
+             w.geographic_focus, w.people, w.extracted_summary,
+             w.extraction_model, w.extracted_at::text, w.source_record_locator,
+             rf.dataset_name, rf.sha256, rf.source_url, lm.license_name,
+             rf.downloaded_at::text
+      from internal.org_web_facts w
+      join internal.raw_files rf on rf.id = w.raw_file_id
+      join internal.licensing_map lm on lm.license_code = rf.license_code
+      where w.org_id = any(${memberIds}::uuid[]) and w.status = 'confirmed'
+      order by w.extracted_at desc
+      limit 1`;
+    return rows[0] ?? null;
+  } catch (e) {
+    console.warn("orgWebFacts unavailable:", (e as Error).message);
+    return null;
+  }
+}

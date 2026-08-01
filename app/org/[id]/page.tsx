@@ -22,6 +22,8 @@ import {
   orgFunderStatsExtended,
   orgProvenanceFiles,
   similarOrgs,
+  orgWebFacts,
+  type OrgWebFactsRow,
   type GrantPageRow,
   type GeoRow,
   type TopRecipientRow,
@@ -32,6 +34,7 @@ import {
 import { EventsTable } from "@/components/events-table";
 import { GeoTable } from "@/components/org/geo-table";
 import { SimilarPanel } from "@/components/org/similar-panel";
+import { WebFacts } from "@/components/org/web-facts";
 import { TopRecipients } from "@/components/org/top-recipients";
 import { PeopleGroups } from "@/components/org/people-groups";
 import { GrantsPager } from "@/components/org/grants-pager";
@@ -106,6 +109,7 @@ export default async function OrgPage({
     extStats,
     provFiles,
     similar,
+    webFacts,
   ] = await Promise.all([
     // Foundations move to the paged query below; agencies and charities keep
     // the top-25 path unchanged.
@@ -127,6 +131,7 @@ export default async function OrgPage({
       ? orgProvenanceFiles(memberIds, org.raw_file_id)
       : Promise.resolve([] as ProvFileRow[]),
     isFoundation ? similarOrgs(id) : Promise.resolve([] as SimilarOrgRow[]),
+    isFoundation ? orgWebFacts(memberIds) : Promise.resolve(null as OrgWebFactsRow | null),
   ]);
   const grantsTotal = grantsPage[0]?.total_rows ?? 0;
   const grantsPageCount = Math.max(1, Math.ceil(grantsTotal / GRANTS_PAGE_SIZE));
@@ -167,13 +172,23 @@ export default async function OrgPage({
               .join(" · ")}
             {org.status !== "active" ? ` · ${org.status}` : ""}
           </span>
-          <Link
-            href={`/?q=${encodeURIComponent(`Tell me about ${org.name} (org id ${org.id})`)}`}
-            className="rounded-[8px] border border-accent-border px-3 py-1.5 text-[12.5px] font-medium text-accent transition-colors duration-[90ms] hover:bg-accent-tint"
-          >
-            Ask about this{" "}
-            {isFoundation ? "foundation" : isAdviser ? "firm" : isCharity ? "charity" : "organization"}
-          </Link>
+          <span className="flex items-center gap-3">
+            {process.env.NODE_ENV === "development" && isFoundation && (
+              <Link
+                href={`/admin/enrich/${id}`}
+                className="text-[12px] text-ink-4 underline decoration-dotted hover:text-ink-2"
+              >
+                {webFacts ? "update website info" : "add website info"}
+              </Link>
+            )}
+            <Link
+              href={`/?q=${encodeURIComponent(`Tell me about ${org.name} (org id ${org.id})`)}`}
+              className="rounded-[8px] border border-accent-border px-3 py-1.5 text-[12.5px] font-medium text-accent transition-colors duration-[90ms] hover:bg-accent-tint"
+            >
+              Ask about this{" "}
+              {isFoundation ? "foundation" : isAdviser ? "firm" : isCharity ? "charity" : "organization"}
+            </Link>
+          </span>
         </div>
         <h1 className="mt-2 text-[26px] font-[650] leading-8 tracking-[-0.02em] text-ink-1">
           {org.name}
@@ -220,16 +235,21 @@ export default async function OrgPage({
               {merged.length} merged record{merged.length > 1 ? "s" : ""}
             </span>
           )}
-          {org.website && (
-            <a
-              href={org.website.startsWith("http") ? org.website : `https://${org.website}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[12.5px] text-accent hover:text-accent-hover"
-            >
-              website ↗
-            </a>
-          )}
+          {(() => {
+            // Enrichment fills the gap for foundations (organizations.website
+            // is never backfilled from website snapshots — provenance).
+            const site = webFacts?.website_url ?? org.website;
+            return site ? (
+              <a
+                href={site.startsWith("http") ? site : `https://${site}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[12.5px] text-accent hover:text-accent-hover"
+              >
+                website ↗
+              </a>
+            ) : null;
+          })()}
           {contactCount > 0 && (
             <span className="text-[12.5px] text-ink-4">
               {contactCount} contact channels on file (internal)
@@ -312,6 +332,13 @@ export default async function OrgPage({
             </div>
           )}
       </section>
+
+      {/* enriched website facts (foundations, when a confirmed row exists) */}
+      {isFoundation && webFacts && (
+        <Section title="From the foundation's website">
+          <WebFacts wf={webFacts} />
+        </Section>
+      )}
 
       {/* people */}
       {people.length > 0 && (
