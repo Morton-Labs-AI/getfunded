@@ -52,4 +52,8 @@ export const KNOWN_LIMITS = [
   "Reg D offerings with a first sale “yet to occur” carry no event date; a " +
     "handful of filer-entered amount absurdities survive in the tail.",
   "Curated federal-program award figures are estimates pending founder review.",
+  "Enriched website facts (focus areas, giving priorities, application info) " +
+    "exist for only a handful of foundations, are extracted from the " +
+    "foundation's own site by a language model and human-confirmed, and are " +
+    "internal-only — never filing-sourced and never republished.",
 ];
