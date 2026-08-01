@@ -159,3 +159,25 @@ export async function orgProvenanceFiles(
        or rf.id in (select raw_file_id from grant_files)
     order by (rf.id = ${orgRawFileId}) desc, rf.downloaded_at, rf.dataset_name`;
 }
+
+export interface SimilarOrgRow {
+  org_id: string;
+  name: string;
+  org_type: string;
+  state: string | null;
+  size_amount: string | null;
+  dist: number;
+}
+/** Nearest giving profiles by doc embedding (internal.similar_orgs, migration
+    0012). The function itself excludes the seed org and merged-away rows.
+    Soft-fails to [] so the profile renders when the function is absent. */
+export async function similarOrgs(id: string): Promise<SimilarOrgRow[]> {
+  try {
+    return await sql<SimilarOrgRow[]>`
+      select org_id, name, org_type, state, size_amount, dist
+      from internal.similar_orgs(${id}, 12)`;
+  } catch (e) {
+    console.warn(`similarOrgs unavailable for ${id}:`, (e as Error).message);
+    return [];
+  }
+}

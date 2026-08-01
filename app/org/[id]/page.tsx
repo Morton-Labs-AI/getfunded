@@ -21,14 +21,17 @@ import {
   orgTopRecipients,
   orgFunderStatsExtended,
   orgProvenanceFiles,
+  similarOrgs,
   type GrantPageRow,
   type GeoRow,
   type TopRecipientRow,
   type FunderStatsExtended,
   type ProvFileRow,
+  type SimilarOrgRow,
 } from "@/lib/queries/org-profile";
 import { EventsTable } from "@/components/events-table";
 import { GeoTable } from "@/components/org/geo-table";
+import { SimilarPanel } from "@/components/org/similar-panel";
 import { TopRecipients } from "@/components/org/top-recipients";
 import { PeopleGroups } from "@/components/org/people-groups";
 import { GrantsPager } from "@/components/org/grants-pager";
@@ -102,6 +105,7 @@ export default async function OrgPage({
     topRecipients,
     extStats,
     provFiles,
+    similar,
   ] = await Promise.all([
     // Foundations move to the paged query below; agencies and charities keep
     // the top-25 path unchanged.
@@ -122,6 +126,7 @@ export default async function OrgPage({
     isFoundation
       ? orgProvenanceFiles(memberIds, org.raw_file_id)
       : Promise.resolve([] as ProvFileRow[]),
+    isFoundation ? similarOrgs(id) : Promise.resolve([] as SimilarOrgRow[]),
   ]);
   const grantsTotal = grantsPage[0]?.total_rows ?? 0;
   const grantsPageCount = Math.max(1, Math.ceil(grantsTotal / GRANTS_PAGE_SIZE));
@@ -337,6 +342,13 @@ export default async function OrgPage({
       {isFoundation && topRecipients.length > 0 && (
         <Section title="Top recipients">
           <TopRecipients rows={topRecipients} />
+        </Section>
+      )}
+
+      {/* similar giving profiles (foundations) */}
+      {isFoundation && similar.length > 0 && (
+        <Section title="Similar giving profiles">
+          <SimilarPanel rows={similar} />
         </Section>
       )}
 
