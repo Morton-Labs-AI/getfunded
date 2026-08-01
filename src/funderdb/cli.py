@@ -159,7 +159,7 @@ def resolve() -> None:
 @resolve.command("funds")
 @click.option("--predict", "do_predict", is_flag=True, help="Export, train, score, load links.")
 @click.option("--apply", "do_apply", is_flag=True, help="Recompute the canonical map (gated on labels).")
-@click.option("--threshold", type=float, default=0.99, show_default=True)
+@click.option("--threshold", type=float, default=0.20, show_default=True)
 @click.option("--force", is_flag=True, help="Apply without the label gate (provisional).")
 def resolve_funds(do_predict: bool, do_apply: bool, threshold: float, force: bool) -> None:
     from .resolve import funds
@@ -208,7 +208,7 @@ def resolve_label(job: str, n: int, stratum: str | None) -> None:
 @resolve.command("eval")
 @click.argument("job", type=click.Choice(["funds", "people"]))
 @click.option("--threshold", type=float, default=None,
-              help="Classification threshold (defaults to the job's auto threshold).")
+              help="Classification threshold (defaults to the job's apply threshold).")
 def resolve_eval(job: str, threshold: float | None) -> None:
     from .resolve import labeling
 

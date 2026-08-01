@@ -320,10 +320,14 @@ def predict(sample_only: bool = False) -> dict:
     return counts
 
 
-def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
-    """Recompute the canonical map: accepted ∪ (auto ≥ threshold) − rejected,
-    union-find with a cluster cap. Refused until the precision gate has labels
-    unless --force."""
+def apply(threshold: float = REVIEW_FLOOR, force: bool = False) -> dict:
+    """Recompute the canonical map: accepted ∪ (people-corroborated splink
+    >= threshold) − rejected, union-find with a cluster cap. Refused until the
+    precision gate has labels unless --force. Gate and certified set carry the
+    identical predicate, so certification and merge population match. The
+    default is REVIEW_FLOOR, not AUTO_THRESHOLD: the model's probability range
+    (0.566–0.943) puts 0.99 above every scored pair — corroboration, not the
+    threshold, defines the certified class."""
     counts: dict[str, int] = {}
     with connect() as conn:
         with conn.cursor() as cur:
@@ -337,7 +341,9 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
                 where l.job = 'funds_adv_formd' and l.label <> 'unsure'
                   and l.labeled_by not like '%%:parked'
                   and el.method like 'splink:%%'
-                  and coalesce((el.features->>'gamma_people')::int, 0) >= 1""")
+                  and coalesce((el.features->>'gamma_people')::int, 0) >= 1
+                  and el.match_probability >= %(threshold)s""",
+                {"threshold": threshold})
             correct, n_labels = cur.fetchone()
             low = wilson_low(correct or 0, n_labels or 0)
             if (n_labels < 100 or low <= 0.90) and not force:
@@ -347,18 +353,21 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
                     "Run `funderdb resolve label funds --stratum people` first, "
                     "or pass --force to apply provisionally."
                 )
-            # Certified links: human-accepted pairs plus the people-corroborated
-            # Splink class. Name-only pairs apply ONLY via explicit acceptance.
+            # Certified links mirror the gate filter exactly; human acceptance
+            # is absolute (no threshold on that branch), and name-only pairs
+            # merge ONLY via explicit acceptance.
             cur.execute("""
                 select id_a, id_b from internal.entity_links
                 where job = 'funds_adv_formd'
                   and (status = 'accepted'
                        or (status in ('auto', 'pending')
                            and method like 'splink:%%'
-                           and coalesce((features->>'gamma_people')::int, 0) >= 1))
+                           and coalesce((features->>'gamma_people')::int, 0) >= 1
+                           and match_probability >= %(threshold)s))
                 except
                 select id_a, id_b from internal.entity_links
-                where job = 'funds_adv_formd' and status = 'rejected'""")
+                where job = 'funds_adv_formd' and status = 'rejected'""",
+                {"threshold": threshold})
             pairs = cur.fetchall()
 
         clusters, oversize = union_find_clusters(pairs, CLUSTER_CAP)
@@ -390,14 +399,23 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
                     if i != rep:
                         mapping.append((i, rep))
 
+            # Full reset, NOT scoped to ids currently in entity_links: a pair
+            # merged by a prior apply can vanish from entity_links entirely on
+            # re-predict (renamed fund exits the blocking keys; evidence
+            # shifts below the floor), and an el-scoped reset would leave that
+            # merge as permanent unauditable state. This job is the sole
+            # writer of canonical_org_id, so the blanket reset is safe.
             cur.execute("""
                 update internal.organizations set canonical_org_id = null
-                where canonical_org_id is not null
-                  and id in (select id_a from internal.entity_links where job='funds_adv_formd'
-                             union select id_b from internal.entity_links where job='funds_adv_formd')""")
-            for dup, rep in mapping:
-                cur.execute("""update internal.organizations
-                               set canonical_org_id = %s where id = %s""", (rep, dup))
+                where canonical_org_id is not null""")
+            cur.execute("""
+                create temp table _map (dup uuid, rep uuid) on commit drop""")
+            with cur.copy("copy _map (dup, rep) from stdin") as copy:
+                for dup, rep in mapping:
+                    copy.write_row((dup, rep))
+            cur.execute("""
+                update internal.organizations o set canonical_org_id = m.rep
+                from _map m where o.id = m.dup""")
             counts["orgs_canonicalized"] = len(mapping)
         conn.commit()
     return counts
