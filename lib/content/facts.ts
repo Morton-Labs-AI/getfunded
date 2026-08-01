@@ -13,8 +13,9 @@ export const AS_REPORTED_NOTE =
   "stay as-reported — never stubbed)";
 
 export const PERSON_CAVEAT =
-  "Person records are resolved across sources only where the entity-resolution " +
-  "precision gate certifies; otherwise they stay per-source.";
+  "Person records are merged across sources where the people entity-resolution " +
+  "precision gate certifies (95% Wilson lower bound > 0.90 on human labels); " +
+  "sub-gate candidates stay per-source.";
 
 export const KNOWN_LIMITS = [
   "Semantic search runs over aggregated giving-behavior documents, one per " +
