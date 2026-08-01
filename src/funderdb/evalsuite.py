@@ -166,7 +166,8 @@ def _run_er(res: _Result, conn) -> None:
                 from internal.er_labels l
                 join internal.entity_links el
                   on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
-                where l.job = %(job)s and l.label <> 'unsure' and {gate_where}""",
+                where l.job = %(job)s and l.label <> 'unsure' and {gate_where}
+                  and l.labeled_by not like '%%:parked'""",
                 {"job": spec.job, "threshold": spec.auto_threshold})
             correct, n = cur.fetchone()
             low = wilson_low(correct or 0, n or 0)

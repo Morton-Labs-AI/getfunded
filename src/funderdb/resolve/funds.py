@@ -330,6 +330,7 @@ def apply(threshold: float = AUTO_THRESHOLD, force: bool = False) -> dict:
                 join internal.entity_links el
                   on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
                 where l.job = 'funds_adv_formd' and l.label <> 'unsure'
+                  and l.labeled_by not like '%%:parked'
                   and el.method like 'splink:%%'
                   and coalesce((el.features->>'gamma_people')::int, 0) >= 1""")
             correct, n_labels = cur.fetchone()

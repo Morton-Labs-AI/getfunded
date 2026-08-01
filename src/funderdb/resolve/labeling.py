@@ -31,15 +31,28 @@ def _fresh(conn):
     return connect()
 
 
-def _write_label(conn, job: str, id_a, id_b, lab: str) -> None:
+def _write_label(conn, job: str, id_a, id_b, lab: str,
+                 labeled_by: str = "cli") -> None:
+    """The CLI's label writer. labeled_by is REQUIRED in the DO UPDATE SET:
+    without it, a pair first labeled at the CLI and later corrected by
+    another writer (the labeling UI writes 'ui') would keep its stale tag —
+    and per-source gate auditing depends on the tag being truthful."""
     with conn.cursor() as cur:
         cur.execute("""
-            insert into internal.er_labels (job, id_a, id_b, label)
-            values (%s, %s, %s, %s)
+            insert into internal.er_labels (job, id_a, id_b, label, labeled_by)
+            values (%s, %s, %s, %s, %s)
             on conflict on constraint uq_er_labels
-            do update set label = excluded.label""",
-            (job, id_a, id_b, lab))
+            do update set label = excluded.label,
+                          labeled_by = excluded.labeled_by""",
+            (job, id_a, id_b, lab, labeled_by))
     conn.commit()
+
+
+# Labels whose labeled_by ends in ':parked' are excluded from every gate,
+# eval, and status computation: parking retires a sample without deleting
+# the historical record (first use: the 2 pre-UI CLI labels, retired when
+# the labeling UI restarted the funds sample cleanly).
+PARKED_FILTER = "l.labeled_by not like '%%:parked'"
 
 _FUND_DETAIL = """
 select o.id, o.name, o.state, o.fund_size::text,
@@ -194,11 +207,11 @@ def label(job_key: str, n: int, stratum: str | None) -> None:
                 break
             lab = {"y": "match", "n": "not_match", "u": "unsure"}[ans]
             try:
-                _write_label(conn, spec.job, id_a, id_b, lab)
+                _write_label(conn, spec.job, id_a, id_b, lab, labeled_by="cli")
             except psycopg.OperationalError:
                 click.echo("  (connection dropped — reconnecting; your answer is kept)")
                 conn = _fresh(conn)
-                _write_label(conn, spec.job, id_a, id_b, lab)
+                _write_label(conn, spec.job, id_a, id_b, lab, labeled_by="cli")
             done += 1
         click.echo(f"\nrecorded {done} labels")
     finally:
@@ -213,30 +226,41 @@ def eval_job(job_key: str, threshold: float | None = None) -> None:
     thr = spec.auto_threshold if threshold is None else threshold
     with connect() as conn, conn.cursor() as cur:
         cur.execute(f"""
-            select l.label, {spec.class_case_sql} as cls
+            select l.label, {spec.class_case_sql} as cls, l.labeled_by
             from internal.er_labels l
             join internal.entity_links el
               on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
-            where l.job = %(job)s and l.label <> 'unsure'""",
+            where l.job = %(job)s and l.label <> 'unsure'
+              and {PARKED_FILTER}""",
             {"job": spec.job, "threshold": thr})
         rows = cur.fetchall()
     if not rows:
         click.echo(f"No labels yet. Run `funderdb resolve label {job_key}` first.")
         return
 
-    click.echo(f"labels total (excl. unsure): {len(rows)}\n")
+    click.echo(f"labels total (excl. unsure, excl. parked): {len(rows)}\n")
     gate_passed = False
     for cls, description, auto_rule in spec.class_info:
-        sub = [lab for lab, c in rows if c == cls]
+        sub = [(lab, by) for lab, c, by in rows if c == cls]
         if not sub:
             click.echo(f"{cls:>9}: no labels yet — {description}")
             continue
-        correct = sum(1 for lab in sub if lab == "match")
+        correct = sum(1 for lab, _by in sub if lab == "match")
         low = wilson_low(correct, len(sub))
         verdict = "CERTIFIED (>0.90)" if low > 0.90 and len(sub) >= 100 else \
                   f"not yet (n={len(sub)}, need >=100 and lower bound > 0.90)"
         click.echo(f"{cls:>9}: {correct}/{len(sub)} match · Wilson low {low:.3f} · {verdict}")
         click.echo(f"           {description} → {auto_rule}")
+        # Per-source breakdown: certification must be auditable BY WRITER
+        # (the gate itself stays a single pooled bound over all sources).
+        by_source: dict[str, list[str]] = {}
+        for lab, by in sub:
+            by_source.setdefault(by, []).append(lab)
+        for by in sorted(by_source):
+            labs = by_source[by]
+            c = sum(1 for x in labs if x == "match")
+            click.echo(f"           by {by}: {c}/{len(labs)} match · "
+                       f"Wilson low {wilson_low(c, len(labs)):.3f}")
         if cls == spec.gate_stratum and low > 0.90 and len(sub) >= 100:
             gate_passed = True
     click.echo("\nGATE " + (f"PASSED for the {spec.gate_stratum} class — "
@@ -287,7 +311,8 @@ def status_report() -> None:
                 where job = %s group by 1 order by 1""", (spec.job,))
             links = {s: c for s, c in cur.fetchall()}
             cur.execute("""
-                select label, count(*) from internal.er_labels
+                select labeled_by || ' ' || label, count(*)
+                from internal.er_labels
                 where job = %s group by 1 order by 1""", (spec.job,))
             labels = {s: c for s, c in cur.fetchall()}
             gate_where = spec.strata[spec.gate_stratum]
@@ -296,7 +321,8 @@ def status_report() -> None:
                 from internal.er_labels l
                 join internal.entity_links el
                   on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
-                where l.job = %(job)s and l.label <> 'unsure' and {gate_where}""",
+                where l.job = %(job)s and l.label <> 'unsure' and {gate_where}
+                  and {PARKED_FILTER}""",
                 {"job": spec.job, "threshold": spec.auto_threshold})
             correct, n = cur.fetchone()
             low = wilson_low(correct or 0, n or 0)
