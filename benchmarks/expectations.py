@@ -108,6 +108,52 @@ SQL_INLINE = [
             "grants structurally absent (990-N filer — no e-filed 990/EZ in any "
             "index year; documented absence)"),
     },
+    {
+        "id": "B11", "series": "B",
+        # Web-facts containment (migration 0012): every org_web_facts row must
+        # trace to a funder_website raw file under the non-republishable
+        # publisher_website license, no public view may read the table, and no
+        # published fact table may ever cite a website snapshot. rows_total=0
+        # is a vacuous PASS (the table is human-gated and sparse by design).
+        "sql": """select
+                    (select count(*) from internal.org_web_facts) as rows_total,
+                    (select count(*) from internal.org_web_facts w
+                       left join internal.raw_files rf on rf.id = w.raw_file_id
+                       left join internal.licensing_map lm
+                         on lm.license_code = rf.license_code
+                       where rf.sha256 is null
+                          or rf.dataset_name is distinct from 'funder_website'
+                          or coalesce(lm.republishable, true)) as violations,
+                    (select count(*) from information_schema.view_table_usage
+                       where table_schema = 'internal'
+                         and table_name = 'org_web_facts'
+                         and view_schema = 'public') as public_view_refs,
+                    (select count(*) from internal.organizations o
+                       join internal.raw_files rf on rf.id = o.raw_file_id
+                       where rf.dataset_name = 'funder_website') as org_row_leak""",
+        "assert": lambda rows: (
+            rows[0][1] == 0 and rows[0][2] == 0 and rows[0][3] == 0,
+            f"web-facts containment: {rows[0][0]} rows, {rows[0][1]} provenance "
+            f"violations, {rows[0][2]} public-view refs, {rows[0][3]} org-row "
+            "leaks" + (" (vacuous — no confirmed rows yet)" if rows[0][0] == 0 else "")),
+    },
+    {
+        "id": "S1", "series": "S",
+        # similar_orgs sanity (migration 0012) on the Topfer seed: 12 rows,
+        # seed excluded, distances ascending in (0, 1). The HNSW≡exact and
+        # filter-path equivalence proofs ran at migration time (recorded in
+        # queries.sql 2026-08-01); this keeps the function's contract green.
+        "sql": """select org_id::text, dist
+                  from internal.similar_orgs('4f205ebb-9c46-4304-8594-814b32cbd29f')""",
+        "assert": lambda rows: (
+            len(rows) == 12
+            and all(r[0] != "4f205ebb-9c46-4304-8594-814b32cbd29f" for r in rows)
+            and all(0 < r[1] < 1 for r in rows)
+            and all(rows[i][1] <= rows[i + 1][1] for i in range(len(rows) - 1)),
+            f"similar_orgs(Topfer): {len(rows)} rows, dist "
+            f"{rows[0][1]:.4f}..{rows[-1][1]:.4f} ascending, seed excluded"
+            if rows else "similar_orgs returned no rows"),
+    },
 ]
 
 # --- E-series ---------------------------------------------------------------

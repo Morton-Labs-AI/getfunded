@@ -313,3 +313,35 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 -- grant dollars · 7,203,038 grant rows resolved · 2,301,084 orgs ·
 -- 249,769 embedded docs · DB 15GB.
 -- Suite: 27 PASS · 0 FAIL · 3 REPORT/SKIP (funds/people ER await labels).
+
+-- ===========================================================================
+-- 2026-08-01 · FOUNDATION PROFILES V2 — SIMILARITY + WEB-FACTS (migration 0012)
+-- ===========================================================================
+-- Migration 0012 applied: internal.similar_orgs (org-to-org NN over the
+-- semantic-doc embeddings), internal.org_web_facts (append-only, human-gated
+-- website extractions), licensing_map += publisher_website (republishable=
+-- false). Verified at migration time:
+--   S1  Topfer seed returns the prototype-identical top-10 (9/10 TX,
+--       dist 0.1335-0.1570), 12 rows, seed excluded — now a standing check.
+--   S2  function ≡ hand-run exact scan (EXCEPT both directions = 0 rows) on
+--       the kind-only HNSW path; recall@10 10/10 across 6 seeds.
+--   S3  filter path (state_in='TX', min_size=1e6): 10 rows, all predicates
+--       hold; exact +0.0 path per 0011 doctrine.
+--   S4  merged-row leak 0 (vacuous — canonical map still empty pre-apply;
+--       re-run after the funds apply).
+--   S5  missing/unembedded doc → empty result, no error.
+--   Timing as funder_ro: 97ms cold / 39ms warm (HNSW), 463ms filtered exact;
+--   INSERT correctly refused (read-only role).
+--   B11 (standing) web-facts containment: provenance round-trip to a
+--   funder_website raw file, non-republishable license, zero public-view
+--   refs, zero published-fact rows citing a website snapshot. Vacuous PASS
+--   at 0 rows until the first human-confirmed enrichment.
+-- Doctrine note: organizations.website is NEVER backfilled from snapshots
+-- (the org row is published under its BMF provenance); the UI coalesces
+-- org_web_facts.website_url over it. Website staff stay display-only jsonb —
+-- nothing enters internal.people ahead of the people ER gate.
+-- UI side lives on the open-funder-db-ui branch foundation-profiles
+-- (5 commits, pushed, unmerged): profile v2 from existing data, similar
+-- panel, enrichment flow (/admin/enrich/[id], dev-only), analyst honesty
+-- fixes. Merge order: labeling-ui -> main -> foundation-profiles ->
+-- person-pages.
