@@ -5,8 +5,8 @@ and a manages_fund edge from its adviser; the Form D side carries a CIK and
 reg_d_offering events. Evidence for linkage: fund name (TF-adjusted — 'FUND II
 LP' boilerplate makes many names near-identical), the people overlap between
 the adviser's Schedule A/B owners and the Form D related persons (the
-discriminator), state (weak: ADV reports Delaware domicile, Form D reports
-principal place of business), and fund type.
+discriminator), and state (weak: ADV reports Delaware domicile, Form D
+reports principal place of business).
 
 Runs locally on DuckDB. Predictions land in internal.entity_links as
 status='auto' (p >= AUTO_THRESHOLD) or 'pending'; human decisions are never
@@ -43,7 +43,6 @@ select f.id::text as unique_id,
        f.name_normalized as name_norm,
        split_part(f.name_normalized, ' ', 1) as first_token,
        f.state,
-       f.focus_areas[1] as fund_type,
        max(a.name_normalized) as adviser_name,
        coalesce(array_agg(distinct {_PERSON_KEY})
                 filter (where p.id is not null
@@ -60,7 +59,7 @@ left join internal.relationships pr
  and pr.from_person_id is not null
 left join internal.people p on p.id = pr.from_person_id
 where f.org_type = 'fund'
-group by f.id, f.name_normalized, f.state, f.focus_areas
+group by f.id, f.name_normalized, f.state
 """
 
 _FORMD_FRAME_SQL = f"""
@@ -68,7 +67,6 @@ select f.id::text as unique_id,
        f.name_normalized as name_norm,
        split_part(f.name_normalized, ' ', 1) as first_token,
        f.state,
-       null::text as fund_type,
        null::text as adviser_name,
        coalesce(array_agg(distinct {_PERSON_KEY})
                 filter (where p.id is not null
@@ -186,7 +184,7 @@ def predict(sample_only: bool = False) -> dict:
     linker.training.estimate_u_using_random_sampling(max_pairs=5_000_000)
     # Two EM passes: a variable's m-values can't be trained inside its own
     # blocking rule, so name_norm trains in the (first_token, state) session
-    # and people/state/fund_type train in the name_norm session.
+    # and people/state train in the name_norm session.
     linker.training.estimate_parameters_using_expectation_maximisation(
         block_on("name_norm")
     )
@@ -224,9 +222,14 @@ def predict(sample_only: bool = False) -> dict:
         try:
             with conn.cursor() as cur:
                 cur.execute("set local statement_timeout = '30min'")
+                # Splink-scoped delete: human decisions survive by status, and
+                # the deterministic:exact_name pending rows survive by method —
+                # an unscoped delete would churn their ids/created_at on every
+                # predict run.
                 cur.execute("""
                     delete from internal.entity_links
-                    where job = 'funds_adv_formd' and status in ('auto', 'pending')""")
+                    where job = 'funds_adv_formd' and status in ('auto', 'pending')
+                      and method like 'splink:%%'""")
                 cur.execute("""
                     create temp table _links (
                       id_a uuid, id_b uuid, weight real, prob real, features jsonb
@@ -243,6 +246,9 @@ def predict(sample_only: bool = False) -> dict:
                             json.dumps({g: int(d[g]) for g in gamma_cols
                                         if d.get(g) is not None}),
                         ))
+                # The conflict WHERE freezes human-decided rows entirely —
+                # not just their status but the evidence snapshot (features,
+                # method, probability) the human actually ruled on.
                 cur.execute("""
                     insert into internal.entity_links
                       (entity_type, job, id_a, id_b, method, match_weight,
@@ -259,9 +265,8 @@ def predict(sample_only: bool = False) -> dict:
                       features = excluded.features,
                       method = excluded.method,
                       raw_file_id = excluded.raw_file_id,
-                      status = case when internal.entity_links.status in ('auto','pending')
-                                    then excluded.status
-                                    else internal.entity_links.status end""",
+                      status = excluded.status
+                    where internal.entity_links.status in ('auto', 'pending')""",
                     {"method": f"splink:funds@{model_sha}", "rfid": rfid,
                      "auto": AUTO_THRESHOLD})
                 counts["links_loaded"] = cur.rowcount
