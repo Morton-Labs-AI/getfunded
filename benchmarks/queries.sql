@@ -489,3 +489,68 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 --   ER-spot [ER] PASS: zero placeholder-text matches
 --   ER-funds [ER] SKIP: not applied yet — labels 227/252, Wilson low 0.858, canonicalized 0
 --   ER-people [ER] SKIP: not applied yet — labels 0/0, Wilson low 0.000, canonicalized 0
+
+-- ===========================================================================
+-- 2026-08-08 · PRE-REGISTRATION — nameonly_people FUNDS GATE (NO LABELS YET)
+-- ===========================================================================
+-- Written BEFORE any pair in this class has been labeled. A fixed-n Wilson
+-- bound is only meaningful if n and the pass line were fixed in advance, so
+-- the declaration is timestamped here rather than reported afterwards.
+--
+-- CLASS UNDER TEST: nameonly_people
+--   el.method = 'deterministic:exact_name'
+--   and coalesce((el.features->>'people_overlap')::int, 0) >= 1
+--
+-- DECLARED n = 250. Pass line 235/250 (Wilson low 0.9034); 234/250 (0.8986)
+-- FAILS. That is <=15 not_match. No optional stopping, no interim composition
+-- reported, no evaluation before all 250 are in.
+--
+-- WHY THIS CLASS, AND WHY NOT A TIGHTENING OF THE FAILED ONE. The 2026-08-08
+-- gate failed at 227/252 (0.858) on the splink class selected by
+-- gamma_people >= 1. The labeling rubric those judgements were made against
+-- states that shared people and a shared adviser are FAMILY-level evidence
+-- and are NOT evidence that two funds are the same fund; Lowercarbon Fund I
+-- and Fund II share every person and are different funds. The class selected
+-- on family evidence and then asked for an identity judgement. ~90% is about
+-- what that should yield. gamma_people >= 2 is therefore NOT the fix — it is
+-- more family evidence, not more identity evidence.
+--
+-- Fund identity is carried by the NAME; person overlap belongs as
+-- corroboration, distinguishing two unrelated "Growth Fund I LP"s. This class
+-- was pre-registered on 2026-07-31, BEFORE the failed sample existed, as a
+-- "certifiable follow-up (fresh stratum, fresh ~250-label sample, own gate)".
+-- Nothing in its definition reads the failed sample's composition, and none
+-- of the 252 existing labels carry over — different class, fresh draw.
+--
+-- POPULATION (measured 2026-08-08, backfilled by
+-- funds.backfill_people_overlap(), verified through JOBS['funds'].strata
+-- rather than a re-derivation):
+--   deterministic:exact_name pairs      21,067
+--     people_overlap = 1 (tolerant)      9,457   <- the class
+--     people_overlap = 0                11,610
+--     people_overlap = 2 (strict)            0
+--   independently reproduced the 9,456 recorded 2026-07-31 (diff of 1 pair).
+--
+-- The empty strict level is the load-bearing detail: NOT ONE of the 21,067
+-- pairs shares an exactly equal token-sorted person key, because ADV Schedule
+-- A/B carries middle names and Form D does not ("CHRISTOPHER S SACCA" vs
+-- "CHRISTOPHER SACCA"). The pipeline's strict list_intersect admits none of
+-- this class — which is why it was never reachable, and why the 2026-07-31
+-- note about Lowercarbon failing the exact person-key intersection on a
+-- middle initial describes the entire class, not two odd pairs.
+--
+-- CONSEQUENCE — D2 DISSOLVES. Both Lowercarbon pairs (Zia, Q-10) now qualify
+-- BY RULE under dropped-token tolerance. They stop being per-pair human
+-- assertions with no rule claimed and become ordinary class members: better
+-- provenance, one less hand-carried exception. No separate D2 write is needed
+-- and none was made.
+--
+-- The failed 'people' class remains in place reporting its real numbers,
+-- annotated as failed in class_info, and is NOT the gate_stratum. It is not
+-- being quietly rehabilitated.
+--
+-- STOP RULE, restated in advance: if this class also fails, stop. No slicing
+-- of this sample either, and no third attempt without a new hypothesis
+-- pre-registered before its sample is drawn. Two failures would be strong
+-- evidence that ADV<->Form D fund linkage is not certifiable from these
+-- sources at a 0.90 lower bound — itself a decision-grade finding.
