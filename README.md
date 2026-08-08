@@ -31,7 +31,7 @@ The April 2026 predecessor produced 60 files and zero rows. Inverted here:
 3. If a gate slips >2 days, shrink the data slice — never retreat into
    refactoring or schema redesign.
 
-## Phase-2 gates (status 2026-07-29)
+## Phase-2 gates (status 2026-08-08)
 
 | Gate | Content | Status |
 |---|---|---|
@@ -39,7 +39,7 @@ The April 2026 predecessor produced 60 files and zero rows. Inverted here:
 | G1 | Hybrid semantic search (148k-doc corpus, voyage-3.5@512, HNSW, `internal.hybrid_search`) | ✅ + **0011 regression fix**: filtered queries take an exact vector leg (HNSW post-filtering had silently zeroed minority-kind results; caught by `funderdb eval semantic`) |
 | G2 | 990-PF back-years | 🟡 2024 complete (126,982/126,982 indexed filings — zero missing; +1.7M grants); 2023/2022/2021 gated on the 16GB disk bump |
 | G3 | Full BMF exempt spine (2.26M orgs; never-demote-a-grantmaker) | ✅ |
-| G4 | Entity resolution | 🟡 recipients tiers 1–3 applied (886,763 grant rows); funds: 25,208 links staged, apply gated on labeling (n≥100, Wilson>0.90); people job BUILT (org-evidence-gated auto-accept, the Eric Schmidt rule enforced twice), runs after funds apply |
+| G4 | Entity resolution | 🟡 recipients tiers 1–3 applied (886,763 grant rows); **funds gate RAN and FAILED** 2026-08-08 — 252 labels, 227/252 match, Wilson low 0.858 vs the >0.90 bar, so the `splink:% + gamma_people>=1` class is **not certifiable as defined**; no apply ran (`canonical_org_id` still 0), 25 human `not_match` pairs recorded as `rejected`, all 254 labels exported CC-BY; a tighter class needs a fresh stratum + fresh fixed-n sample; people job BUILT (org-evidence-gated auto-accept, the Eric Schmidt rule enforced twice), still downstream of a funds apply |
 | G5 | Schedule I (public-charity grants) | 🟡 parser built + fixture-tested + real-data dry-run (11.3% of 990s carry Schedule I; 89.6% of rows carry recipient EIN → direct resolution); runs after back-years + size gate, newest-first |
 | G6 | UI v2 | 🟡 ungated commits shipped (recipient links, canonical plumbing incl. redirect + identifier union, shared YearBars, charity variant, /browse thesis blend, facts.ts + census prompt + /data ER section); person pages gated on the people precision gate |
 | Suite v2 | `uv run funderdb eval all` — B1–B10 verbatim + E-series semantic + ER floors | ✅ 28 PASS · 0 FAIL · 3 REPORT/SKIP (link jobs SKIP until applied) |

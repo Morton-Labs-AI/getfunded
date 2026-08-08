@@ -345,3 +345,66 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 -- panel, enrichment flow (/admin/enrich/[id], dev-only), analyst honesty
 -- fixes. Merge order: labeling-ui -> main -> foundation-profiles ->
 -- person-pages.
+
+-- ===========================================================================
+-- 2026-08-08 · FUNDS ER PRECISION GATE — FAILED AT n=252 (NO APPLY)
+-- ===========================================================================
+-- `funderdb resolve eval funds` on the completed labeling pass:
+--
+--     people: 227/252 match · Wilson low 0.858 · NOT CERTIFIED (need > 0.90)
+--
+-- 25 not_match against a ceiling of 15. Raw precision 90.08%, but the gate
+-- requires the 95% Wilson LOWER bound to clear 0.90 and 0.858 does not.
+-- Pass line was 237/252. The gate refuses `resolve funds --apply` before it
+-- touches data; the apply was never run and canonical_org_id count remains 0.
+--
+-- PROTOCOL AS DECLARED. Fixed n, decided in advance, no optional stopping and
+-- no interim evaluation. 250 was declared; 252 were labeled (a 2-label
+-- overshoot from labeling past the target, not from peeking) and 0 came back
+-- `unsure`. The 2 pre-UI CLI labels are parked (labeled_by 'cli:parked') and
+-- excluded from every gate computation. The overshoot is immaterial to the
+-- verdict: <=15 not_match passes at BOTH n=250 (235/250 -> 0.9034) and n=252
+-- (237/252 -> 0.9041), and 16 fails at both (0.8986 / 0.8994). That was
+-- checked and recorded BEFORE the composition was known.
+--
+-- THE FINDING: the people-corroborated Splink class -- method like 'splink:%'
+-- with gamma_people >= 1 -- is NOT CERTIFIABLE AS DEFINED. A single shared
+-- person between an ADV adviser and a Form D issuer is not sufficient
+-- evidence at this precision bar. This is a measured result about the class,
+-- recorded in the same register as the Prelude / Stellar / 4-Lowercarbon
+-- documented absences: a finding, not a defect to be worked around.
+--
+-- STOP RULE HONOURED. The failed sample was not sliced by feature to find a
+-- certifiable sub-class, and no predicate was reverse-engineered from it.
+-- A failed sample may inform hypotheses; it may never select them. The one
+-- pre-registered hypothesis (person-key exact-match intolerance to middle
+-- initials, noted 2026-07-31 before this sample was drawn) remains available
+-- and would require its own stratum predicate, a fresh draw, fresh labels and
+-- its own fixed n -- roughly another full labeling pass.
+--
+-- WHAT LANDED:
+--   * 25 human not_match pairs set status='rejected' (decided_by human:zach).
+--     Merge-reducing only -- it can never admit a pair, so it is safe under
+--     any future gate, and it makes those rejections permanent per the
+--     never-overwrite-a-human-decision rule. Verified downstream: the apply
+--     preview's certified set drops 4,141 -> 4,116 pairs, i.e. the rejections
+--     are excluded by the EXCEPT leg rather than merely annotated (clusters
+--     3,614, oversize 301, would-canonicalize 3,661).
+--   * All 254 labels exported to data/seed/er_labels/funds_adv_formd.csv
+--     (CC-BY) -- the labeling work is now a durable public artifact, which is
+--     the lasting output of this pass regardless of the verdict.
+--
+-- WHAT DELIBERATELY DID NOT LAND: the 227 confirmations were NOT propagated
+-- to status='accepted'. That would place them directly in apply()'s certified
+-- set and merge them on any future apply -- defensible as per-pair human
+-- assertions claiming no rule (the D2 footing), but a change of posture from
+-- "certify a class" to "merge what a person personally checked". It does not
+-- scale past what was labeled and is left as an open, deliberate decision
+-- rather than a consolation for a failed gate. D2 (the 2 Lowercarbon
+-- exact-name assertions) is held for the same reason -- it also writes
+-- 'accepted'.
+--
+-- Suite unchanged and still honest: ER-funds reports SKIP (nothing applied)
+-- carrying the real numbers -- labels 227/252, Wilson low 0.858,
+-- canonicalized 0. No FAIL. An uncertified forced apply would read as FAIL;
+-- none was made.
