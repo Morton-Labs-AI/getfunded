@@ -19,6 +19,9 @@ dependencies = [
 [project.scripts]
 funderdb = "funderdb.cli:main"
 
+[dependency-groups]
+dev = ["pytest>=8"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

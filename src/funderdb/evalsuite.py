@@ -168,7 +168,7 @@ def _run_er(res: _Result, conn) -> None:
                   on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
                 where l.job = %(job)s and l.label <> 'unsure' and {gate_where}
                   and l.labeled_by not like '%%:parked'""",
-                {"job": spec.job, "threshold": spec.auto_threshold})
+                {"job": spec.job, "threshold": spec.apply_threshold})
             correct, n = cur.fetchone()
             low = wilson_low(correct or 0, n or 0)
             detail = (f"labels {correct or 0}/{n or 0}, Wilson low {low:.3f}, "

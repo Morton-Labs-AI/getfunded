@@ -177,7 +177,7 @@ def label(job_key: str, n: int, stratum: str | None) -> None:
                                   where l.job = el.job and l.id_a = el.id_a
                                     and l.id_b = el.id_b)
                 order by {order} limit %(n)s""",
-                {"job": spec.job, "n": n, "threshold": spec.auto_threshold})
+                {"job": spec.job, "n": n, "threshold": spec.apply_threshold})
             pairs = cur.fetchall()
 
         if not pairs:
@@ -223,7 +223,7 @@ def label(job_key: str, n: int, stratum: str | None) -> None:
 
 def eval_job(job_key: str, threshold: float | None = None) -> None:
     spec = JOBS[job_key]
-    thr = spec.auto_threshold if threshold is None else threshold
+    thr = spec.apply_threshold if threshold is None else threshold
     with connect() as conn, conn.cursor() as cur:
         cur.execute(f"""
             select l.label, {spec.class_case_sql} as cls, l.labeled_by
@@ -323,7 +323,7 @@ def status_report() -> None:
                   on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
                 where l.job = %(job)s and l.label <> 'unsure' and {gate_where}
                   and {PARKED_FILTER}""",
-                {"job": spec.job, "threshold": spec.auto_threshold})
+                {"job": spec.job, "threshold": spec.apply_threshold})
             correct, n = cur.fetchone()
             low = wilson_low(correct or 0, n or 0)
             table, col = (("internal.organizations", "canonical_org_id")

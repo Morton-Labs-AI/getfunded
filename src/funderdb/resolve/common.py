@@ -126,6 +126,7 @@ class JobSpec:
     dataset: str                # staging/ledger dataset name
     gamma_gate: str             # SQL bool over el.*: the corroborated class
     auto_threshold: float
+    apply_threshold: float      # binds %(threshold)s: the floor apply merges at
     cluster_cap: int
     strata: dict[str, str]      # labeling stratum -> SQL where over el
     gate_stratum: str           # class whose labels certify apply
@@ -135,8 +136,9 @@ class JobSpec:
     class_info: tuple = field(default=())
 
 
-# Stratum/class predicates may reference %(threshold)s; callers always bind it
-# (psycopg named params ignore unused keys, so threshold-free specs are fine).
+# Stratum/class predicates may reference %(threshold)s; callers bind the job's
+# apply_threshold (psycopg named params ignore unused keys, so threshold-free
+# predicates are fine).
 JOBS: dict[str, JobSpec] = {
     "funds": JobSpec(
         job="funds_adv_formd",
@@ -144,12 +146,19 @@ JOBS: dict[str, JobSpec] = {
         dataset="resolve_funds",
         gamma_gate="coalesce((el.features->>'gamma_people')::int, 0) >= 1",
         auto_threshold=0.99,
+        # The funds model's probability range is 0.566–0.943: a 0.99 apply
+        # floor would certify (and merge) the empty set. Corroboration, not
+        # the threshold, defines the certified class here; REVIEW_FLOOR makes
+        # the threshold real while staying a no-op on today's population.
+        apply_threshold=0.20,
         cluster_cap=4,
         strata={
-            # Splink-scored pairs with people corroboration — the auto-tier
-            # candidates the gate certifies first.
+            # The certified class: people-corroborated AND above threshold —
+            # exactly the population apply merges, so this stratum's labels
+            # certify it.
             "people": "el.method like 'splink:%%' and "
-                      "coalesce((el.features->>'gamma_people')::int, 0) >= 1",
+                      "coalesce((el.features->>'gamma_people')::int, 0) >= 1 and "
+                      "el.match_probability >= %(threshold)s",
             # Exact-name-only deterministic class — measured separately.
             "nameonly": "el.method = 'deterministic:exact_name'",
             "band": "el.method like 'splink:%%' and "
@@ -159,12 +168,15 @@ JOBS: dict[str, JobSpec] = {
         gate_stratum="people",
         class_case_sql="""
             case when el.method = 'deterministic:exact_name' then 'nameonly'
-                 when coalesce((el.features->>'gamma_people')::int, 0) >= 1 then 'people'
+                 when coalesce((el.features->>'gamma_people')::int, 0) >= 1
+                      and el.match_probability >= %(threshold)s then 'people'
+                 when coalesce((el.features->>'gamma_people')::int, 0) >= 1 then 'people_band'
                  else 'band' end""",
         prompt_noun="fund",
         class_info=(
-            ("people", "exact/near name + shared people (Splink auto-tier candidates)",
+            ("people", "people-corroborated + above threshold (the population apply merges)",
              "auto-accept if certified"),
+            ("people_band", "people-corroborated but below threshold", "stays pending"),
             ("nameonly", "exact name, no people evidence (deterministic class)",
              "auto-accept ONLY if this class certifies separately"),
             ("band", "fuzzy name, weak evidence", "stays pending"),
@@ -176,6 +188,7 @@ JOBS: dict[str, JobSpec] = {
         dataset="resolve_people",
         gamma_gate="coalesce((el.features->>'gamma_orgs')::int, 0) >= 1",
         auto_threshold=0.99,
+        apply_threshold=0.99,   # == auto_threshold: the auto stratum IS the merge population
         cluster_cap=5,
         strata={
             # The auto tier: org-corroborated AND above threshold — exactly the
