@@ -225,7 +225,7 @@ export default function LabelFundsPage() {
     <div className="mx-auto w-full max-w-[1100px] px-6 pb-16 pt-8">
       <div className="flex items-baseline justify-between">
         <div>
-          <span className="mono-label">funds labeling · people stratum · blinded</span>
+          <span className="mono-label">funds labeling · name + person corroboration · blinded</span>
           <h1 className="text-[22px] font-[650] text-ink-1">Same fund?</h1>
         </div>
         <div className="tnum font-mono text-[15px] text-ink-1">
@@ -251,7 +251,7 @@ export default function LabelFundsPage() {
 
       {allDone && (
         <div className="mt-8 text-[15px] text-ink-2">
-          No unlabeled pairs remain in the people stratum.
+          No unlabeled pairs remain in this class.
         </div>
       )}
 

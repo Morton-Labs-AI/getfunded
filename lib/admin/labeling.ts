@@ -13,24 +13,36 @@ import { adminSql as sql } from "./db";
  */
 
 export const JOB = "funds_adv_formd";
-// Declared fixed n for the gate. 250, not 252: the 2 pre-UI CLI labels were
-// parked, so the analysis sample is the clean UI pass alone — and progress()
-// counts labeled_by='ui' only. Fixed-n is load-bearing (a Wilson bound assumes
-// n chosen in advance), so this is a declared constant, not a stopping heuristic.
+// Declared fixed n for the gate, fixed BEFORE any labeling of this class.
+// Fixed-n is load-bearing — a Wilson bound assumes n chosen in advance — so
+// this is a declared constant, never a stopping heuristic. At n=250 the pass
+// line is 235/250 (0.9034) and 234/250 (0.8986) fails: <=15 not_match.
+// progress() scopes to the current class (see below), so the failed class's
+// labels do not count toward it.
 export const TARGET_NON_UNSURE = 250;
 
-// The gate stratum: splink-scored pairs with people corroboration. Mirrors
-// common.JOBS['funds'].strata['people'] in the data repo exactly.
-const PEOPLE_STRATUM = `
-  el.method like 'splink:%'
-  and coalesce((el.features->>'gamma_people')::int, 0) >= 1`;
+// The gate class under test. Mirrors common.JOBS['funds'].strata[GATE_CLASS]
+// in the data repo exactly — keep the two in step.
+//
+// The PREVIOUS class (splink pairs selected on gamma_people >= 1) FAILED its
+// gate on 2026-08-08: 227/252, Wilson low 0.858. It selected pairs on shared
+// people, which the rubric below calls FAMILY-level evidence and explicitly
+// not evidence of fund identity. This class inverts that correctly: the
+// exact normalized name carries identity, and person overlap serves only as
+// corroboration — what separates two unrelated "Growth Fund I LP"s.
+export const GATE_CLASS = "nameonly_people";
+const GATE_STRATUM = `
+  el.method = 'deterministic:exact_name'
+  and coalesce((el.features->>'people_overlap')::int, 0) >= 1`;
 
 // ---------------------------------------------------------------------------
 // Session seed — generated once, persisted, recorded. Ordering is
 // md5(seed || id_a || id_b): stable across reloads, unrelated to probability.
 // ---------------------------------------------------------------------------
 
-const SEED_FILE = path.join(process.cwd(), `.labeling-seed-${JOB}`);
+// Keyed by gate class: a new class is a NEW fixed-n sample and must draw its
+// own ordering rather than inherit the failed class's seed.
+const SEED_FILE = path.join(process.cwd(), `.labeling-seed-${JOB}-${GATE_CLASS}`);
 
 export function sessionSeed(): string {
   if (existsSync(SEED_FILE)) return readFileSync(SEED_FILE, "utf8").trim();
@@ -56,17 +68,29 @@ export async function nextPair(seed: string): Promise<{ id_a: string; id_b: stri
     select el.id_a, el.id_b
     from internal.entity_links el
     where el.job = ${JOB}
-      and ${sql.unsafe(PEOPLE_STRATUM)}
+      and ${sql.unsafe(GATE_STRATUM)}
       and ${sql.unsafe(UNLABELED)}
     order by md5(${seed} || el.id_a::text || el.id_b::text)
     limit 1`;
   return rows[0] ?? null;
 }
 
+// Scoped to the CURRENT gate class by joining through entity_links, not by
+// labeled_by. The failed class's 252 labels are also labeled_by='ui', so a
+// bare count would report 252/250 — done before the new pass began. Joining
+// on the stratum is self-maintaining: it counts exactly the class under test,
+// whatever earlier passes left behind. Parked labels are excluded, matching
+// the data-repo gate.
 export async function progress(): Promise<{ done: number; target: number }> {
   const rows = await sql<{ n: number }[]>`
-    select count(*)::int as n from internal.er_labels
-    where job = ${JOB} and labeled_by = 'ui' and label <> 'unsure'`;
+    select count(*)::int as n
+    from internal.er_labels l
+    join internal.entity_links el
+      on el.job = l.job and el.id_a = l.id_a and el.id_b = l.id_b
+    where l.job = ${JOB}
+      and l.label <> 'unsure'
+      and l.labeled_by not like '%:parked'
+      and ${sql.unsafe(GATE_STRATUM)}`;
   return { done: rows[0]?.n ?? 0, target: TARGET_NON_UNSURE };
 }
 
@@ -202,13 +226,26 @@ export async function pairDetail(id_a: string, id_b: string): Promise<PairDetail
   sides.sort((a, b) => (a.side === "ADV" ? -1 : 0) - (b.side === "ADV" ? -1 : 0));
 
   const [sa, sb] = sides;
-  const byKeyB = new Map((sb?.people ?? []).map((p) => [p.key, p]));
-  const shared = (sa?.people ?? [])
-    .filter((p) => byKeyB.has(p.key))
-    .map((p) => {
-      const other = byKeyB.get(p.key)!;
-      return { name_a: p.name, title_a: p.title, name_b: other.name, title_b: other.title };
-    });
+  // Dropped-token tolerance, matching funds.backfill_people_overlap()'s rule.
+  // Strict key equality would show NOTHING here: measured 2026-08-08, zero of
+  // the 21,067 exact-name pairs share an exactly equal person key, because ADV
+  // Schedule A/B records middle names ("Harris, Roberta, Joann") and Form D
+  // does not ("Joann Harris"). Since person corroboration is what DEFINES this
+  // class, a strict match would blank out the card's key evidence on every
+  // pair the labeler sees.
+  const toks = (k: string) => new Set(k.split(" ").filter(Boolean));
+  const corroborates = (a: string, b: string) => {
+    const ta = toks(a), tb = toks(b);
+    if (ta.size < 2 || tb.size < 2) return false;
+    const [small, big] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+    return [...small].every((t) => big.has(t));
+  };
+  const shared = (sa?.people ?? []).flatMap((p) => {
+    const other = (sb?.people ?? []).find((q) => corroborates(p.key, q.key));
+    return other
+      ? [{ name_a: p.name, title_a: p.title, name_b: other.name, title_b: other.title }]
+      : [];
+  });
 
   return { id_a, id_b, sides, shared_people: shared };
 }
