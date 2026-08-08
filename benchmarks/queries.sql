@@ -408,3 +408,84 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 -- carrying the real numbers -- labels 227/252, Wilson low 0.858,
 -- canonicalized 0. No FAIL. An uncertified forced apply would read as FAIL;
 -- none was made.
+
+-- ===========================================================================
+-- 2026-08-08 · FOUNDATION PROFILES V2 MERGED + ENRICHMENT LOOP PROVEN LIVE
+-- ===========================================================================
+-- CORRECTION to the 2026-08-01 block above, which recorded the UI work as
+-- "pushed, unmerged": it is now MERGED. UI main = 7c7e13a. Merge order held
+-- (labeling-ui -> main -> foundation-profiles); the two branches had diverged
+-- by exactly one commit (the labeling-target fix, touching only
+-- app/admin/label/funds/page.tsx and lib/admin/labeling.ts, which the
+-- foundation-profiles branch never touches) so the merge was conflict-free.
+-- person-pages remains built, pushed and UNMERGED, still gated on the people
+-- precision gate and on an open strategic decision about whether it ships.
+--
+-- ENRICHMENT LOOP RUN END-TO-END AGAINST THE REAL SITE for the first time
+-- (previously only exercised against a low-content placeholder page).
+-- Seed https://topferfamilyfoundation.org/ for the Topfer reference org:
+--   * robots.txt allowed; 6 pages fetched, all HTTP 200.
+--   * Bundle written to data/raw/funder_website/
+--     ee54d19490bf_20260808_funder-website_4f205ebb.json (330,275 bytes).
+--     sha256 recomputed on disk matches the filename prefix EXACTLY
+--     (ee54d19490bf) and matches the manifest line.
+--   * raw_files id 306 registered: license publisher_website,
+--     republishable=false, repo-relative storage_path, meta carrying org_id /
+--     seed_url / page_count / robots_allowed / http_statuses.
+--   * Extraction (claude-sonnet-5, forced tool) returned all fields with
+--     per-field confidence and verbatim snippets: focus areas, giving
+--     priorities, application info + URL, geographic focus, summary, and a
+--     6-person board/staff list. All HIGH except accepts_unsolicited (MED).
+--   * internal.org_web_facts: STILL 0 ROWS. The preview writes nothing; the
+--     human confirm gate was NOT exercised in this run. B11 accordingly
+--     remains a vacuous PASS. The write path (supersede + insert + ledger)
+--     is therefore still unproven against live data -- the next enrichment
+--     run that ends in a confirm is what closes that gap.
+--
+-- FINDING — the NTEE staleness caveat is now demonstrated, not merely
+-- asserted. The IRS classifies Topfer as N20 "Recreation & Sports". The
+-- foundation's own website states its five program areas as child abuse
+-- prevention and treatment, youth enrichment, job training and support
+-- services, children's health, and aging in place. The IRS code is not
+-- merely imprecise here, it is wrong, which is exactly what the
+-- "IRS-classified, may be stale" chip on the profile warns about. The
+-- extraction also surfaces geographic scope the filings cannot express
+-- (Denver CO and Broward County FL described as newer grantmaking alongside
+-- the long-standing Austin/Chicago focus) — consistent with, and explaining,
+-- the FY2020-24 grant geography of TX $7.03M / IL $3.65M / FL $0.78M.
+-- Doctrine unchanged: none of this touches organizations.website or any
+-- public view, and the extracted people stay display-only jsonb.
+--
+-- 2026-08-08 `funderdb eval all` results — 29 PASS · 0 FAIL · 3 report/skip:
+--      B1 [B] PASS: 7 programs; INFUSE present with funds_lab_not_company=True
+--      B2 [B] PASS: 5 distinct SBIR/STTR agencies
+--      B3 [B] PASS: Lowercarbon CRD 162946 resolved; Prelude rows=6 (documented absence expects 0 ADV/FormD)
+--      B4 [B] PASS: 50 climate/energy advisers (floor 40)
+--      B5 [B] PASS: 25 Schmidt-family foundation rows
+--      B6 [B] PASS: 50 energy/science foundations >$10M (floor 40)
+--      B7 [B] PASS: 4 IL science/energy foundations >$10M (floor 4)
+--      B8 [B] PASS: 50 energy/science grant rows (floor 40)
+--      B9 [B] PASS: 50 Reg D offerings in last 12mo (floor 40)
+--     B10 [B] PASS: 2301084 orgs, 0 provenance orphans (must be 0)
+--     B5b [B] PASS: Stellar org row present as public_charity; grants structurally absent (990-N filer — no e-filed 990/EZ in any index year; documented absence)
+--     B11 [B] PASS: web-facts containment: 0 rows, 0 provenance violations, 0 public-view refs, 0 org-row leaks (vacuous — no confirmed rows yet)
+--      S1 [S] PASS: similar_orgs(Topfer): 12 rows, dist 0.1335..0.1570 ascending, seed excluded
+--      E1 [E] PASS: top10 medical-fusion contaminants: 0 (must be 0)
+--     E1b [E] PASS: 3/4 fusion programs in top 6 (need >=3)
+--      E2 [E] PASS: top10 all advisers=True; Lowercarbon rank=30 (need <=100)
+--      E3 [E] PASS: top3: INFUSE (INNOVATION NETWORK FOR FUSION ENERGY) MILESTONE-BASED FUSION DEVELOPMENT
+--      E4 [E] REPORT: REPORT-ONLY (end-to-end through the analyst; recorded 2026-07-26: discovery+evidence pairing incl. mid-answer self-correction — not asserted headlessly)
+--      E5 [E] PASS: 4/7 known climate funders in top 10 (need >=2)
+--      E7 [E] PASS: negative control: 0 energy/climate orgs in top 10 (must be 0)
+--      E8 [E] PASS: state filter: 0 non-CA rows of 30 (must be 0)
+--      E9 [E] PASS: min_size filter: 0 rows under $1B of 30 (must be 0)
+--     E10 [E] PASS: FTS leg: Lowercarbon rank=1 for its own name (need <=5)
+--   ER-tier1 [ER] PASS: 422,323 matches (floor 349,293)
+--   ER-tier2 [ER] PASS: 11,969 matches (floor 784)
+--   ER-tier3 [ER] PASS: 93,780 matches (floor 57,813)
+--   ER-linked [ER] PASS: 7,203,038 grant rows resolved (floor 886,763)
+--   ER-spot [ER] PASS: MIT resolves in MA (tier1)
+--   ER-spot [ER] PASS: Princeton resolves in NJ (tier1)
+--   ER-spot [ER] PASS: zero placeholder-text matches
+--   ER-funds [ER] SKIP: not applied yet — labels 227/252, Wilson low 0.858, canonicalized 0
+--   ER-people [ER] SKIP: not applied yet — labels 0/0, Wilson low 0.000, canonicalized 0
