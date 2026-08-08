@@ -19,8 +19,10 @@ def test_wilson_low_gate_boundaries():
     assert wilson_low(95, 100) <= 0.90
     assert wilson_low(189, 200) > 0.90   # 0.904 — the labeling.py docstring case
     assert wilson_low(188, 200) <= 0.90  # 0.898 does NOT clear
-    assert wilson_low(237, 252) > 0.90
-    assert wilson_low(236, 252) <= 0.90
+    # The funds gate's declared fixed n is 250, not 252: the 2 pre-UI CLI
+    # labels are parked and excluded from every gate computation.
+    assert wilson_low(235, 250) > 0.90   # 0.9034 — passes
+    assert wilson_low(234, 250) <= 0.90  # 0.8986 — does NOT clear
 
 
 def test_wilson_low_zero_of_zero():
