@@ -303,6 +303,11 @@ def predict(sample_only: bool = False) -> dict:
                     {"rfid": rfid})
                 counts["nameonly_pending_added"] = cur.rowcount
 
+                # Person corroboration for the exact-name links must be
+                # recomputed here: new links have no people_overlap, and
+                # relationships may have changed under existing ones.
+                counts.update(backfill_people_overlap(cur))
+
                 cur.execute("""select status, count(*) from internal.entity_links
                                where job='funds_adv_formd' group by 1""")
                 for status, n in cur.fetchall():
@@ -318,6 +323,120 @@ def predict(sample_only: bool = False) -> dict:
                 pass
             raise
     return counts
+
+
+# --------------------------------------------------------------------------
+# people_overlap: cross-side person corroboration for the exact-name class.
+#
+# The deterministic:exact_name links join an ADV fund to a Form D fund on
+# name_normalized alone. The name carries fund IDENTITY; person overlap is
+# what distinguishes two unrelated "Growth Fund I LP"s, so the certifiable
+# class is name AND people. (The splink 'people' class inverts this — it
+# SELECTS on shared people, which the labeling rubric calls FAMILY-level
+# evidence, explicitly not evidence of fund identity — and it failed its gate
+# on 2026-08-08 at 227/252, Wilson low 0.858.)
+#
+# Levels: 2 = strict token-sorted key equality, 1 = dropped-token subset,
+# 0 = none. Level 2 is EMPTY on today's data: measured 2026-08-08, zero of
+# the 21,067 exact-name pairs share an exactly equal person key, because ADV
+# Schedule A/B carries middle names and Form D does not ("CHRISTOPHER S
+# SACCA" vs "CHRISTOPHER SACCA"). The level is kept so the feature records
+# WHICH rule fired and a future stricter gate can split on it.
+# --------------------------------------------------------------------------
+
+_PK_SETUP = [
+    """create temp table _pairs on commit drop as
+         select id_a, id_b from internal.entity_links
+         where job='funds_adv_formd' and method='deterministic:exact_name'
+           and status in ('auto','pending')""",
+    "create index on _pairs (id_a)",
+    "create index on _pairs (id_b)",
+    """create temp table _funds on commit drop as
+         select distinct id from (
+           select id_a as id from _pairs union select id_b from _pairs) u""",
+    "create index on _funds (id)",
+]
+
+# Same relationship paths as the splink frames above: ADV funds reach people
+# through their managing adviser, Form D funds directly. The two fund
+# populations are disjoint by construction, so one table covers both sides.
+_PK_BUILD = f"""
+create temp table _pk on commit drop as
+select f.id as fund_id, array_agg(distinct k.pkey) as keys
+from _funds f
+join lateral (
+  select {_PERSON_KEY} as pkey
+  from internal.relationships mf
+  join internal.relationships pr on pr.to_org_id = mf.from_org_id
+       and pr.rel_type in ('owner_of','executive_of')
+       and pr.from_person_id is not null
+  join internal.people p on p.id = pr.from_person_id
+  where mf.to_org_id = f.id and mf.rel_type = 'manages_fund'
+    and internal.norm_name(p.full_name) !~ %(entity_re)s
+  union
+  select {_PERSON_KEY}
+  from internal.relationships pr
+  join internal.people p on p.id = pr.from_person_id
+  where pr.to_org_id = f.id and pr.rel_type in ('executive_of','director_of')
+    and pr.from_person_id is not null
+    and internal.norm_name(p.full_name) !~ %(entity_re)s
+) k on true
+where k.pkey is not null
+group by f.id
+"""
+
+# Evidence-freeze doctrine: never rewrite features under a human decision.
+# Scoped to auto/pending, same as the predict-side ON CONFLICT guard.
+_PK_UPDATE = """
+with lvl as (
+  select pr.id_a, pr.id_b,
+         case
+           when a.keys is null or b.keys is null then 0
+           when a.keys && b.keys then 2
+           when exists (
+             select 1 from unnest(a.keys) ka, unnest(b.keys) kb
+             where array_length(string_to_array(ka, ' '), 1) >= 2
+               and array_length(string_to_array(kb, ' '), 1) >= 2
+               and (string_to_array(ka, ' ') <@ string_to_array(kb, ' ')
+                 or string_to_array(kb, ' ') <@ string_to_array(ka, ' ')))
+             then 1
+           else 0
+         end as ov
+  from _pairs pr
+  left join _pk a on a.fund_id = pr.id_a
+  left join _pk b on b.fund_id = pr.id_b
+)
+update internal.entity_links el
+   set features = jsonb_set(coalesce(el.features, '{}'::jsonb),
+                            '{people_overlap}', to_jsonb(lvl.ov)),
+       updated_at = now()
+  from lvl
+ where el.job = 'funds_adv_formd'
+   and el.method = 'deterministic:exact_name'
+   and el.status in ('auto','pending')
+   and el.id_a = lvl.id_a and el.id_b = lvl.id_b
+"""
+
+
+def backfill_people_overlap(cur) -> dict:
+    """Compute and store people_overlap on the exact-name links. Idempotent.
+
+    Takes an open cursor so predict() can run it inside its own transaction;
+    `funderdb resolve backfill-overlap` wraps it for existing rows.
+    """
+    cur.execute("set local statement_timeout = '900s'")
+    for stmt in _PK_SETUP:
+        cur.execute(stmt)
+    cur.execute(_PK_BUILD, {"entity_re": _ENTITY_NAME_RE})
+    cur.execute(_PK_UPDATE)
+    updated = cur.rowcount
+    cur.execute("""
+        select coalesce((features->>'people_overlap')::int, -1) as lvl, count(*)
+        from internal.entity_links
+        where job='funds_adv_formd' and method='deterministic:exact_name'
+        group by 1 order by 1""")
+    dist = {f"people_overlap_{lvl}": n for lvl, n in cur.fetchall()}
+    return {"rows_updated": updated, **dist}
 
 
 def apply(threshold: float = REVIEW_FLOOR, force: bool = False) -> dict:

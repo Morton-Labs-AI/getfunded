@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from funderdb.resolve.common import union_find_clusters, wilson_low  # noqa: E402
+from funderdb.resolve.common import JOBS, union_find_clusters, wilson_low  # noqa: E402
 
 
 def test_wilson_low_gate_boundaries():
@@ -60,6 +60,30 @@ def test_union_find_cap_boundary():
     assert oversize == set()
 
 
+def test_class_case_sql_matches_class_info():
+    # class_case_sql and class_info are edited in separate places and are
+    # joined only by string equality of the class name: a typo silently
+    # produces a class the eval never prints, or a class_info row that never
+    # matches a row. The tolerance rule itself is SQL and is verified against
+    # the database (.phase-b-scripts/verify_nameonly_class.py) rather than
+    # re-implemented here, which would only prove a copy agrees with itself.
+    import re
+
+    for job_key, spec in JOBS.items():
+        emitted = set(re.findall(r"then\s+'([a-z_]+)'", spec.class_case_sql))
+        emitted |= set(re.findall(r"else\s+'([a-z_]+)'\s+end", spec.class_case_sql))
+        declared = {c for c, _desc, _rule in spec.class_info}
+        assert emitted == declared, (
+            f"{job_key}: class_case_sql emits {sorted(emitted)} but "
+            f"class_info declares {sorted(declared)}")
+
+
+def test_gate_stratum_is_a_real_stratum():
+    for job_key, spec in JOBS.items():
+        assert spec.gate_stratum in spec.strata, (
+            f"{job_key}: gate_stratum {spec.gate_stratum!r} is not in strata")
+
+
 if __name__ == "__main__":
     test_wilson_low_gate_boundaries()
     test_wilson_low_zero_of_zero()
@@ -67,4 +91,6 @@ if __name__ == "__main__":
     test_union_find_cap_drops_component_whole()
     test_union_find_oversize_leaves_other_components_alone()
     test_union_find_cap_boundary()
-    print("resolve unit tests: 6/6 OK")
+    test_class_case_sql_matches_class_info()
+    test_gate_stratum_is_a_real_stratum()
+    print("resolve unit tests: 8/8 OK")

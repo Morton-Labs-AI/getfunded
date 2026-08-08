@@ -174,6 +174,24 @@ def resolve_funds(do_predict: bool, do_apply: bool, threshold: float, force: boo
             click.echo(f"{k}: {v:,}")
 
 
+@resolve.command("backfill-overlap")
+def resolve_backfill_overlap() -> None:
+    """Compute people_overlap on existing exact-name funds links (idempotent).
+
+    A full `resolve funds --predict` does this too, but re-predicting reloads
+    every pending row and would invalidate an in-flight labeling sample. This
+    touches only the features column on auto/pending rows.
+    """
+    from .db import connect
+    from .resolve import funds
+
+    with connect() as conn, conn.cursor() as cur:
+        counts = funds.backfill_people_overlap(cur)
+        conn.commit()
+    for k, v in counts.items():
+        click.echo(f"{k}: {v:,}")
+
+
 @resolve.command("people")
 @click.option("--predict", "do_predict", is_flag=True, help="Export, train, score, load links.")
 @click.option("--apply", "do_apply", is_flag=True, help="Recompute the canonical map (gated on labels).")

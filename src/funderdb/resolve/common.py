@@ -159,26 +159,46 @@ JOBS: dict[str, JobSpec] = {
             "people": "el.method like 'splink:%%' and "
                       "coalesce((el.features->>'gamma_people')::int, 0) >= 1 and "
                       "el.match_probability >= %(threshold)s",
-            # Exact-name-only deterministic class — measured separately.
-            "nameonly": "el.method = 'deterministic:exact_name'",
+            # Exact normalized name PLUS cross-side person corroboration.
+            # The name carries fund identity; person overlap only disambiguates
+            # same-name funds at different firms. (The 'people' stratum inverts
+            # that — it selects on shared people, which the labeling rubric
+            # calls FAMILY-level evidence, explicitly not evidence of fund
+            # identity — and it failed its gate at 0.858 on 2026-08-08.)
+            # people_overlap is backfilled by funds.backfill_people_overlap().
+            "nameonly_people": "el.method = 'deterministic:exact_name' and "
+                               "coalesce((el.features->>'people_overlap')::int, 0) >= 1",
+            # Exact name with NO person corroboration — measured separately,
+            # never certified on its own (a bare name match cannot distinguish
+            # two unrelated "Growth Fund I LP"s).
+            "nameonly": "el.method = 'deterministic:exact_name' and "
+                        "coalesce((el.features->>'people_overlap')::int, 0) = 0",
             "band": "el.method like 'splink:%%' and "
                     "coalesce((el.features->>'gamma_people')::int, 0) = 0",
             "all": "true",
         },
         gate_stratum="people",
         class_case_sql="""
-            case when el.method = 'deterministic:exact_name' then 'nameonly'
+            case when el.method = 'deterministic:exact_name'
+                      and coalesce((el.features->>'people_overlap')::int, 0) >= 1
+                      then 'nameonly_people'
+                 when el.method = 'deterministic:exact_name' then 'nameonly'
                  when coalesce((el.features->>'gamma_people')::int, 0) >= 1
                       and el.match_probability >= %(threshold)s then 'people'
                  when coalesce((el.features->>'gamma_people')::int, 0) >= 1 then 'people_band'
                  else 'band' end""",
         prompt_noun="fund",
         class_info=(
-            ("people", "people-corroborated + above threshold (the population apply merges)",
+            ("nameonly_people",
+             "exact normalized name + cross-side person corroboration",
              "auto-accept if certified"),
+            ("people",
+             "people-corroborated splink pairs + above threshold "
+             "(FAILED its gate 2026-08-08 at 227/252, Wilson low 0.858)",
+             "NOT certified — stays pending"),
             ("people_band", "people-corroborated but below threshold", "stays pending"),
-            ("nameonly", "exact name, no people evidence (deterministic class)",
-             "auto-accept ONLY if this class certifies separately"),
+            ("nameonly", "exact name, NO person corroboration",
+             "never certified alone — a bare name match is not identity"),
             ("band", "fuzzy name, weak evidence", "stays pending"),
         ),
     ),
