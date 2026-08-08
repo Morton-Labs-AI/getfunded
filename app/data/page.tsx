@@ -46,7 +46,10 @@ export default async function DataPage() {
     sql`
       select job, count(*) filter (where label = 'match')::int as correct,
              count(*)::int as n
-      from internal.er_labels where label <> 'unsure' group by 1 order by 1`,
+      from internal.er_labels
+      where label <> 'unsure'
+        and labeled_by not like '%:parked'
+      group by 1 order by 1`,
     sql`
       select
         (select coalesce(sum(n), 0) from internal.mv_recipient_event_stats
