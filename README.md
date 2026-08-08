@@ -25,13 +25,10 @@ Sanity checks: `npm run db:ping` (connectivity + read-only proof) ·
 | `/` | **Ask** — census-counter hero + the analyst (SSE chat, `claude-opus-5`, tool-use over Postgres; system prompt is census-driven from the mv_* views, frozen per process for cache stability) |
 | `/browse` | Faceted discovery + the ✦ natural-language filter bar (AI sets the same removable chips you could set by hand) — including the **✦ thesis** semantic blend (RRF over giving-behavior docs; rank-ordered top set, offset-paged) for foundations/advisers/companies |
 | `/org/[id]` | Type-adaptive profiles (foundation / VC / fund / agency / company / **charity**) with the Provenance Seal on every fact; resolved grant recipients link to their org pages; canonical-merged records redirect to their survivor with a "N merged records" chip (inert until an ER apply runs). Foundation profiles add: NTEE + exempt-since identity, extended stats (median grant, distinct recipients, resolved coverage), grant geography, top-recipient rollups, a searchable/paginated full grants table with per-row provenance, **Similar giving profiles** (semantic-doc nearest neighbors via `internal.similar_orgs`), and **From the foundation's website** — on-demand, human-confirmed website enrichment (dev-only trigger at `/admin/enrich/[id]`; internal-only, never republished) |
+| `/person/[id]` | Person pages: affiliations with role labels, merged-source provenance; non-canonical rows redirect to their survivor. **Every person is currently per-source** — the people ER job has not run, so no clusters exist and the merge/redirect paths stay inert until the people precision gate certifies (`PERSON_CAVEAT` states this on the page) |
 | `/programs`, `/programs/[id]` | The 16 curated federal programs; INFUSE/GAIN carry the "funds a national lab on your behalf" nuance |
 | `/data` | The trust page: source inventory, coverage, known limits (single-sourced from `lib/content/facts.ts`), the provenance contract, and the live **Entity resolution** panel (tiers, link jobs, label counts with Wilson bounds) |
 | ⌘K | Dual-mode palette: entity search → no match? → ask the analyst instead |
-
-Gated (ships when its data-side precision gate certifies): `/person/[id]`
-cluster pages + person-chip links — people stay non-interactive chips until
-the people ER job passes its label gate (n≥100, Wilson lower bound > 0.90).
 
 ## Safety model (model-generated SQL)
 

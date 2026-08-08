@@ -223,7 +223,7 @@ export async function runDbTool(
         order by ts_rank_cd(o.search_tsv, q) desc,
                  coalesce(o.asset_amount, o.aum, o.fund_size) desc nulls last
         limit ${limit}`;
-      let rows = fts;
+      let rows = [...fts];
       if (rows.length < 3) {
         const trgm = await sql`
           select o.id, o.name, o.org_type, o.state,

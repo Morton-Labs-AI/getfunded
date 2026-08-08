@@ -85,13 +85,15 @@ export interface PersonChip {
   dataset_name: string;
 }
 /** memberIds = the canonical org + its merged records ([id] pre-apply).
-    distinct-on dedupes a person appearing via more than one member row;
-    the outer order restores the role-precedence-then-name chip order. */
+    distinct-on the canonical-person expression: post-apply, one human is
+    several per-source rows — chips must dedupe on and link the canonical
+    row, not each source row. The outer order restores the
+    role-precedence-then-name chip order. */
 export async function orgPeople(memberIds: string[], limit = 40): Promise<PersonChip[]> {
   return await sql<PersonChip[]>`
     select person_id, full_name, title, rel_type, dataset_name from (
-      select distinct on (p.id)
-             p.id as person_id, p.full_name,
+      select distinct on (coalesce(p.canonical_person_id, p.id))
+             coalesce(p.canonical_person_id, p.id) as person_id, p.full_name,
              coalesce(r.title, p.primary_title) as title,
              r.rel_type, rf.dataset_name,
              case r.rel_type when 'owner_of' then 0 when 'officer_of' then 1
@@ -100,7 +102,8 @@ export async function orgPeople(memberIds: string[], limit = 40): Promise<Person
       join internal.people p on p.id = r.from_person_id
       join internal.raw_files rf on rf.id = p.raw_file_id
       where r.to_org_id = any(${memberIds}::uuid[]) and r.from_person_id is not null
-      order by p.id, case r.rel_type when 'owner_of' then 0 when 'officer_of' then 1
+      order by coalesce(p.canonical_person_id, p.id),
+               case r.rel_type when 'owner_of' then 0 when 'officer_of' then 1
                when 'trustee_of' then 2 when 'director_of' then 3 else 4 end
     ) t
     order by role_rank, full_name

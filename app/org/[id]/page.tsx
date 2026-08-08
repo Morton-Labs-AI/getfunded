@@ -37,6 +37,7 @@ import { SimilarPanel } from "@/components/org/similar-panel";
 import { WebFacts } from "@/components/org/web-facts";
 import { TopRecipients } from "@/components/org/top-recipients";
 import { PeopleGroups } from "@/components/org/people-groups";
+import { PersonChipEl } from "@/components/org/person-chip";
 import { GrantsPager } from "@/components/org/grants-pager";
 import { SourceGlyph } from "@/components/source-glyph";
 import { TrichotomyBadge, CategoryRule } from "@/components/trichotomy-badge";
@@ -608,20 +609,6 @@ function MoneyStat({
         )}
       </SourceGlyph>
     </div>
-  );
-}
-
-function PersonChipEl({ p }: { p: PersonChip }) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 rounded-[8px] border border-border-1 bg-surface px-2.5 py-1.5"
-      title={`${p.title ?? REL_LABEL[p.rel_type] ?? p.rel_type} · source: ${p.dataset_name}`}
-    >
-      <span className="text-[13px] font-medium text-ink-1">{p.full_name}</span>
-      <span className="mono-label normal-case tracking-[0.04em]">
-        {(p.title ?? REL_LABEL[p.rel_type] ?? "").toLowerCase().slice(0, 26)}
-      </span>
-    </span>
   );
 }
 

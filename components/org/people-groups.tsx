@@ -1,5 +1,5 @@
 import { PERSON_CAVEAT } from "@/lib/content/facts";
-import { REL_LABEL } from "@/lib/format";
+import { PersonChipEl } from "@/components/org/person-chip";
 import type { PersonChip } from "@/lib/queries/orgs";
 
 const GROUPS: { rel: string; heading: string }[] = [
@@ -29,16 +29,7 @@ export function PeopleGroups({ people }: { people: PersonChip[] }) {
             <div className="mono-label mb-2">{b.heading}</div>
             <div className="flex flex-wrap gap-2">
               {b.people.map((p) => (
-                <span
-                  key={p.person_id}
-                  className="inline-flex items-center gap-2 rounded-[8px] border border-border-1 bg-surface px-2.5 py-1.5"
-                  title={`${p.title ?? REL_LABEL[p.rel_type] ?? p.rel_type} · source: ${p.dataset_name}`}
-                >
-                  <span className="text-[13px] font-medium text-ink-1">{p.full_name}</span>
-                  <span className="mono-label normal-case tracking-[0.04em]">
-                    {(p.title ?? REL_LABEL[p.rel_type] ?? "").toLowerCase().slice(0, 26)}
-                  </span>
-                </span>
+                <PersonChipEl key={p.person_id} p={p} />
               ))}
             </div>
           </div>

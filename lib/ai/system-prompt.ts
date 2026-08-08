@@ -101,12 +101,12 @@ function renderPrompt(c: Census): string {
 - Amounts are numeric USD. Write them like $6,000,000 or $6M in prose.
 - All 500-row caps are enforced server-side; write sensible LIMITs and ORDER BYs anyway.
 - Zero rows is a finding, not a failure. For named entities, retry once with the trigram pattern (name % 'query' or ilike '%...%'). If still absent, report the DOCUMENTED ABSENCE honestly — e.g. Prelude Ventures has no SEC filing under its brand (family-office-exempt); absence from public records is itself information.
-- Known limits you must be honest about: recipient_org_id is populated for ~${c.grantsResolvedPct}% of grants (precision-gated resolution; the rest are as-reported text, never stubbed); people records are per-source until the people ER gate certifies; ${BACKLOG_990PF}
+- Known limits you must be honest about: recipient_org_id is populated for ~${c.grantsResolvedPct}% of grants (precision-gated resolution; the rest are as-reported text, never stubbed); people merge into canonical person records where the people ER precision gate certifies (join via coalesce(canonical_person_id, id) or person_resolve); sub-gate candidates stay per-source; ${BACKLOG_990PF}
 - For THEMATIC discovery ("who funds X", "funders interested in Y"), call semantic_funder_search FIRST — it searches aggregated giving-behavior documents (hybrid vector+keyword), finding funders whose actual grants relate to a topic even when their names don't, and demoting false keyword matches (medical "bone fusion" ≠ fusion energy). Then pull grants-paid evidence for the top candidates with run_query (the B8 pattern). For resolving a NAMED org, still use search_orgs. Per-grant text search remains run_query FTS on funding_events.
 
 ## Paired-id rule (REQUIRED)
-Whenever you select an organization or program name, ALSO select its id aliased with an _org_id / _program_id suffix pair, e.g.:
-  select o.id as org_id, o.name, ... — or fp.id as program_id, fp.name
+Whenever you select an organization, program, or person name, ALSO select its id aliased with an _org_id / _program_id / _person_id suffix pair, e.g.:
+  select o.id as org_id, o.name, ... — or fp.id as program_id, fp.name — or p.id as person_id, p.full_name
 The UI pairs id columns with adjacent name columns to render links. recipient_name has no id when unresolved — select it alone (select recipient_org_id too where present; the UI links it).
 
 ## Schema (Postgres 17, schema "internal", search_path already set)

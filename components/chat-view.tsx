@@ -530,7 +530,13 @@ function SqlBlock({ seg }: { seg: SqlSegment }) {
 
 /* -------------------------------------------------------- result table */
 
-const ID_COL = /(^|_)org_id$|(^|_)program_id$/;
+const ID_COL = /(^|_)org_id$|(^|_)program_id$|(^|_)person_id$/;
+
+function linkKind(col: string): "org" | "program" | "person" {
+  if (/person_id/.test(col)) return "person";
+  if (/program_id/.test(col)) return "program";
+  return "org";
+}
 const MONEY_COL =
   /^(amount|total|total_amount|aum|fund_size|asset_amount|assets|income_amount|revenue_amount|size|award_ceiling|award_floor|gav)$/;
 
@@ -594,7 +600,7 @@ function ResultTable({
             {shown.map((row, ri) => (
               <tr key={ri} className="border-b border-border-1 last:border-0">
                 {visible.map(({ c, i }) => (
-                  <Cell key={i} col={c} value={row[i]} linkId={linkFor[i] !== null ? String(row[linkFor[i]!]) : null} isProgram={linkFor[i] !== null && /program_id/.test(columns[linkFor[i]!])} />
+                  <Cell key={i} col={c} value={row[i]} linkId={linkFor[i] !== null ? String(row[linkFor[i]!]) : null} kind={linkFor[i] !== null ? linkKind(columns[linkFor[i]!]) : "org"} />
                 ))}
               </tr>
             ))}
@@ -622,12 +628,12 @@ function Cell({
   col,
   value,
   linkId,
-  isProgram,
+  kind,
 }: {
   col: string;
   value: unknown;
   linkId: string | null;
-  isProgram: boolean;
+  kind: "org" | "program" | "person";
 }) {
   const isMoney = MONEY_COL.test(col);
   if (value === null || value === undefined || value === "") {
@@ -648,7 +654,13 @@ function Cell({
     return (
       <td className="px-3.5 py-2">
         <Link
-          href={isProgram ? `/programs/${linkId}` : `/org/${linkId}`}
+          href={
+            kind === "person"
+              ? `/person/${linkId}`
+              : kind === "program"
+                ? `/programs/${linkId}`
+                : `/org/${linkId}`
+          }
           className="font-medium text-accent hover:text-accent-hover"
         >
           {String(value)}

@@ -17,8 +17,8 @@ export const sql =
     connect_timeout: 10,
     connection: {
       application_name: "open-funder-db-ui",
-      default_transaction_read_only: "on",
-      statement_timeout: "15000",
+      default_transaction_read_only: true,
+      statement_timeout: 15000,
     },
   });
 
