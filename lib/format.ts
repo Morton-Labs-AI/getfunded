@@ -124,6 +124,15 @@ export function eventCategory(eventType: string): Category {
   return null;
 }
 
+export const REL_LABEL: Record<string, string> = {
+  officer_of: "officer",
+  director_of: "director",
+  trustee_of: "trustee",
+  owner_of: "owner",
+  executive_of: "executive",
+  poc_for: "poc",
+};
+
 export const EVENT_TYPE_LABELS: Record<string, string> = {
   grant: "Grant",
   sbir_award: "SBIR Award",

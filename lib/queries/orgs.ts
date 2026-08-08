@@ -24,6 +24,7 @@ export interface OrgFull {
   last_verified_at: string | null;
   source_record_locator: string;
   canonical_org_id: string | null;
+  raw_file_id: string;
   // provenance (joined)
   dataset_name: string;
   source_url: string | null;
@@ -39,7 +40,7 @@ export async function getOrg(id: string): Promise<OrgFull | null> {
            o.ruling_date::text, o.asset_amount::text, o.income_amount::text,
            o.revenue_amount::text, o.aum::text, o.fund_size::text, o.is_era,
            o.focus_areas, o.status, o.last_verified_at::text,
-           o.source_record_locator, o.canonical_org_id,
+           o.source_record_locator, o.canonical_org_id, o.raw_file_id,
            rf.dataset_name, rf.source_url, rf.sha256, lm.license_name,
            rf.downloaded_at::text
     from internal.organizations o
@@ -118,6 +119,14 @@ export interface EventRow {
   fiscal_year: number | null;
   event_date: string | null;
   source_record_locator: string;
+  // optional per-row file provenance (populated by orgGrantsPage; when
+  // present, EventsTable builds the row's seal from these instead of the
+  // page-level org provenance)
+  dataset_name?: string;
+  sha256?: string;
+  source_url?: string | null;
+  license_name?: string;
+  downloaded_at?: string;
 }
 
 export async function orgGrantsPaid(

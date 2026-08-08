@@ -16,6 +16,25 @@ export const PERSON_CAVEAT =
   "Person records are resolved across sources only where the entity-resolution " +
   "precision gate certifies; otherwise they stay per-source.";
 
+export const NTEE_CAVEAT =
+  "IRS-classified NTEE category from the Business Master File. Assigned at " +
+  "exemption; often reflects the original filing, not current giving.";
+
+export const WEB_FACTS_NOTE =
+  "Extracted from the foundation's own website by a language model and " +
+  "human-confirmed; internal research data — not from an IRS filing and " +
+  "never republished.";
+
+export const SIMILAR_PROFILES_NOTE =
+  "Nearest by size, location, and giving pattern in the semantic corpus — " +
+  "geography weighs heavily. Ordering is the signal; treat it as a starting " +
+  "list, not a ranking of fit.";
+
+export const RESOLVED_COVERAGE_NOTE = (rowsPct: number, dollarsPct: number) =>
+  `${rowsPct}% of this foundation's grant rows (${dollarsPct}% of dollars) ` +
+  "are resolved to organization records by precision-gated matching; the " +
+  "rest stay as-reported text, never stubbed.";
+
 export const KNOWN_LIMITS = [
   "Semantic search runs over aggregated giving-behavior documents, one per " +
     "funder — a funder whose few on-topic grants are buried under hundreds of " +
@@ -33,4 +52,8 @@ export const KNOWN_LIMITS = [
   "Reg D offerings with a first sale “yet to occur” carry no event date; a " +
     "handful of filer-entered amount absurdities survive in the tail.",
   "Curated federal-program award figures are estimates pending founder review.",
+  "Enriched website facts (focus areas, giving priorities, application info) " +
+    "exist for only a handful of foundations, are extracted from the " +
+    "foundation's own site by a language model and human-confirmed, and are " +
+    "internal-only — never filing-sourced and never republished.",
 ];
