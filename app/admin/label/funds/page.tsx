@@ -124,7 +124,7 @@ const RUBRIC = [
 
 export default function LabelFundsPage() {
   const [pair, setPair] = useState<Pair | null>(null);
-  const [progress, setProgress] = useState<Progress>({ done: 0, target: 252 });
+  const [progress, setProgress] = useState<Progress>({ done: 0, target: 250 });
   const [allDone, setAllDone] = useState(false);
   const [notes, setNotes] = useState("");
   const [revealed, setRevealed] = useState<Revealed | null>(null);

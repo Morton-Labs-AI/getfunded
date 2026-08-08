@@ -13,7 +13,11 @@ import { adminSql as sql } from "./db";
  */
 
 export const JOB = "funds_adv_formd";
-export const TARGET_NON_UNSURE = 252;
+// Declared fixed n for the gate. 250, not 252: the 2 pre-UI CLI labels were
+// parked, so the analysis sample is the clean UI pass alone — and progress()
+// counts labeled_by='ui' only. Fixed-n is load-bearing (a Wilson bound assumes
+// n chosen in advance), so this is a declared constant, not a stopping heuristic.
+export const TARGET_NON_UNSURE = 250;
 
 // The gate stratum: splink-scored pairs with people corroboration. Mirrors
 // common.JOBS['funds'].strata['people'] in the data repo exactly.
