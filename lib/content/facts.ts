@@ -60,6 +60,49 @@ export const HOW_TO_APPLY_NOTE =
   "foundation funds preselected organizations and takes no unsolicited " +
   "requests, which is itself a useful answer.";
 
+export const APPLICATION_POSTURE_NOTE =
+  "Whether the foundation accepts unsolicited applications, read from Part XV " +
+  "of its latest parsed Form 990-PF. This is the foundation's own answer on " +
+  "its own return — not our inference — and a foundation that changes policy " +
+  "shows the newest one filed.";
+
+export const POSTURE_UNSTATED_NOTE =
+  "“Not stated” means the return carries no Part XV application block. It is " +
+  "neither an open door nor a closed one: 16,563 foundations with a parsed " +
+  "return say nothing either way, and grantmaking public charities file " +
+  "Form 990, which has no Part XV at all.";
+
+export const POSTURE_SCOPE_NOTE =
+  "Application posture and distributions are known only for the 145,200 " +
+  "organizations with a parsed Form 990-PF, so screening on them narrows the " +
+  "list to those. A foundation absent from this screen has not told the IRS " +
+  "either way.";
+
+export const PART_XV_FREE_TEXT_NOTE =
+  "Part XV fields are free text, truncated at the IRS schema's element " +
+  "lengths. Filers routinely put whole sentences in the contact-name element. " +
+  "Shown exactly as filed.";
+
+export const CONTACT_TIER_NOTE =
+  "Application contacts printed on the return are shown when they are role " +
+  "inboxes (grants@, info@) — the desks the foundation published for " +
+  "applicants. Addresses belonging to a named individual are held internally " +
+  "and never republished, even though the filing itself is public.";
+
+export const DISTRIBUTIONS_NOTE =
+  "Qualifying distributions (Part XII) are what the foundation actually paid " +
+  "out toward its charitable purpose. Assets are a stock; this is the flow — " +
+  "and screening on assets alone misses 8,880 foundations that distributed " +
+  "over $500,000 in their latest filing.";
+
+export const CHARITY_VETTING_LIMIT_NOTE =
+  "For public charities we hold the IRS Business Master File snapshot, grants " +
+  "received, grants paid (Schedule I), and the filing index — but not " +
+  "revenue, expenses, net assets, the program-vs-administrative expense " +
+  "split, officer compensation, or the board list. Those live on the 990 " +
+  "core form, which is not parsed yet. The raw XML is linked on each filing " +
+  "if you need them today.";
+
 export const RESOLVED_COVERAGE_NOTE = (rowsPct: number, dollarsPct: number) =>
   `${rowsPct}% of this foundation's grant rows (${dollarsPct}% of dollars) ` +
   "are resolved to organization records by precision-gated matching; the " +
@@ -92,4 +135,7 @@ export const KNOWN_LIMITS = [
     "absent from the return; a $0 means the foundation filed a zero.",
   AMENDED_RULE_NOTE,
   SCHEDULE_B_NOTE,
+  POSTURE_UNSTATED_NOTE,
+  CONTACT_TIER_NOTE,
+  CHARITY_VETTING_LIMIT_NOTE,
 ];

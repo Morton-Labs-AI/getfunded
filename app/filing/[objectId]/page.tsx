@@ -13,11 +13,13 @@ import { GrantsPager } from "@/components/org/grants-pager";
 import { BreakdownBars } from "@/components/breakdown-bars";
 import { Section, MoneyStat } from "@/components/page-primitives";
 import { SourceGlyph, type Provenance } from "@/components/source-glyph";
+import { orgContactChannels } from "@/lib/queries/contacts";
 import {
   FILING_AS_FILED_NOTE,
   AMENDED_RULE_NOTE,
   SCHEDULE_B_NOTE,
   HOW_TO_APPLY_NOTE,
+  CONTACT_TIER_NOTE,
 } from "@/lib/content/facts";
 import { moneyFull, countFull, dateShort, MDASH } from "@/lib/format";
 
@@ -38,14 +40,16 @@ export default async function FilingPage({
   const filing = await getFiling(objectId);
   if (!filing) notFound();
 
-  const [officers, contributors, appInfo, grantsPage, commitments] =
+  const [officers, contributors, appInfo, grantsPage, commitments, contactRows] =
     await Promise.all([
       filingOfficers(objectId),
       filingContributors(objectId),
       filingAppInfo(objectId),
       filingGrantsPage(objectId, { q, page: pageNum, pageSize: GRANTS_PAGE_SIZE }),
       filingCommitments(objectId),
+      filing.org_id ? orgContactChannels([filing.org_id]) : Promise.resolve([]),
     ]);
+  const publicContacts = contactRows.filter((c) => c.is_public && c.value);
   const grantsTotal = grantsPage[0]?.total_rows ?? 0;
   const grantsPageCount = Math.max(1, Math.ceil(grantsTotal / GRANTS_PAGE_SIZE));
 
@@ -460,10 +464,33 @@ export default async function FilingPage({
                   ` · ${[appInfo.addr_line1, appInfo.city, appInfo.state, appInfo.zip].filter(Boolean).join(", ")}`}
               </div>
             )}
+            {/* Contacts come from contact_channels, NEVER from appInfo.email
+                — that column is untiered, and rendering it published named
+                individuals (this page did exactly that until 2026-08-09).
+                orgContactChannels nulls the value for anything not marked
+                public, so an internal address never reaches this component. */}
             {(appInfo.email || appInfo.phone) && (
               <div>
                 <span className="mono-label mr-2">contact</span>
-                {[appInfo.email, appInfo.phone].filter(Boolean).join(" · ")}
+                {publicContacts.length > 0 ? (
+                  publicContacts.map((c, i) => (
+                    <span key={c.id}>
+                      {i > 0 && " · "}
+                      <a
+                        href={c.channel_type === "email"
+                          ? `mailto:${c.value}`
+                          : `tel:${c.value}`}
+                        className="text-accent hover:text-accent-hover"
+                      >
+                        {c.value}
+                      </a>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-ink-4" title={CONTACT_TIER_NOTE}>
+                    on the return · not published
+                  </span>
+                )}
               </div>
             )}
             {appInfo.form_and_info_txt && (

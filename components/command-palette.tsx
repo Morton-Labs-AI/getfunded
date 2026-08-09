@@ -243,7 +243,7 @@ export function CommandPalette() {
 
           {q.trim().length < 2 && (
             <div className="px-2.5 py-6 text-center text-[12.5px] text-ink-4">
-              Type to search 418,309 organizations · prefix with{" "}
+              Type to search 2.3M organizations · prefix with{" "}
               <kbd>?</kbd> to ask the analyst
             </div>
           )}

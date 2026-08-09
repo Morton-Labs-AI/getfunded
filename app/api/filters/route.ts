@@ -29,6 +29,25 @@ const FILTER_TOOL: Anthropic.Tool = {
       },
       minAssets: { type: "number", description: "Minimum assets/AUM in dollars" },
       maxAssets: { type: "number" },
+      posture: {
+        type: "string",
+        enum: ["open", "preselected", "unstated"],
+        description:
+          "Application posture from Part XV of the latest parsed Form 990-PF. " +
+          "'open' = the foundation does NOT report preselected-only; " +
+          "'preselected' = it reports it funds only preselected organizations " +
+          "and takes no unsolicited requests; 'unstated' = the return carries " +
+          "no Part XV block at all (an absence, NOT a closed door). " +
+          "Foundations segment only.",
+      },
+      minDistributions: {
+        type: "number",
+        description:
+          "Minimum qualifying distributions — money actually PAID OUT in the " +
+          "latest filing. Prefer this over minAssets whenever the user " +
+          "describes giving volume ('gives at least $X', 'writes big checks'): " +
+          "assets are a stock, distributions are the flow. Foundations only.",
+      },
       ntee: {
         type: "string",
         description: "NTEE major-group letter (A-Z), e.g. U = science & technology",

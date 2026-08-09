@@ -36,6 +36,13 @@ import {
   filingGrantCounts,
   type FilingRow,
 } from "@/lib/queries/filings";
+import {
+  orgApplicationPosture,
+  orgContactChannels,
+  orgFundersOfRecord,
+} from "@/lib/queries/contacts";
+import { ApplicationPosture } from "@/components/org/application-posture";
+import { FundersOfRecord } from "@/components/org/funders-of-record";
 import { EventsTable } from "@/components/events-table";
 import { FinancialTrends } from "@/components/org/financial-trends";
 import { FilingsList } from "@/components/org/filings-list";
@@ -56,6 +63,7 @@ import {
   RESOLVED_COVERAGE_NOTE,
   BMF_SNAPSHOT_NOTE,
   AMENDED_RULE_NOTE,
+  CHARITY_VETTING_LIMIT_NOTE,
 } from "@/lib/content/facts";
 import { nteeMajorLabel } from "@/lib/content/ntee";
 import {
@@ -145,7 +153,12 @@ export default async function OrgPage({
   ]);
   // Filing layer: data-presence gated, not org_type gated — charity pages
   // light up automatically when the 990 core-form phase lands.
-  const filings: FilingRow[] = isGrantmaker ? await orgFilings(memberIds) : [];
+  const [filings, posture, contactRows, fundersOfRecord] = await Promise.all([
+    isGrantmaker ? orgFilings(memberIds) : Promise.resolve([] as FilingRow[]),
+    orgApplicationPosture(memberIds),
+    orgContactChannels(memberIds),
+    isCharity ? orgFundersOfRecord(memberIds) : Promise.resolve([]),
+  ]);
   const grantCounts = await filingGrantCounts(filings.map((f) => f.object_id));
   const liveFilings = filings.filter(
     (f) => f.superseded_by_object_id === null && f.has_financials
@@ -388,6 +401,15 @@ export default async function OrgPage({
           )}
       </section>
 
+      {/* applying — posture + as-filed Part XV + tiered contacts. First
+          because for a grantseeker it is the most decision-relevant fact
+          on the page. */}
+      {posture && (
+        <Section title="Applying">
+          <ApplicationPosture posture={posture} contacts={contactRows} />
+        </Section>
+      )}
+
       {/* financial trends (any grantmaker with extracted filing financials) */}
       {liveFilings.length > 0 && (
         <Section title="Financials">
@@ -560,6 +582,22 @@ export default async function OrgPage({
       {received.length > 0 && (
         <Section title="Funding received">
           <EventsTable rows={received} prov={prov} showType received />
+        </Section>
+      )}
+
+      {/* who funds them — the recipient-side view a funder vets with */}
+      {fundersOfRecord.length > 0 && (
+        <Section title="Funders of record">
+          <FundersOfRecord rows={fundersOfRecord} />
+        </Section>
+      )}
+
+      {/* documented absence: what a vetting funder still cannot get here */}
+      {isCharity && filings.length > 0 && !filings.some((f) => f.has_financials) && (
+        <Section title="What this profile can't tell you yet">
+          <p className="max-w-[76ch] text-[13.5px] leading-6 text-ink-3">
+            {CHARITY_VETTING_LIMIT_NOTE}
+          </p>
         </Section>
       )}
 

@@ -23,18 +23,31 @@ async function runGuardedQuery(raw: string): Promise<GuardedResult> {
       (c) => c.name
     ) ?? Object.keys(rowsIn[0] ?? {});
 
-  // Contact-channel privacy mask: raw contact values never leave the server,
-  // regardless of what the model selected.
+  // Contact-channel privacy mask, tier-aware and FAIL-CLOSED.
+  //
+  // Some contacts are now genuinely public (role inboxes a foundation printed
+  // on its own return for applicants), so blanket masking would hide data we
+  // publish. But run_query takes arbitrary SQL and the server cannot re-derive
+  // a row's tier from the text. So: the projection is the contract. If the
+  // result carries a publishability column, mask only the non-public rows; if
+  // it does not, mask everything exactly as before. A model that forgets to
+  // select publishability gets the old behaviour, never a leak.
   const maskContacts = /contact_channels/i.test(q);
   const valueIdx = columns.indexOf("value");
+  const pubIdx = columns.findIndex(
+    (c) => c === "publishability" || c === "is_public"
+  );
 
-  const rows = rowsIn.map((r) =>
-    columns.map((c, i) =>
-      maskContacts && i === valueIdx && r[c] != null
+  const rows = rowsIn.map((r) => {
+    const rowIsPublic =
+      pubIdx >= 0 &&
+      (r[columns[pubIdx]] === "public" || r[columns[pubIdx]] === true);
+    return columns.map((c, i) =>
+      maskContacts && i === valueIdx && r[c] != null && !rowIsPublic
         ? "•• on file (internal) ••"
         : serializeValue(r[c])
-    )
-  );
+    );
+  });
 
   return {
     columns,
@@ -111,6 +124,30 @@ export const DB_TOOLS: Anthropic.Tool[] = [
         },
         org_types: { type: "array", items: { type: "string" } },
         state: { type: "string", description: "Two-letter state filter." },
+        app_postures: {
+          type: "array",
+          items: { type: "string", enum: ["open", "preselected_only", "unknown"] },
+          description:
+            "Filter by whether the funder accepts unsolicited applications, " +
+            "from Part XV of its latest parsed 990-PF. 'open' = does not " +
+            "report preselected-only. 'preselected_only' = states it funds " +
+            "only preselected organizations. 'unknown' = the return carries " +
+            "no Part XV block — an ABSENCE of a statement, not a closed door, " +
+            "and it covers EVERY grantmaking public charity (they file 990, " +
+            "which has no Part XV). Passing ['open'] alone therefore drops " +
+            "large well-known funders like Hewlett and ClimateWorks; prefer " +
+            "['open','unknown'] unless the user explicitly wants only " +
+            "foundations that have said yes in writing.",
+        },
+        min_distributions: {
+          type: "number",
+          description:
+            "Minimum money actually PAID OUT per year (qualifying " +
+            "distributions, falling back to charitable disbursements or " +
+            "annualized observed grants). Prefer this over min_size when the " +
+            "user describes giving volume — min_size is assets held, this is " +
+            "the flow.",
+        },
         min_size: { type: "number", description: "Minimum assets/AUM in dollars." },
         limit: { type: "number", description: "Max results (default 15)." },
       },
@@ -267,18 +304,23 @@ export async function runDbTool(
           ${(input.kinds as string[]) ?? null},
           ${(input.org_types as string[]) ?? null},
           ${(input.state as string) ?? null},
-          ${(input.min_size as number) ?? null}
+          ${(input.min_size as number) ?? null},
+          ${(input.app_postures as string[]) ?? null},
+          ${(input.min_distributions as number) ?? null}
         )`;
       const ms = Math.round(performance.now() - t0);
       emit({
         type: "rows",
-        columns: ["org_id", "name", "doc_kind", "state", "size_amount", "rrf", "snippet"],
+        columns: ["org_id", "name", "doc_kind", "state", "size_amount",
+                  "app_posture", "annual_distributions", "rrf", "snippet"],
         rows: rows.map((r) => [
           r.org_id ?? r.program_id,
           r.name,
           r.doc_kind,
           r.state,
           r.size_amount,
+          r.app_posture,
+          r.annual_distributions,
           Number(r.rrf).toFixed(4),
           r.snippet,
         ]),
@@ -290,7 +332,7 @@ export async function runDbTool(
       return rows
         .map(
           (r) =>
-            `${r.org_id ?? "program:" + r.program_id} | ${r.name} | ${r.doc_kind} | ${r.state ?? "∅"} | rrf=${Number(r.rrf).toFixed(4)} | ${String(r.snippet).slice(0, 140)}`
+            `${r.org_id ?? "program:" + r.program_id} | ${r.name} | ${r.doc_kind} | ${r.state ?? "∅"} | ${r.app_posture ?? "∅"} | rrf=${Number(r.rrf).toFixed(4)} | ${String(r.snippet).slice(0, 140)}`
         )
         .join("\n");
     }
