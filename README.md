@@ -84,6 +84,46 @@ the remainder stating only that the foundation funds preselected organizations
 and accepts no unsolicited requests · officers on 100% (avg 3.3/filing, 20,273
 corporate-trustee rows).
 
+## F6 — discovery, tiered contacts, and the first public artifact (2026-08-09)
+
+F1–F5 put decision-grade data in the database that nothing could reach: of
+145,200 foundations with a parsed 990-PF, **101,773 state they fund only
+preselected organizations and 26,864 accept applications** — visible only by
+opening one filing at a time. Meanwhile `/browse` screened on the BMF asset
+snapshot, which **misses 8,880 foundations that actually distributed ≥$500k**.
+
+| Gate | Content | Status |
+|---|---|---|
+| G1 | `mv_org_application_posture` + `public.org_application_posture` + SQL contact classifiers (0018) | ✅ partition exact and total: 26,864 open · 101,773 preselected · 16,563 unknown of 145,200 |
+| G2 | **Closed a live contact leak**: `public.filing_application_info` (shipped in my own 0016) exposed `email`/`phone` for every Part XV row with none of `contact_channels`' three safety layers | ✅ both columns dropped from the view; the UI's filing page read the same untiered column and now uses the tiered query |
+| G3–G4 | Part XV contacts → `contact_channels`, tiered | ✅ **832 role inboxes + 30,547 phones public — the first `publishability='public'` rows in project history**; 6,742 named individuals withheld; 1,404 unparseable not loaded |
+| G5–G6 | `hybrid_search` rebuilt at 9 args (`app_postures`, `min_distributions`); `search_documents` filter columns; **`org_types` suite bug fixed** | ✅ one overload, grant intact; an impossible `org_types` now returns 0 rows where it previously returned 30 and passed for the wrong reason |
+| G7 | Corpus enrichment: posture sentence + Part XV narrative in `doc_text` | ✅ 116,322 docs re-embedded (25.2M tokens, ~$1.51); all 16 federal programs carry posture |
+| G8 | Browse posture/distribution facets, Applying section, tiered contact rendering, recipient-side vetting, analyst filters + fail-closed contact mask | ✅ verified on Topfer, Austin, Chicago, Denver |
+| G9 | `funderdb export public` — CC-BY dataset | ✅ **25,571,806 rows across 55 files, 2.2GB**; all 7 boundary assertions pass *before* any byte is written |
+
+**The load-bearing correctness rule.** Posture comes from each org's latest
+**parsed** filing, never its latest filing. Using the latter lets the 35,648
+indexed-but-never-zip-packaged filings win and mislabels **3,806 open
+foundations as "unknown"** (unknown inflates 16,563 → 36,251). F3 gates it.
+
+**`unknown` is not `closed`.** It is an absence of a statement and covers every
+grantmaking public charity (Form 990 has no Part XV) — including the E5 fixture
+set. Nothing in the UI ever renders the word "closed".
+
+**A classifier correction applied the same day it was found.** The first load
+published 834 emails; the audit flagged `jdoe.email@example.com` at the *Woo*
+Family Foundation. Root cause: `mail`/`email` name a medium, not a role.
+Migration 0019 accepts them only as a whole local part, and re-running the
+loader **downgraded 834 → 832**. That is why the upsert scopes its `do update`
+to rows the loader owns — `do nothing` would have frozen the mistake forever.
+
+**Known limit found today, not yet fixed:** 47 of 191,663 foundation search
+documents carry a NULL `app_posture`. They are stale rows for orgs whose grants
+disappeared (traceable to the F2 supersession sweep), which the builder no
+longer produces but the upsert never deletes. A prune step in `embed sync` is
+the fix.
+
 **Benchmark v2:** one command — `uv run funderdb eval all` (subsets: `eval sql`,
 `eval semantic`, `eval er`). B-series executes verbatim from
 [benchmarks/queries.sql](benchmarks/queries.sql) (append-only record; the
@@ -106,7 +146,7 @@ reports SKIP until a job applies; an uncertified (forced) apply reads as FAIL.
 
 **Final inventory:** 418,309 orgs (145,589 foundations · 23,638 advisers · 180,174
 funds · 68,890 companies · agencies) · 446,222 identifiers · 869,246 people ·
-995,135 relationships · **2,633,212 funding events** · 232,910 contact channels
+995,135 relationships · **14,563,073 funding events** · 232,910 contact channels
 (zero public) · 16 programs · DB 2.9GB (Supabase Pro).
 
 ## Benchmark results (2026-07-25)
@@ -145,7 +185,12 @@ uv run funderdb ingest 990pf-detail    # 990-PF financials/officers/Sched B/
 uv run funderdb ingest 990pf-detail --dry-run --limit 2000
                                        #   per-returnVersion field-coverage
                                        #   histogram — the schema-drift detector
-uv run funderdb eval parity            # ProPublica API spot-check (REPORT-only)
+uv run funderdb contacts sync-part-xv --dry-run   # classify, count, write nothing
+uv run funderdb contacts sync-part-xv   # Part XV contacts -> contact_channels, tiered
+uv run funderdb contacts audit          # publication invariants (every count must be 0)
+uv run funderdb export public --verify-only      # boundary assertions, no files
+uv run funderdb export public           # CC-BY dataset export
+uv run funderdb eval parity             # ProPublica API spot-check (REPORT-only)
 uv run funderdb status                 # ledger + row counts
 ```
 

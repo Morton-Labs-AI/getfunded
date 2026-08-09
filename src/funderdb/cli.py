@@ -157,6 +157,63 @@ def ingest_seed() -> None:
 
 
 @main.group()
+def contacts() -> None:
+    """Contact channels: tiered load + publication audit.
+
+    Its own group, not `ingest`: this derives from already-ingested rows, and
+    the only surface in the database that can publish a contact deserves an
+    audit command sitting next to its loader.
+    """
+
+
+@contacts.command("sync-part-xv")
+@click.option("--dry-run", is_flag=True,
+              help="Classify and count only; writes nothing.")
+@click.option("--sample", "sample_n", type=int, default=None,
+              help="Dry-run: also print N sampled role-based (publishable) rows.")
+@click.option("--sample-named", is_flag=True,
+              help="With --sample, show the NAMED (withheld) bucket instead.")
+def contacts_sync_part_xv(dry_run: bool, sample_n: int | None,
+                          sample_named: bool) -> None:
+    """990-PF Part XV application contacts -> contact_channels, tiered.
+
+    Role-based inboxes (grants@) publish; named individuals (jane_doe@) stay
+    internal-only. Idempotent — a re-run re-tiers rows this loader owns, so a
+    classifier correction can DOWNGRADE a published row.
+    """
+    from .sources import part_xv_contacts
+
+    if dry_run:
+        for k, v in part_xv_contacts.project().items():
+            click.echo(f"{k}: {v:,}")
+        if sample_n:
+            bucket = "NAMED (withheld)" if sample_named else "ROLE-BASED (publishable)"
+            click.echo(f"\n-- {sample_n} sampled {bucket} rows --")
+            for email, contact, org, state in part_xv_contacts.sample(
+                    sample_n, role=not sample_named):
+                click.echo(f"{email:<44} {(contact or '')[:26]:<26} "
+                           f"{(org or '')[:34]:<34} {state or ''}")
+        return
+    for k, v in part_xv_contacts.sync().items():
+        click.echo(f"{k}: {v:,}")
+
+
+@contacts.command("audit")
+def contacts_audit() -> None:
+    """Publication invariants. Every count must be 0."""
+    from .sources import part_xv_contacts
+
+    failed = 0
+    for label, n in part_xv_contacts.audit():
+        status = "OK  " if n == 0 else "FAIL"
+        if n:
+            failed += 1
+        click.echo(f"{status} {n:>8,}  {label}")
+    if failed:
+        raise SystemExit(1)
+
+
+@main.group()
 def embed() -> None:
     """Semantic-search corpus: build docs + embed via Voyage."""
 
@@ -292,6 +349,31 @@ def resolve_recipients(no_apply: bool, max_tier: int) -> None:
     counts = recipients.run(apply=not no_apply, max_tier=max_tier)
     for k, v in counts.items():
         click.echo(f"{k}: {v:,}")
+
+
+@main.group()
+def export() -> None:
+    """Public dataset export (CC BY 4.0)."""
+
+
+@export.command("public")
+@click.option("--out", "out_dir", type=click.Path(), default=None,
+              help="Output directory (default data/export/public).")
+@click.option("--verify-only", is_flag=True,
+              help="Run the boundary assertions and write nothing.")
+def export_public(out_dir: str | None, verify_only: bool) -> None:
+    """Export the public.* views as a hash-stable CC-BY dataset.
+
+    The seven publishability assertions run FIRST; a single failure aborts
+    with a nonzero exit and writes no files.
+    """
+    from pathlib import Path
+
+    from . import export as export_mod
+
+    m = export_mod.run(Path(out_dir) if out_dir else None, verify_only=verify_only)
+    if not verify_only:
+        click.echo(f"\n{m['row_count_total']:,} rows across {len(m['files'])} files")
 
 
 @main.group("eval")

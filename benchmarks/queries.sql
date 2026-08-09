@@ -705,3 +705,131 @@ select
 --       XML. We match the filing; their 1 is a derived-field artifact.
 -- IRS filings are authoritative; ProPublica is a reference implementation and
 -- a validation layer, never a source of truth.
+
+-- ===========================================================================
+-- 2026-08-09 · F6: APPLICATION POSTURE, TIERED CONTACTS, FIRST PUBLIC EXPORT
+--
+-- F1-F5 put a large amount of decision-grade data in the database that
+-- nothing could reach. This phase makes it reachable and publishes the first
+-- CC-BY artifact.
+--
+-- THE LOAD-BEARING RULE (F3 gates it): application posture must come from
+-- each org's latest PARSED filing, never its latest filing. Measured both
+-- ways on the same data:
+--     latest PARSED : 145,200 orgs · 26,864 open · 101,773 preselected · 16,563 unknown
+--     latest ANY    : 146,150 orgs · 23,058 open ·  86,841 preselected · 36,251 unknown
+-- The 35,648 indexed-but-never-zip-packaged filings win the "latest" race and
+-- convert a known posture into 'unknown' — a 2.2x inflation that mislabels
+-- 3,806 OPEN foundations as having said nothing. Inner-joining
+-- filing_financials is what makes "latest parsed" precise.
+--
+-- 'unknown' IS NOT 'closed'. It is an absence of a statement, and it covers
+-- every grantmaking public charity (Form 990 has no Part XV) — including the
+-- E5 fixture set (ClimateWorks, Hewlett, Energy Foundation). Filtering to
+-- 'open' alone silently deletes them.
+--
+-- CONTACT PUBLICATION — the first publishability='public' rows in this
+-- project's history (the count was 0 from Phase 1 until today), and the first
+-- firing of tg_contact_license_guard on the public path:
+--     832 role-inbox emails  -> green / public
+--  30,547 filer phones       -> green / public
+--   6,742 named individuals  -> yellow / internal_only   (WITHHELD BY POLICY)
+--   1,404 unparseable values -> not loaded
+-- The classifier is SQL (internal.is_role_based_email) so the loader, the
+-- benchmarks and any reviewer run the identical rule. Default is false:
+-- publishing is an affirmative act.
+--
+-- A CLASSIFIER CORRECTION, MADE AND APPLIED THE SAME DAY: the first load
+-- published 834 emails. The audit's smell test flagged 19; 17 were org-name
+-- compounds (skadden.foundation@, www.finaid@twu.edu) and one was a role
+-- title (executive.director@), but jdoe.email@example.com at the EXAMPLE Family
+-- Foundation was a genuine false positive. Root cause: 'mail' and 'email'
+-- describe a MEDIUM, not a role. Migration 0019 accepts them only as a whole
+-- local part; re-running the loader DOWNGRADED 834 -> 832 published emails.
+-- That downgrade path is why the upsert scopes its `do update` to
+-- source_record_locator like 'partxv:%' — `do nothing` would have frozen the
+-- mistake permanently.
+--
+-- THE LEAK THIS PHASE CLOSED: public.filing_application_info, shipped by my
+-- own migration 0016, exposed contact_name, phone AND email for every Part XV
+-- row with NONE of the three safety layers contact_channels has. Only the
+-- absence of an anon grant kept it private. 0018 drops email and phone from
+-- that view; a name is not a channel (public.filing_officers already
+-- publishes 1.44M officer names from the same returns), but an email and a
+-- phone are, and channels route through contact_channels or are not
+-- published. The UI leaked the same column at
+-- app/filing/[objectId]/page.tsx and now reads only the tiered query.
+--
+-- SEARCH: hybrid_search dropped and recreated at 9 args (app_postures,
+-- min_distributions appended; app_posture and annual_distributions appended
+-- to RETURNS TABLE at indexes 12/13, so every pre-existing positional
+-- assertion stayed valid). Also fixed a latent bug: both legs hard-capped at
+-- `limit 50`, so match_limit above ~100 was a no-op and browse's "top 200"
+-- label was false. Now `limit greatest(match_limit, 50)`.
+--
+-- A SUITE BUG FIXED BEFORE IT COULD HIDE ANYTHING: evalsuite.py bound a
+-- literal null in hybrid_search's org_types position while E_CHECKS
+-- documented the field. Any check setting org_types ran UNFILTERED and passed
+-- for the wrong reason. Proven fixed: org_types=['company'] on a foundation
+-- query returns 0 rows where it previously returned 30.
+--
+-- KNOWN LIMIT FOUND TODAY, NOT YET FIXED: 47 of 191,663 foundation search
+-- documents carry a NULL app_posture. They are STALE — orgs whose grants
+-- disappeared (traceable to the F2 supersession sweep removing their last
+-- grant rows), so the builder's inner join on mv_funder_event_stats no longer
+-- produces them, but the upsert never deletes. Their text is outdated rather
+-- than wrong, and an app_postures filter excludes them. A prune step in
+-- embed sync is the fix; recorded here rather than bolted on unreviewed.
+--
+-- E14 METRIC CORRECTION (not a floor change): the check counted DISTINCT
+-- brand keywords in the top 20, so Heising-Simons and the Simons Foundation —
+-- two different real science funders that both belong there — collapsed to
+-- one hit and read as a miss. It now counts matching ROWS. The floor stayed
+-- at 3. The brand list is only a proxy: the Keck Observatory surfaces as its
+-- operating entity, "California Association for Research in Astronomy".
+--
+-- E13 DECISION, PRE-DECLARED BEFORE MEASUREMENT: gating if Topfer's first
+-- measured rank was <= 25, REPORT-with-rank otherwise. Measured rank 21 of
+-- 50 on an Austin-philanthropy query, so it is GATING.
+--
+-- B13 is timing-marginal: it passes in ~76s alone but hit the suite's 120s
+-- statement timeout while the 2.2GB export ran concurrently. Run the suite
+-- when a bulk job is not competing, or raise the suite timeout.
+--
+-- COLD-CACHE WARNING AFTER A RE-EMBED: the first filtered thesis query after
+-- `embed sync` rewrote 116,322 embeddings exceeded the UI pool's 15s
+-- statement_timeout and the browse page rendered empty. Warm, the identical
+-- query is 0.2s at match_limit 50, 100 AND 200 — the limit is not the cost
+-- driver, reading freshly-written embedding pages from disk is. Expect one
+-- slow request per filter shape after any large re-embed; do not "fix" it by
+-- raising the UI timeout, which is a deliberate guard.
+--
+-- Verified the posture predicate lands INSIDE hybrid_search rather than in a
+-- post-filter: /browse?state=IL&posture=open&thesis=community+development
+-- returns a full page. Post-filtering a truncated candidate pool would have
+-- collapsed it toward zero, which is the 0011 bug in a new dimension.
+--
+-- 2026-08-09 `funderdb eval all` results (42 PASS · 0 FAIL · 3 report/skip
+-- with B13 run uncontended and E14's metric corrected):
+--      F1 [F] PASS: posture partition 26,864 open + 101,773 preselected + 16,563 unknown = 145,200 of 145,200 orgs (total)
+--      F2 [F] PASS: 0 'open' orgs whose filing says preselected-only; 26,864 open rows checked
+--      F3 [F] PASS: 0 orgs whose posture comes from the wrong filing; 145,200 orgs checked
+--      F4 [F] PASS: 8,880 grantmakers distributing >=$500k that a >$10M asset screen misses (floor 8,000)
+--      F5 [F] PASS: public contacts: 31,379 rows; 0 non-green, 0 non-role-based emails, 0 non-republishable, 0 red
+--      F6 [F] PASS: Topfer: posture=open state=TX distributions=2,512,983; 0 castletop.org addresses in the public view; 1 withheld internally
+--      F7 [F] PASS: MIT as a vetting subject: 792 distinct funders across 9 fiscal years; charity 990 core-form financials on file: 0
+--     E11 [E] PASS: 0 of 30 rows violate state=IL; 4 top-20 names contain CHICAGO
+--     E12 [E] PASS: 0 of 30 rows violate state=CO; 5 top-20 names contain DENVER/COLORADO
+--     E13 [E] PASS: 0 of 50 rows violate state=TX; Topfer rank=21 of 50
+--     E14 [E] PASS: 3 known science funders in top 20: HEISING-SIMONS, SIMONS FOUNDATION, KAVLI
+--     E15 [E] PASS: 0 of 30 rows violate app_posture=open; 0 medical-fusion contaminants in top 10
+--     E16 [E] PASS: 0 of 30 rows violate annual_distributions >= $1M
+--
+-- FIRST PUBLIC ARTIFACT (`funderdb export public`): 25,571,806 rows across 55
+-- files, 2.2GB, CC BY 4.0. All seven boundary assertions run BEFORE any byte
+-- is written and abort the export on failure. funding_events is sharded by
+-- fiscal year (14.5M rows would otherwise be one ~550MB file that rewrites
+-- entirely every run). people and relationships are EXCLUDED — not a
+-- licensing question but a coherence one: internal.people is our derived,
+-- entity-unresolved layer and the people ER gate has not certified.
+-- Re-entry condition is stated in the export README.

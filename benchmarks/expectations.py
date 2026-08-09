@@ -205,6 +205,163 @@ SQL_INLINE = [
             f"{rows[0][1]:.4f}..{rows[-1][1]:.4f} ascending, seed excluded"
             if rows else "similar_orgs returned no rows"),
     },
+    # --- F-series: application posture, distributions, contact publication ---
+    # Floors measured 2026-08-09 and set below the measurement so they survive
+    # a growing DB; the partition identities are exact because they are
+    # identities, not counts.
+    {
+        "id": "F1", "series": "F",
+        # The posture partition must be TOTAL and DISJOINT. 'unknown' is an
+        # absence of a statement, never a closed door.
+        "sql": """select count(*),
+                         count(*) filter (where application_posture = 'open'),
+                         count(*) filter (where application_posture = 'preselected_only'),
+                         count(*) filter (where application_posture = 'unknown')
+                  from internal.mv_org_application_posture""",
+        "assert": lambda rows: (
+            (lambda n, o, p, u: (
+                o + p + u == n and o >= 20_000 and p >= 80_000 and u >= 10_000,
+                f"posture partition {o:,} open + {p:,} preselected + {u:,} unknown "
+                f"= {o + p + u:,} of {n:,} orgs "
+                f"({'total' if o + p + u == n else 'NOT TOTAL'}; "
+                "floors 20,000/80,000/10,000)"))(*[int(x) for x in rows[0]])),
+    },
+    {
+        "id": "F2", "series": "F",
+        # THE correctness gate on the headline facet: an org can never read
+        # 'open' when its own winning filing ticked preselected-only. The
+        # rows_checked clause stops it passing vacuously on an empty MV.
+        "sql": """select
+                    (select count(*) from internal.mv_org_application_posture p
+                     join internal.filing_application_info a on a.object_id = p.object_id
+                     where p.application_posture = 'open' and a.only_preselected)
+                      as violations,
+                    (select count(*) from internal.mv_org_application_posture
+                     where application_posture = 'open') as rows_checked""",
+        "assert": lambda rows: (
+            int(rows[0][0]) == 0 and int(rows[0][1]) >= 20_000,
+            f"{int(rows[0][0])} 'open' orgs whose filing says preselected-only "
+            f"(must be 0); {int(rows[0][1]):,} open rows checked (floor 20,000)"),
+    },
+    {
+        "id": "F3", "series": "F",
+        # Posture must come from the latest PARSED filing. Using the latest
+        # filing of any kind lets the 35,648 never-zip-packaged filings win,
+        # which measured 2026-08-09 mislabels 3,806 open foundations as
+        # 'unknown' and inflates unknown 2.2x.
+        "sql": """with truth as (
+                    select distinct on (f.org_id) f.org_id, f.object_id
+                    from internal.filings f
+                    join internal.filing_financials ff on ff.object_id = f.object_id
+                    where f.org_id is not null and f.return_type = '990PF'
+                      and f.superseded_by_object_id is null
+                    order by f.org_id, f.tax_period desc, f.object_id desc)
+                  select count(*) filter (where t.object_id <> p.object_id), count(*)
+                  from internal.mv_org_application_posture p
+                  join truth t on t.org_id = p.org_id""",
+        "assert": lambda rows: (
+            int(rows[0][0]) == 0,
+            f"{int(rows[0][0])} orgs whose posture comes from the wrong filing "
+            f"(must be 0); {int(rows[0][1]):,} orgs checked"),
+    },
+    {
+        "id": "F4", "series": "F",
+        # The distributions screen sees what the BMF asset screen misses.
+        # Measured 2026-08-09: 8,947 real grantmakers invisible at assets>$10M.
+        "sql": """select
+                    (select count(*) from internal.organizations o
+                     join internal.mv_org_latest_financials m on m.org_id = o.id
+                     where o.org_type = 'private_foundation'
+                       and m.qualifying_distributions >= 500000
+                       and coalesce(o.asset_amount, 0) < 10000000) as missed_by_assets,
+                    (select count(*) from internal.mv_org_latest_financials
+                     where qualifying_distributions < 0) as negative""",
+        "assert": lambda rows: (
+            int(rows[0][0]) >= 8_000 and int(rows[0][1]) == 0,
+            f"{int(rows[0][0]):,} grantmakers distributing >=$500k that a "
+            f">$10M asset screen misses (floor 8,000); "
+            f"{int(rows[0][1])} negative distributions (must be 0)"),
+    },
+    {
+        "id": "F5", "series": "F",
+        # Contact publication containment. Same doctrine as B11: every clause
+        # is a zero, and the summary says so when the public set is empty.
+        "sql": """select
+                    (select count(*) from internal.contact_channels
+                     where publishability = 'public' and privacy_tier <> 'green'),
+                    (select count(*) from internal.contact_channels
+                     where publishability = 'public' and channel_type = 'email'
+                       and not is_role_based),
+                    (select count(*) from internal.contact_channels c
+                     join internal.raw_files rf on rf.id = c.raw_file_id
+                     join internal.licensing_map lm on lm.license_code = rf.license_code
+                     where c.publishability = 'public' and not lm.republishable),
+                    (select count(*) from internal.contact_channels
+                     where privacy_tier = 'red'),
+                    (select count(*) from internal.contact_channels
+                     where publishability = 'public')""",
+        "assert": lambda rows: (
+            all(int(x) == 0 for x in rows[0][:4]),
+            f"public contacts: {int(rows[0][4]):,} rows; "
+            f"{int(rows[0][0])} non-green, {int(rows[0][1])} non-role-based emails, "
+            f"{int(rows[0][2])} non-republishable, {int(rows[0][3])} red "
+            "(all must be 0)"
+            + (" (vacuous — no public rows yet)" if int(rows[0][4]) == 0 else "")),
+    },
+    {
+        "id": "F6", "series": "F",
+        # Topfer as the known-good profile, and the falsifiable form of
+        # "never publish a named individual's address": its Part XV email is
+        # ALAN_TOPFER@CASTLETOP.ORG and it must never reach the public view.
+        "sql": """select
+                    (select application_posture from internal.mv_org_application_posture
+                     where org_id = '4f205ebb-9c46-4304-8594-814b32cbd29f'),
+                    (select app_state from internal.mv_org_application_posture
+                     where org_id = '4f205ebb-9c46-4304-8594-814b32cbd29f'),
+                    (select qualifying_distributions from internal.mv_org_latest_financials
+                     where org_id = '4f205ebb-9c46-4304-8594-814b32cbd29f'),
+                    (select count(*) from public.contact_channels
+                     where org_id = '4f205ebb-9c46-4304-8594-814b32cbd29f'
+                       and lower(value) like '%castletop%'),
+                    (select count(*) from internal.contact_channels
+                     where org_id = '4f205ebb-9c46-4304-8594-814b32cbd29f'
+                       and publishability = 'internal_only')""",
+        "assert": lambda rows: (
+            rows[0][0] == "open" and rows[0][1] == "TX"
+            and int(rows[0][2] or 0) == 2_512_983 and int(rows[0][3]) == 0
+            and int(rows[0][4]) >= 1,
+            f"Topfer: posture={rows[0][0]} state={rows[0][1]} "
+            f"distributions={int(rows[0][2] or 0):,}; "
+            f"{int(rows[0][3])} castletop.org addresses in the public view "
+            f"(must be 0); {int(rows[0][4])} withheld internally"),
+    },
+    {
+        "id": "F7", "series": "F",
+        # Recipient-side vetting floor + an honesty TRIPWIRE. Clause (b)
+        # asserts charity core-form financials do NOT exist; the day that
+        # phase lands F7 FAILS, which forces the "what this can't tell you
+        # yet" copy to be updated instead of quietly going stale.
+        "sql": """select
+                    (select count(distinct funder_org_id) from internal.funding_events
+                     where recipient_org_id = (
+                       select org_id from internal.org_identifiers
+                       where id_type = 'ein' and id_value = '042103594' limit 1)
+                       and event_type = 'grant'),
+                    (select count(distinct fiscal_year) from internal.funding_events
+                     where recipient_org_id = (
+                       select org_id from internal.org_identifiers
+                       where id_type = 'ein' and id_value = '042103594' limit 1)
+                       and event_type = 'grant'),
+                    (select count(*) from internal.filings f
+                     join internal.filing_financials ff on ff.object_id = f.object_id
+                     where f.return_type = '990')""",
+        "assert": lambda rows: (
+            int(rows[0][0]) >= 5 and int(rows[0][1]) >= 2 and int(rows[0][2]) == 0,
+            f"MIT as a vetting subject: {int(rows[0][0])} distinct funders "
+            f"(floor 5) across {int(rows[0][1])} fiscal years (floor 2); "
+            f"charity 990 core-form financials on file: {int(rows[0][2])} "
+            "(must be 0 — when this fires, update CHARITY_VETTING_LIMIT_NOTE)"),
+    },
 ]
 
 # --- E-series ---------------------------------------------------------------
@@ -279,8 +436,69 @@ def e10(rows):
         f"FTS leg: Lowercarbon rank={lc_rank} for its own name (need <=5)"
 
 
+TOPFER_ORG_ID = "4f205ebb-9c46-4304-8594-814b32cbd29f"
+SCIENCE_FUNDERS = ("SIMONS", "SLOAN", "MOORE", "KAVLI", "RESEARCH CORPORATION",
+                   "BURROUGHS WELLCOME", "KECK", "TEMPLETON", "PACKARD", "SCHMIDT")
+
+
+def _no_row_violates(rows, idx, pred, label):
+    """E8/E9 template: assert ZERO returned rows violate the filter."""
+    bad = [r for r in rows if not pred(r[idx])]
+    return not bad, f"{len(bad)} of {len(rows)} rows violate {label} (must be 0)"
+
+
+def e11(rows):  # Chicago
+    ok, msg = _no_row_violates(rows, 6, lambda s: s == "IL", "state=IL")
+    named = sum(1 for r in rows[:20] if "CHICAGO" in str(r[4] or "").upper())
+    return ok and named >= 2, f"{msg}; {named} top-20 names contain CHICAGO (need >=2)"
+
+
+def e12(rows):  # Denver — thinner corpus (899 docs), so a lower name floor
+    ok, msg = _no_row_violates(rows, 6, lambda s: s == "CO", "state=CO")
+    named = sum(1 for r in rows[:20]
+                if any(k in str(r[4] or "").upper() for k in ("DENVER", "COLORADO")))
+    return ok and named >= 1, f"{msg}; {named} top-20 names contain DENVER/COLORADO (need >=1)"
+
+
+def e13(rows):  # Austin/Texas anchored on Topfer. Rank recorded, see queries.sql.
+    ok, msg = _no_row_violates(rows, 6, lambda s: s == "TX", "state=TX")
+    rank = next((i + 1 for i, r in enumerate(rows) if str(r[1]) == TOPFER_ORG_ID), None)
+    return ok and rank is not None, (
+        f"{msg}; Topfer rank={rank if rank else 'ABSENT'} of {len(rows)}"
+        + ("" if rank else " — aggregate dilution, record and investigate"))
+
+
+def e14(rows):  # scientific philanthropies
+    # Count matching ROWS, not distinct brand keywords. Counting keywords
+    # punishes the ranking for a correct result: Heising-Simons and the Simons
+    # Foundation are two different real science funders that both belong in
+    # the top 20, and collapsing them to one 'SIMONS' hit read as a miss.
+    # The brand list is also only a proxy — the Keck Observatory surfaces as
+    # its operating entity, "California Association for Research in Astronomy".
+    hits = [str(r[4]) for r in rows[:20]
+            if any(k in str(r[4] or "").upper() for k in SCIENCE_FUNDERS)]
+    return len(hits) >= 3, (
+        f"{len(hits)} known science funders in top 20 (need >=3)"
+        + (f": {', '.join(h[:28] for h in hits[:4])}" if hits else ""))
+
+
+def e15(rows):  # Morton Labs fusion, filtered to open-to-apply
+    ok, msg = _no_row_violates(rows, 12, lambda p: p == "open", "app_posture=open")
+    bad = [r for r in rows[:10]
+           if MEDICAL_FUSION.search(str(r[11] or "") + " " + str(r[4] or ""))]
+    return ok and not bad, f"{msg}; {len(bad)} medical-fusion contaminants in top 10"
+
+
+def e16(rows):  # min_distributions respected
+    return _no_row_violates(
+        rows, 13, lambda d: d is not None and d >= 1_000_000,
+        "annual_distributions >= $1M")
+
+
 # hybrid_search returns (doc_id, org_id, program_id, doc_kind, name, org_type,
-# state, size_amount, vec_rank, fts_rank, rrf, snippet) — indexes 0..11.
+# state, size_amount, vec_rank, fts_rank, rrf, snippet, app_posture,
+# annual_distributions) — indexes 0..13. 12/13 appended by migration 0020, so
+# every pre-existing positional assertion above stays valid.
 E_CHECKS = [
     {"id": "E1", "query": "fusion energy simulation software",
      "kinds": None, "limit": 20, "assert": e1},
@@ -301,6 +519,28 @@ E_CHECKS = [
      "kinds": ["foundation"], "min_size": 1_000_000_000, "limit": 30, "assert": e9},
     {"id": "E10", "query": "lowercarbon capital",
      "kinds": ["adviser"], "limit": 20, "assert": e10},
+    # --- F6 scenario checks (2026-08-09) ---------------------------------
+    {"id": "E11", "query": "Chicago community foundations funding neighborhood "
+                           "and youth programs",
+     "kinds": ["foundation"], "state": "IL", "limit": 30, "assert": e11},
+    {"id": "E12", "query": "Denver Colorado foundations funding local community "
+                           "organizations",
+     "kinds": ["foundation"], "state": "CO", "limit": 30, "assert": e12},
+    {"id": "E13", "query": "Austin Texas family foundations funding local "
+                           "community and education",
+     "kinds": ["foundation"], "state": "TX", "limit": 50, "assert": e13},
+    {"id": "E14", "query": "foundations funding basic scientific research, "
+                           "instruments, and early-career scientists",
+     "kinds": ["foundation"], "limit": 20, "assert": e14},
+    # The check that catches a positional mis-binding in the UI's
+    # semantic_funder_search call: a wrong order silently filters on the
+    # wrong argument rather than erroring.
+    {"id": "E15", "query": "fusion energy, plasma physics, and advanced "
+                           "computational science",
+     "kinds": ["foundation"], "app_postures": ["open"], "limit": 30, "assert": e15},
+    {"id": "E16", "query": "science education",
+     "kinds": ["foundation"], "min_distributions": 1_000_000, "limit": 30,
+     "assert": e16},
 ]
 
 # --- ER-series --------------------------------------------------------------

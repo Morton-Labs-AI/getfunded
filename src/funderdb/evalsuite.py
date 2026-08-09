@@ -107,15 +107,23 @@ def _run_semantic(res: _Result, conn) -> None:
                 continue
             try:
                 vec = query_embed(spec["query"])
+                # org_types was documented in E_CHECKS but bound as a literal
+                # null here until 2026-08-09 — any check that set it ran
+                # UNFILTERED and passed for the wrong reason. Bind every
+                # argument the spec can carry, or the suite lies.
                 cur.execute(
                     """select * from internal.hybrid_search(
                          %(q)s, %(vec)s::extensions.halfvec(512), %(lim)s,
-                         %(kinds)s, null, %(state)s, %(min_size)s)""",
+                         %(kinds)s, %(org_types)s, %(state)s, %(min_size)s,
+                         %(app_postures)s, %(min_dist)s)""",
                     {"q": spec["query"],
                      "vec": "[" + ",".join(f"{x:.6f}" for x in vec) + "]",
                      "lim": spec["limit"], "kinds": spec.get("kinds"),
+                     "org_types": spec.get("org_types"),
                      "state": spec.get("state"),
-                     "min_size": spec.get("min_size")})
+                     "min_size": spec.get("min_size"),
+                     "app_postures": spec.get("app_postures"),
+                     "min_dist": spec.get("min_distributions")})
                 ok, summary = spec["assert"](cur.fetchall())
             except Exception as exc:
                 conn.rollback()

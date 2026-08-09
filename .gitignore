@@ -13,3 +13,6 @@ dist/
 data/resolve/
 data/embeddings/
 data/logs/
+
+# Public dataset exports (regenerated each run; provenance lives in raw_files + ledger)
+data/export/
