@@ -44,6 +44,46 @@ The April 2026 predecessor produced 60 files and zero rows. Inverted here:
 | G6 | UI v2 | 🟡 ungated commits shipped (recipient links, canonical plumbing incl. redirect + identifier union, shared YearBars, charity variant, /browse thesis blend, facts.ts + census prompt + /data ER section); **2026-08-08 merged to UI `main`**: blinded fund-pair labeling UI (dev-only) and Foundation Profiles v2 — profile v2 from existing data (geography, top-recipient rollups, paginated grants, corrected per-row 990 seals, NTEE staleness caveat), `similar_orgs` panel, and the dev-only human-gated website-enrichment flow; **`/person/[id]` shipped** — people chips link from every org type, but the people ER job has not run so every person is per-source and the cluster/redirect paths stay inert until the people precision gate certifies |
 | Suite v2 | `uv run funderdb eval all` — B1–B11 verbatim + S-series similarity + E-series semantic + ER floors | ✅ 29 PASS · 0 FAIL · 3 REPORT/SKIP (2026-08-08; link jobs SKIP until applied, B11 vacuous until a confirmed enrichment) |
 
+## Filing-layer gates (status 2026-08-09)
+
+The July 2026 research study asked whether we gather 990 data as richly as
+ProPublica displays it. We did not: the pipeline extracted officers and grants
+and **zero** financial-statement figures, had no filing entity, and silently
+double-counted amended returns. This phase closes that.
+
+| Gate | Content | Status |
+|---|---|---|
+| F1 | `internal.filings` spine (0013–0016): `processed_filings` promoted to a real filing entity (DLN, submission, batch, period dates, header, amendment state) + `filing_financials` / `filing_officers` / `filing_contributors` / `filing_application_info` + public views + `mv_org_latest_financials` | ✅ 675,806 990-PF + 1,881,691 990 index rows loaded, DLN on 100%; `ingest 990pf --year 2025` re-run reports 0 new (idempotency preserved across the rename) |
+| F2 | Amended-return supersession — **a live correctness bug**: amendments carry a new OBJECT_ID, so both copies' grant rows coexisted | ✅ 31,665 filings superseded (winner = greatest object_id; SUB_DATE is unusable — year-only in 2022+, garbage timestamps in 2021). B13 asserts both invariants at 0: no superseded filing retains event rows, no (ein, return_type, tax_period) group keeps two live filings |
+| F3 | Parser: 51 financial columns (Part I/II/III/VI/X/XI/XII/XIII/XV), return header, officer compensation/hours/benefits **incl. corporate trustees** (which never enter `internal.people`), grant addresses/ZIP/country/foundation-status/relationship, Schedule B, Part XV how-to-apply, future commitments as `event_type='grant_commitment'` | ✅ `tests/test_990pf_parse.py` 6/6 incl. the real Topfer member; dry-run coverage histogram across 6 returnVersions (2023v6.0–2025v4.0) shows **zero** zero-coverage columns |
+| F4 | Detail backfill over staged zips (`ingest 990pf-detail`; never downloads, never inserts grant rows — back-year grant volume stays behind the G2 disk gate) | ✅ **635,301/635,301 live 990-PFs (100%)** — 444,941 detailed in the final run (first attempt, no retries) · 1.44M officer rows · 258,763 Schedule B contributors · 411,840 Part XV rows · 181,551 `grant_commitment` rows · 7.26M grant rows enriched with address/ZIP/country/status/relationship. **0 XML parse errors, 0 filings missing officers, 0 missing financials.** The 35,648 filings that could not be detailed are exactly the documented IRS zip-packaging backlog (17,469 in 2025 + 18,179 in 2026) — indexed OBJECT_IDs whose XML the IRS has never published in a bulk zip |
+| F5 | UI v3: per-FY financial trends (revenue/expenses/assets/liabilities), Part I composition bars, filings-by-year index, `/filing/[objectId]` reconstruction (header, balance sheet, officers, grants, Schedule B, how-to-apply), and a raw-XML escape hatch streaming the original e-file out of the staged zip | ✅ zero-JS server-rendered; yauzl with a `7zz` Deflate64 fallback; verified light + dark |
+
+**Parity (REPORT-only, `eval parity`):** against ProPublica's Nonprofit
+Explorer API v2, revenue/expenses/total-assets agree **exactly** on the large
+majority of comparable filings. Two findings worth recording:
+
+1. Most non-comparable rows are filings **we hold and ProPublica has not
+   published yet** (e.g. EIN 27-5271301: their newest is FY2023, we carry
+   FY2024). The bulk-XML pipeline runs *ahead* of them on recent IRS releases.
+2. **Every** numeric disagreement is the same artifact: ProPublica reports
+   `1` where the return reports `0`. Across an 80-filing sample — 51 exact
+   agreements, 6 disagreements — all 6 were `ours=0 theirs=1`, with no
+   exceptions and no disagreement of any other shape. Two were checked
+   against the source document (EIN 86-1263907 FY2022 revenue,
+   88-3973214 FY2022 total assets EOY): both read `0` in the IRS XML
+   (`TotalRevAndExpnssAmt`, `TotalAssetsEOYAmt`). We match the filing. This is
+   why parity is REPORT-only and never gates.
+
+IRS filings are authoritative; ProPublica is a reference implementation and a
+validation layer, never a source of truth.
+
+**Coverage measured over parsed filings:** Schedule B 24% · Part XV
+application info 23% actionable (contact / materials / deadlines), with most of
+the remainder stating only that the foundation funds preselected organizations
+and accepts no unsolicited requests · officers on 100% (avg 3.3/filing, 20,273
+corporate-trustee rows).
+
 **Benchmark v2:** one command — `uv run funderdb eval all` (subsets: `eval sql`,
 `eval semantic`, `eval er`). B-series executes verbatim from
 [benchmarks/queries.sql](benchmarks/queries.sql) (append-only record; the
@@ -98,6 +138,14 @@ uv run funderdb ingest adv-schedules   # owners + private funds (monthly zips)
 uv run funderdb ingest 990pf           # 990-PF officers + grants (2026+2025)
 uv run funderdb ingest formd           # Form D offerings (2024q1->present)
 uv run funderdb ingest sbir            # SBIR/STTR awards
+uv run funderdb ingest filings         # filing spine from index CSVs (no zips)
+                                       #   + amended-return supersession sweep
+uv run funderdb ingest 990pf-detail    # 990-PF financials/officers/Sched B/
+                                       #   how-to-apply from ALREADY-STAGED zips
+uv run funderdb ingest 990pf-detail --dry-run --limit 2000
+                                       #   per-returnVersion field-coverage
+                                       #   histogram — the schema-drift detector
+uv run funderdb eval parity            # ProPublica API spot-check (REPORT-only)
 uv run funderdb status                 # ledger + row counts
 ```
 
@@ -110,8 +158,17 @@ uv run funderdb status                 # ledger + row counts
 - Yet-to-occur Form D first sales carry null `event_date` (filing-date fallback
   is a candidate refinement); a handful of filer-entered absurd amounts survive
   in the Reg D tail.
-- Public charities / regranters (BMF codes ≥10, e.g. Stellar Energy Foundation)
-  and 990/990-EZ Schedule I grants are not yet loaded.
+- Financial-statement extraction is **990-PF only**. Public-charity 990
+  core-form financials (Part I/VIII/IX/X) are a later phase — charity profiles
+  show a BMF snapshot and a filings index, and the UI lights up automatically
+  when those land (its gates are data-presence, not org-type).
+- 990-EZ, 990-T, 990-N, Pub. 78, auto-revocations, and determination letters
+  are not ingested. Highest-paid-employee and contractor compensation tables
+  (which use different element names from the officer group) are parsed but
+  not stored.
+- No pixel-faithful filing render: `/filing/[objectId]` is a structured
+  reconstruction from parsed fields plus the original XML, not the IRS MeF
+  XSL stylesheet output.
 - Supabase linter flags the `public.*` views as SECURITY DEFINER — **intentional**
   in Phase 1 (owner-rights filtered views, nothing granted to `anon`); flip to
   `security_invoker` when RLS lands in Phase 2.
@@ -120,7 +177,15 @@ uv run funderdb status                 # ledger + row counts
 
 - **Connection**: use the direct host `db.poznaikbjcgnthfmqueo.supabase.co` (IPv6)
   for bulk loads. The session pooler intermittently kills large COPY streams
-  with `SSL error: bad record mac`.
+  with `SSL error: bad record mac` — reconfirmed 2026-08-09, when the
+  990-PF detail pass died mid-COPY on the pooler and ran clean on the direct
+  host. `ingest 990pf-detail` is chunk-committed and re-entrant, so a killed
+  run resumes from `details_parsed_at` at no cost; wrap long backfills in a
+  bounded retry loop rather than babysitting them.
+- **Filer-entered numbers need headroom**: a Schedule B `ContributorNum` of
+  `20250001` overflowed `smallint` on first real-data contact (migration 0017
+  widened it; the parser also clamps out-of-range values to NULL). Assume any
+  filer-controlled numeric can be absurd.
 - **Size policy**: `raw_source` JSONB is stored only on low-volume rows (seed,
   future ADV firms); BMF foundations and all funding_events carry locator +
   hashed staged file instead (measured 2026-07-25: raw_source on 135k BMF rows

@@ -82,8 +82,59 @@ def b10(rows):
     return orphans == 0, f"{rows[0][0]} orgs, {orphans} provenance orphans (must be 0)"
 
 
+# B12: the twelve published Topfer FY2024 figures, asserted exactly.
+# (column index in the B12 select, expected value)
+_TOPFER = [
+    ("fmv_assets_eoy", 4, 28_351_327),
+    ("contributions_received", 5, 50_000),
+    ("dividends", 6, 353_266),
+    ("net_gain_sale_assets", 7, 753_889),
+    ("gross_sales_price", 8, 2_426_164),
+    ("capital_gain_net_income", 9, 752_443),
+    ("total_revenue", 10, 1_467_724),
+    ("total_expenses", 11, 3_049_382),
+    ("charitable_disbursements", 12, 2_512_983),
+    ("net_assets_eoy", 13, 26_696_006),
+    ("total_liabilities_eoy", 14, 0),
+    ("officer_comp", 15, 0),
+]
+
+
+def b12(rows):
+    if not rows:
+        return False, "Topfer filing 202532979349100628 has no financials row"
+    r = rows[0]
+    bad = [f"{name}={r[i]}≠{want}" for name, i, want in _TOPFER
+           if r[i] is None or int(r[i]) != want]
+    if bad:
+        return False, "Topfer mismatch: " + ", ".join(bad)
+    return True, (f"all 12 published values exact; acct={r[3]}, "
+                  f"qualifying_distributions={int(r[16]):,}, grant_rows={r[17]}")
+
+
+def b13(rows):
+    (with_events, multi_winner, superseded, pf_live, pf_detailed) = (
+        int(rows[0][0]), int(rows[0][1]), int(rows[0][2]),
+        int(rows[0][3]), int(rows[0][4]))
+    coverage = pf_detailed / pf_live if pf_live else 0.0
+    invariants_ok = with_events == 0 and multi_winner == 0
+    ok = invariants_ok and coverage >= 0.98
+    detail = (f"{with_events} superseded filings retain event rows (must be 0); "
+              f"{multi_winner} multi-winner groups (must be 0); "
+              f"{superseded:,} filings superseded; detail coverage "
+              f"{pf_detailed:,}/{pf_live:,} live processed 990-PFs "
+              f"({100 * coverage:.1f}%, floor 98%)")
+    # A sub-floor coverage with clean invariants means the detail backfill is
+    # mid-flight, not that supersession broke — say so instead of reading as
+    # a correctness failure.
+    if invariants_ok and not ok:
+        detail += " — invariants CLEAN; detail backfill still running"
+    return ok, detail
+
+
 B_CHECKS = {  # queries.sql block number -> assert fn
     1: b1, 2: b2, 3: b3, 4: b4, 5: b5, 6: b6, 7: b7, 8: b8, 9: b9, 10: b10,
+    12: b12, 13: b13,
 }
 
 # Inline SQL checks that are NOT in queries.sql (new in v2; append their

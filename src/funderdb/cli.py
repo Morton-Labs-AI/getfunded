@@ -67,6 +67,27 @@ def ingest_990pf(years: tuple[int, ...]) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+@ingest.command("990pf-detail")
+@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025, 2024))
+@click.option("--dry-run", is_flag=True,
+              help="Parse staged zips + per-returnVersion FIN_FIELDS coverage "
+                   "histogram; no DB writes, no downloads.")
+@click.option("--limit", type=int, default=None,
+              help="Dry-run: stop after N filings scanned.")
+def ingest_990pf_detail(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None:
+    """990-PF financials/officers/Schedule B/how-to-apply from staged zips.
+
+    Never inserts grant rows (those stay behind the G2 disk gate) — upgrades
+    already-known filings with the detail tables and header columns.
+    """
+    from .sources import irs_990pf
+
+    totals = (irs_990pf.dry_run_details(years=years, limit=limit)
+              if dry_run else irs_990pf.reparse_details(years=years))
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("990")
 @click.option("--year", "years", type=int, multiple=True, default=(2026, 2025))
 @click.option("--dry-run", is_flag=True,
@@ -80,6 +101,18 @@ def ingest_990(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None
 
     totals = (irs_990_sched_i.dry_run(years=years, limit=limit)
               if dry_run else irs_990_sched_i.ingest(years=years))
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
+@ingest.command("filings")
+@click.option("--year", "years", type=int, multiple=True,
+              default=(2021, 2022, 2023, 2024, 2025, 2026))
+def ingest_filings(years: tuple[int, ...]) -> None:
+    """Filings spine from the annual index CSVs (no zips) + supersession sweep."""
+    from .sources import irs_filings
+
+    totals = irs_filings.ingest(years=years)
     for k, v in sorted(totals.items()):
         click.echo(f"{k}: {v:,}")
 
@@ -292,6 +325,17 @@ def eval_all() -> None:
     from . import evalsuite
 
     evalsuite.main("all")
+
+
+@eval_group.command("parity")
+@click.option("--n", type=int, default=50, show_default=True)
+def eval_parity(n: int) -> None:
+    """ProPublica API spot-validation of filing financials (REPORT-only, network)."""
+    import sys
+
+    from . import evalsuite
+
+    sys.exit(evalsuite.parity(n=n))
 
 
 @main.command()

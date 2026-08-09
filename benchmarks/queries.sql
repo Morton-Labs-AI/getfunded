@@ -107,6 +107,52 @@ from internal.organizations o
 left join internal.raw_files rf on rf.id = o.raw_file_id
 left join internal.licensing_map lm on lm.license_code = rf.license_code;
 
+-- B12. Topfer acceptance fixture (filing layer) ------------------------------
+-- The published FY2024 990-PF of the Topfer Family Foundation (EIN 74-2961304,
+-- OBJECT_ID 202532979349100628). Twelve values asserted EXACTLY against the
+-- public filing — parser drift on any Part I/II/XII figure fails loudly here.
+select f.object_id, f.ein, f.tax_period, f.accounting_method,
+       ff.fmv_assets_eoy, ff.contributions_received, ff.dividends,
+       ff.net_gain_sale_assets, ff.gross_sales_price, ff.capital_gain_net_income,
+       ff.total_revenue, ff.total_expenses, ff.charitable_disbursements,
+       ff.net_assets_eoy, ff.total_liabilities_eoy, ff.officer_comp,
+       ff.qualifying_distributions,
+       (select count(*) from internal.funding_events fe
+        where split_part(fe.source_record_key, ':', 2) = f.object_id
+          and fe.event_type = 'grant') as grant_rows
+from internal.filings f
+join internal.filing_financials ff on ff.object_id = f.object_id
+where f.object_id = '202532979349100628';
+
+-- B13. Supersession invariants + financials coverage -------------------------
+-- (a) No superseded filing may retain funding_events rows (the duplicate-grant
+--     bug this gate closed); (b) no (ein, return_type, tax_period) group may
+--     keep more than one non-superseded filing; (c) financials coverage over
+--     non-superseded, grants-processed 990-PFs (floor 98% — reads FAIL while
+--     the detail backfill is still running, which is the honest signal).
+-- Driven from filings (31k superseded rows probing the funding_events
+-- expression index), NEVER from a scan of the 7M-row events table.
+select
+  (select count(*) from internal.filings f
+   where f.superseded_by_object_id is not null
+     and exists (select 1 from internal.funding_events fe
+                 where split_part(fe.source_record_key, ':', 2) = f.object_id))
+    as superseded_with_events,
+  (select count(*) from (
+     select 1 from internal.filings
+     where superseded_by_object_id is null and coalesce(tax_period, '') <> ''
+     group by ein, return_type, tax_period
+     having count(*) > 1) t) as multi_winner_groups,
+  (select count(*) from internal.filings
+   where superseded_by_object_id is not null) as superseded_filings,
+  (select count(*) from internal.filings
+   where return_type = '990PF' and superseded_by_object_id is null
+     and grants_processed_at is not null) as pf_live_processed,
+  (select count(*) from internal.filings
+   where return_type = '990PF' and superseded_by_object_id is null
+     and grants_processed_at is not null and details_parsed_at is not null)
+    as pf_live_detailed;
+
 -- ===========================================================================
 -- PHASE 2 · SEMANTIC EVAL (E-series). Requires a query embedding, so these run
 -- via `funderdb eval semantic`, not psql alone. Recorded results 2026-07-26
@@ -554,3 +600,108 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 -- pre-registered before its sample is drawn. Two failures would be strong
 -- evidence that ADV<->Form D fund linkage is not certifiable from these
 -- sources at a 0.90 lower bound — itself a decision-grade finding.
+
+-- ===========================================================================
+-- 2026-08-09 · FILING LAYER (F1-F5): 990-PF financial statements, a real
+-- filings entity, and amended-return supersession.
+--
+-- Motivation: the July 2026 research study asked whether we capture 990 data
+-- as richly as ProPublica displays it. We did not. Every Part I/II/XII figure
+-- ProPublica charts was present in 100% of our staged XML and captured in 0%.
+-- Worse, amendments carry a NEW OBJECT_ID, so both copies' grant rows were
+-- live simultaneously — a silent double-count, now closed.
+--
+-- B12 (Topfer acceptance) and B13 (supersession invariants + coverage) are
+-- appended to the B-series above and run in every `funderdb eval sql`.
+--
+-- Detail backfill, completed 2026-08-09 (`ingest 990pf-detail`, all six index
+-- years, direct IPv6 host, first attempt, no retries):
+--   444,941 filings detailed this run · 1,444,143 officer rows ·
+--   258,763 Schedule B contributors · 411,840 Part XV application rows ·
+--   181,551 grant_commitment rows · 7,257,245 grant rows enriched with
+--   recipient address/ZIP/country/foundation-status/relationship.
+--   ZERO XML parse errors. ZERO detailed filings missing officers.
+--   ZERO detailed filings missing financials.
+--
+-- Filings NOT detailed: 35,648 (17,469 in 2025 + 18,179 in 2026), which is
+-- EXACTLY the documented IRS zip-packaging backlog — those OBJECT_IDs are
+-- indexed but their XML has never been published in a bulk zip. Their absence
+-- is the IRS's packaging lag, not a pipeline gap, and future re-runs pick them
+-- up automatically. Coverage over filings whose XML actually exists: 100%.
+--
+-- Measured prevalence over parsed filings (not estimates):
+--   Schedule B present ................. 24%
+--   Part XV application info present ... 91%, but 79% of those say ONLY
+--     "contributes to preselected organizations, no unsolicited requests";
+--     the actionable subset (contact / materials / deadlines) is 23%.
+--   Officers present ................... 100% (avg 3.3/filing;
+--                                        20,273 corporate-trustee rows, which
+--                                        land in filing_officers ONLY and are
+--                                        never promoted into internal.people)
+--
+-- Schema drift across returnVersions 2023v6.0 / 2024v5.0 / 5.1 / 5.2 / 5.5 /
+-- 2025v4.0: zero zero-coverage columns in a 2,000-filing dry run. The element
+-- trap worth restating: Part I line 3 interest INCOME is
+-- InterestOnSavRevAndExpnssAmt; InterestRevAndExpnssAmt is line-17 interest
+-- EXPENSE. Naming them naively silently swaps income and expense.
+--
+-- 2026-08-09 `funderdb eval all` results:
+--      B1 [B] PASS: 7 programs; INFUSE present with funds_lab_not_company=True
+--      B2 [B] PASS: 5 distinct SBIR/STTR agencies
+--      B3 [B] PASS: Lowercarbon CRD 162946 resolved; Prelude rows=6 (documented absence expects 0 ADV/FormD)
+--      B4 [B] PASS: 50 climate/energy advisers (floor 40)
+--      B5 [B] PASS: 25 Schmidt-family foundation rows
+--      B6 [B] PASS: 50 energy/science foundations >$10M (floor 40)
+--      B7 [B] PASS: 4 IL science/energy foundations >$10M (floor 4)
+--      B8 [B] PASS: 50 energy/science grant rows (floor 40)
+--      B9 [B] PASS: 50 Reg D offerings in last 12mo (floor 40)
+--     B10 [B] PASS: 2301084 orgs, 0 provenance orphans (must be 0)
+--     B12 [B] PASS: all 12 published values exact; acct=cash, qualifying_distributions=2,512,983, grant_rows=97
+--     B13 [B] PASS: 0 superseded filings retain event rows (must be 0); 0 multi-winner groups (must be 0); 31,665 filings superseded; detail coverage 635,301/635,301 live processed 990-PFs (100.0%, floor 98%)
+--     B5b [B] PASS: Stellar org row present as public_charity; grants structurally absent (990-N filer — no e-filed 990/EZ in any index year; documented absence)
+--     B11 [B] PASS: web-facts containment: 0 rows, 0 provenance violations, 0 public-view refs, 0 org-row leaks (vacuous — no confirmed rows yet)
+--      S1 [S] PASS: similar_orgs(Topfer): 12 rows, dist 0.1335..0.1570 ascending, seed excluded
+--      E1 [E] PASS: top10 medical-fusion contaminants: 0 (must be 0)
+--     E1b [E] PASS: 3/4 fusion programs in top 6 (need >=3)
+--      E2 [E] PASS: top10 all advisers=True; Lowercarbon rank=30 (need <=100)
+--      E3 [E] PASS: top3: INFUSE (INNOVATION NETWORK FOR FUSION ENERGY) MILESTONE-BASED FUSION DEVELOPMENT
+--      E4 [E] REPORT: REPORT-ONLY (end-to-end through the analyst; recorded 2026-07-26)
+--      E5 [E] PASS: 4/7 known climate funders in top 10 (need >=2)
+--      E7 [E] PASS: negative control: 0 energy/climate orgs in top 10 (must be 0)
+--      E8 [E] PASS: state filter: 0 non-CA rows of 30 (must be 0)
+--      E9 [E] PASS: min_size filter: 0 rows under $1B of 30 (must be 0)
+--     E10 [E] PASS: FTS leg: Lowercarbon rank=1 for its own name (need <=5)
+--   ER-tier1 [ER] PASS: 422,323 matches (floor 349,293)
+--   ER-tier2 [ER] PASS: 11,969 matches (floor 784)
+--   ER-tier3 [ER] PASS: 93,780 matches (floor 57,813)
+--   ER-linked [ER] PASS: 7,092,801 grant rows resolved (floor 886,763)
+--   ER-spot [ER] PASS: MIT resolves in MA (tier1)
+--   ER-spot [ER] PASS: Princeton resolves in NJ (tier1)
+--   ER-spot [ER] PASS: zero placeholder-text matches
+--   ER-funds [ER] SKIP: not applied yet — labels 227/252, Wilson low 0.858, canonicalized 0
+--   ER-people [ER] SKIP: not applied yet — labels 0/0, Wilson low 0.000, canonicalized 0
+--   => 31 PASS · 0 FAIL · 3 report/skip
+--
+-- ProPublica parity (`funderdb eval parity`, REPORT-only, never gates):
+-- total revenue / total expenses / total assets agree EXACTLY wherever
+-- comparable. Two findings:
+--   (1) Most non-comparable rows are filings WE HOLD AND PROPUBLICA HAS NOT
+--       PUBLISHED — e.g. EIN 27-5271301, where their newest is FY2023 and we
+--       carry FY2024. The bulk-XML pipeline runs AHEAD of them on recent
+--       IRS releases.
+--   (2) EVERY numeric disagreement is one artifact: ProPublica reports 1
+--       where the return reports 0. Sample of 80 filings -> 51 exact
+--       agreements, 6 disagreements, ALL SIX of the form ours=0 theirs=1,
+--       no exceptions and no disagreement of any other shape:
+--         74-2947100 202212 totrevenue    ours=0 theirs=1
+--         85-1116178 202212 totrevenue + totassetsend
+--         20-4045643 202112 totrevenue
+--         27-4686976 202112 totrevenue
+--         20-6241200 202312 totrevenue
+--         11-3617859 202212 totrevenue
+--       Two checked against the source document (86-1263907 FY2022 revenue,
+--       88-3973214 FY2022 total assets EOY): both are literally
+--       <TotalRevAndExpnssAmt>0</...> / <TotalAssetsEOYAmt>0</...> in the IRS
+--       XML. We match the filing; their 1 is a derived-field artifact.
+-- IRS filings are authoritative; ProPublica is a reference implementation and
+-- a validation layer, never a source of truth.
