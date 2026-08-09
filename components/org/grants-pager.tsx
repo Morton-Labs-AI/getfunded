@@ -6,6 +6,7 @@ import { countFull } from "@/lib/format";
     compose {from, q, page} back into the org URL. */
 export function GrantsPager({
   orgId,
+  basePath,
   from,
   q,
   page,
@@ -13,24 +14,28 @@ export function GrantsPager({
   total,
 }: {
   orgId: string;
+  /** Page the pager composes onto; defaults to the org profile. The filing
+      page passes `/filing/{objectId}`. */
+  basePath?: string;
   from?: string;
   q?: string;
   page: number;
   pageCount: number;
   total: number;
 }) {
+  const base = basePath ?? `/org/${orgId}`;
   const href = (p: number) => {
     const sp = new URLSearchParams();
     if (from) sp.set("from", from);
     if (q) sp.set("q", q);
     if (p > 1) sp.set("page", String(p));
     const s = sp.toString();
-    return `/org/${orgId}${s ? `?${s}` : ""}`;
+    return `${base}${s ? `?${s}` : ""}`;
   };
 
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <form method="get" action={`/org/${orgId}`} className="flex items-center gap-2">
+      <form method="get" action={base} className="flex items-center gap-2">
         {from && <input type="hidden" name="from" value={from} />}
         <input
           type="search"
@@ -47,7 +52,7 @@ export function GrantsPager({
         </button>
         {q && (
           <Link
-            href={`/org/${orgId}${from ? `?from=${from}` : ""}`}
+            href={`${base}${from ? `?from=${from}` : ""}`}
             className="text-[12.5px] text-accent hover:text-accent-hover"
           >
             clear

@@ -36,7 +36,12 @@ export default async function DataPage() {
       union all select 'relationships', relationships::text from internal.mv_overview_totals
       union all select 'funding_programs', programs::text from internal.mv_overview_totals
       union all select 'org_identifiers', count(*)::text from internal.org_identifiers
-      union all select 'contact_channels (all internal-only)', count(*)::text from internal.contact_channels`,
+      union all select 'contact_channels (all internal-only)', count(*)::text from internal.contact_channels
+      union all select 'filings (990/990-PF e-file spine)', count(*)::text from internal.filings
+      union all select 'filing_financials (990-PF as filed)', count(*)::text from internal.filing_financials
+      union all select 'filing_officers (as filed)', count(*)::text from internal.filing_officers
+      union all select 'filing_contributors (Schedule B)', count(*)::text from internal.filing_contributors
+      union all select 'filing_application_info (Part XV)', count(*)::text from internal.filing_application_info`,
     sql`
       select method, status, count(*)::int as n
       from internal.recipient_matches group by 1, 2 order by 1, 2`,

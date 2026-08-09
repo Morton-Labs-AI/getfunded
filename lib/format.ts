@@ -79,7 +79,13 @@ export function hashShort(sha: string): string {
 
 export function dateShort(v: string | Date | null | undefined): string {
   if (!v) return MDASH;
-  const d = typeof v === "string" ? new Date(v) : v;
+  // Date-only strings (Postgres `date` columns, e.g. filing tax periods)
+  // must not take the UTC-midnight → local-TZ shift, or every date renders
+  // one day early west of Greenwich.
+  const d =
+    typeof v === "string"
+      ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00` : v)
+      : v;
   if (Number.isNaN(d.getTime())) return MDASH;
   return d.toLocaleDateString("en-US", {
     year: "numeric",

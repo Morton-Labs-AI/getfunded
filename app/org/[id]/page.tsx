@@ -31,7 +31,15 @@ import {
   type ProvFileRow,
   type SimilarOrgRow,
 } from "@/lib/queries/org-profile";
+import {
+  orgFilings,
+  filingGrantCounts,
+  type FilingRow,
+} from "@/lib/queries/filings";
 import { EventsTable } from "@/components/events-table";
+import { FinancialTrends } from "@/components/org/financial-trends";
+import { FilingsList } from "@/components/org/filings-list";
+import { Section, MoneyStat } from "@/components/page-primitives";
 import { GeoTable } from "@/components/org/geo-table";
 import { SimilarPanel } from "@/components/org/similar-panel";
 import { WebFacts } from "@/components/org/web-facts";
@@ -46,12 +54,13 @@ import {
   PERSON_CAVEAT,
   NTEE_CAVEAT,
   RESOLVED_COVERAGE_NOTE,
+  BMF_SNAPSHOT_NOTE,
+  AMENDED_RULE_NOTE,
 } from "@/lib/content/facts";
 import { nteeMajorLabel } from "@/lib/content/ntee";
 import {
   moneyCompact,
   moneyFull,
-  moneyRegister,
   countFull,
   MDASH,
   REL_LABEL,
@@ -134,6 +143,24 @@ export default async function OrgPage({
     isFoundation ? similarOrgs(id) : Promise.resolve([] as SimilarOrgRow[]),
     isFoundation ? orgWebFacts(memberIds) : Promise.resolve(null as OrgWebFactsRow | null),
   ]);
+  // Filing layer: data-presence gated, not org_type gated — charity pages
+  // light up automatically when the 990 core-form phase lands.
+  const filings: FilingRow[] = isGrantmaker ? await orgFilings(memberIds) : [];
+  const grantCounts = await filingGrantCounts(filings.map((f) => f.object_id));
+  const liveFilings = filings.filter(
+    (f) => f.superseded_by_object_id === null && f.has_financials
+  );
+  const latestFiling = liveFilings[0] ?? null;
+  const latestFilingProv = latestFiling
+    ? {
+        dataset: latestFiling.dataset_name,
+        sourceUrl: latestFiling.source_url,
+        sha256: latestFiling.sha256,
+        license: latestFiling.license_name,
+        locator: latestFiling.object_id,
+        ingested: latestFiling.downloaded_at,
+      }
+    : null;
   const grantsTotal = grantsPage[0]?.total_rows ?? 0;
   const grantsPageCount = Math.max(1, Math.ceil(grantsTotal / GRANTS_PAGE_SIZE));
   const nteeLabel = nteeMajorLabel(org.ntee_code);
@@ -264,13 +291,40 @@ export default async function OrgPage({
 
       {/* stat row */}
       <section className="flex flex-wrap gap-8 border-b border-border-1 py-6">
-        {(isFoundation || isCharity) && (
-          <>
-            <MoneyStat label="assets" value={org.asset_amount} prov={prov} />
-            <MoneyStat label="income" value={org.income_amount} prov={prov} />
-            <MoneyStat label="revenue" value={org.revenue_amount} prov={prov} />
-          </>
-        )}
+        {(isFoundation || isCharity) &&
+          (latestFiling && latestFilingProv ? (
+            // Latest as-filed figures, sealed to the 990 e-file batch. FY in
+            // the label so vintage is never ambiguous.
+            <>
+              <MoneyStat
+                label={`assets (fmv) · FY${latestFiling.fy}`}
+                value={latestFiling.fmv_assets_eoy ?? latestFiling.total_assets_eoy_fmv}
+                prov={latestFilingProv}
+              />
+              <MoneyStat
+                label={`revenue · FY${latestFiling.fy}`}
+                value={latestFiling.total_revenue}
+                prov={latestFilingProv}
+              />
+              <MoneyStat
+                label={`expenses · FY${latestFiling.fy}`}
+                value={latestFiling.total_expenses}
+                prov={latestFilingProv}
+              />
+              <MoneyStat
+                label={`charitable disbursements · FY${latestFiling.fy}`}
+                value={latestFiling.charitable_disbursements}
+                prov={latestFilingProv}
+              />
+            </>
+          ) : (
+            // Graceful degradation: exactly the pre-filing-layer BMF trio.
+            <span title={BMF_SNAPSHOT_NOTE} className="contents">
+              <MoneyStat label="assets" value={org.asset_amount} prov={prov} />
+              <MoneyStat label="income" value={org.income_amount} prov={prov} />
+              <MoneyStat label="revenue" value={org.revenue_amount} prov={prov} />
+            </span>
+          ))}
         {isAdviser && (
           <>
             <MoneyStat label="regulatory AUM" value={org.aum} prov={prov} />
@@ -333,6 +387,13 @@ export default async function OrgPage({
             </div>
           )}
       </section>
+
+      {/* financial trends (any grantmaker with extracted filing financials) */}
+      {liveFilings.length > 0 && (
+        <Section title="Financials">
+          <FinancialTrends filings={filings} />
+        </Section>
+      )}
 
       {/* enriched website facts (foundations, when a confirmed row exists) */}
       {isFoundation && webFacts && (
@@ -502,6 +563,16 @@ export default async function OrgPage({
         </Section>
       )}
 
+      {/* filings on record (data-presence gated) */}
+      {filings.length > 0 && (
+        <Section
+          title={`Filings (${filings.length})`}
+          aside={<span className="text-[11.5px] text-ink-4">{AMENDED_RULE_NOTE}</span>}
+        >
+          <FilingsList filings={filings} grantCounts={grantCounts} />
+        </Section>
+      )}
+
       {/* provenance */}
       <Section title="Provenance">
         {isFoundation && provFiles.length > 0 ? (
@@ -560,57 +631,8 @@ export default async function OrgPage({
 }
 
 /* ---------- helpers ---------- */
-
-function Section({
-  title,
-  aside,
-  children,
-}: {
-  title: string;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="border-b border-border-1 py-7 last:border-0">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <h2 className="text-[19px] font-semibold tracking-[-0.015em] text-ink-1">{title}</h2>
-        {aside}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function MoneyStat({
-  label,
-  value,
-  prov,
-}: {
-  label: string;
-  value: string | null;
-  prov: Parameters<typeof SourceGlyph>[0]["prov"];
-}) {
-  const reg = moneyRegister(value);
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="mono-label">{label}</span>
-      <SourceGlyph prov={prov}>
-        {reg ? (
-          <span
-            className="tnum text-[30px] font-[620] leading-9 tracking-[-0.02em] text-ink-1"
-            title={value ? moneyFull(value) : undefined}
-          >
-            <span className="text-[0.72em] font-medium text-ink-3">{reg.symbol}</span>
-            {reg.digits}
-            <span className="text-[0.72em] font-medium text-ink-3">{reg.suffix}</span>
-          </span>
-        ) : (
-          <span className="text-[30px] font-[620] leading-9 text-ink-4">{MDASH}</span>
-        )}
-      </SourceGlyph>
-    </div>
-  );
-}
+/* Section and MoneyStat moved to components/page-primitives.tsx when the
+   filing page became their second consumer. */
 
 const ID_LINKS: Record<string, (v: string) => string> = {
   crd: (v) => `https://adviserinfo.sec.gov/firm/summary/${v}`,

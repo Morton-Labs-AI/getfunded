@@ -31,6 +31,35 @@ export const SIMILAR_PROFILES_NOTE =
   "geography weighs heavily. Ordering is the signal; treat it as a starting " +
   "list, not a ranking of fit.";
 
+export const FILING_AS_FILED_NOTE =
+  "Figures are as reported on the e-filed return (Form 990-PF), extracted " +
+  "from the IRS bulk XML — no restatements or normalization. Fiscal years " +
+  "are each foundation's own tax year, labeled by the calendar year the " +
+  "period ends in.";
+
+export const AMENDED_RULE_NOTE =
+  "When an amended return supersedes an original, charts, stats, and grant " +
+  "rows use the amended figures; the original filing remains viewable and " +
+  "is marked superseded.";
+
+export const BMF_SNAPSHOT_NOTE =
+  "Asset/income/revenue snapshot from the IRS Business Master File — a " +
+  "coarse annual extract; per-year as-filed figures appear once this " +
+  "organization's e-filed returns are ingested.";
+
+export const SCHEDULE_B_NOTE =
+  "Schedule B contributor lists are public information for private " +
+  "foundations (unlike public charities, whose donor lists are redacted). " +
+  "24% of the 990-PF e-filings parsed so far carry one.";
+
+export const HOW_TO_APPLY_NOTE =
+  "Application guidance from Form 990-PF Part XV, as filed — the " +
+  "foundation's own words to would-be applicants, distinct from " +
+  "website-derived info. 23% of parsed filings give an actual route in " +
+  "(contact, materials, or deadlines); most of the rest state only that the " +
+  "foundation funds preselected organizations and takes no unsolicited " +
+  "requests, which is itself a useful answer.";
+
 export const RESOLVED_COVERAGE_NOTE = (rowsPct: number, dollarsPct: number) =>
   `${rowsPct}% of this foundation's grant rows (${dollarsPct}% of dollars) ` +
   "are resolved to organization records by precision-gated matching; the " +
@@ -57,4 +86,10 @@ export const KNOWN_LIMITS = [
     "exist for only a handful of foundations, are extracted from the " +
     "foundation's own site by a language model and human-confirmed, and are " +
     "internal-only — never filing-sourced and never republished.",
+  "Filing financials cover 990-PF e-filings (2020–2026 tax periods); public-" +
+    "charity 990 core-form financials are a later phase, so charity profiles " +
+    "show only the BMF snapshot for now. A NULL line means the element is " +
+    "absent from the return; a $0 means the foundation filed a zero.",
+  AMENDED_RULE_NOTE,
+  SCHEDULE_B_NOTE,
 ];
