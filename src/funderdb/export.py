@@ -228,8 +228,18 @@ def run(out_dir: Path | None = None, verify_only: bool = False) -> dict:
                  "attribution_required": r[3], "license_url": r[4]}
                 for r in cur.fetchall()
             ]
-            cur.execute("select max(version) from supabase_migrations.schema_migrations")
-            schema_version = cur.fetchone()[0]
+            # supabase_migrations.schema_migrations is created by the Supabase
+            # CLI, not by any migration in this repo — so a fork on vanilla
+            # Postgres has no such table and could not produce its own export.
+            # Degrade to an unknown version rather than crashing: a fork that
+            # cannot re-export cannot verify our hashes against its own build.
+            cur.execute("select to_regclass('supabase_migrations.schema_migrations')")
+            if cur.fetchone()[0] is None:
+                schema_version = None
+            else:
+                cur.execute(
+                    "select max(version) from supabase_migrations.schema_migrations")
+                schema_version = cur.fetchone()[0]
         conn.rollback()
 
     manifest = {

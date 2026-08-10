@@ -5,6 +5,13 @@
 
 create schema if not exists internal;
 
+-- Supabase provisions `extensions` out of band; vanilla Postgres does not, and
+-- 0008:21 installs pgvector into it. Without this line a fresh database dies at
+-- migration 8 with `schema "extensions" does not exist` — see 0022_roles.sql,
+-- which fixes the matching role gap and repeats this for already-applied
+-- databases that never replay 0001.
+create schema if not exists extensions;
+
 create extension if not exists pg_trgm;
 
 -- Shared updated_at trigger
