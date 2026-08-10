@@ -134,7 +134,14 @@ def _write_csv_gz(cur, query: str, dest: Path) -> dict:
     with dest.open("wb") as fh:
         # mtime=0: gzip stamps the current time into the header by default,
         # which alone would make every run's hash differ.
-        with gzip.GzipFile(fileobj=fh, mode="wb", compresslevel=9, mtime=0) as z:
+        # filename="": GzipFile otherwise derives a name from fileobj.name and
+        # writes it into the header (FNAME flag), so the recorded sha256 would
+        # depend on what the file is CALLED, not only on what it contains —
+        # a rename would silently invalidate a published hash. Verified: with
+        # a name embedded, two writes of identical content to different
+        # filenames produced different digests.
+        with gzip.GzipFile(fileobj=fh, mode="wb", compresslevel=9, mtime=0,
+                           filename="") as z:
             with cur.copy(
                 f"copy ({query}) to stdout with (format csv, header true, null '')"
             ) as copy:

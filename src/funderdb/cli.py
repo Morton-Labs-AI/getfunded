@@ -105,6 +105,22 @@ def ingest_990(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None
         click.echo(f"{k}: {v:,}")
 
 
+@ingest.command("990-detail")
+@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025, 2024))
+def ingest_990_detail(years: tuple[int, ...]) -> None:
+    """Form 990 CORE-FORM financials for public charities, from staged zips.
+
+    Revenue, expenses, balance sheet, the Part IX program-vs-admin expense
+    split, and Part VII officer compensation. Newest-first, resumable, never
+    downloads and never touches grant rows (Schedule I is a separate pass).
+    """
+    from .sources import irs_990_detail
+
+    totals = irs_990_detail.reparse_details(years=years)
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("filings")
 @click.option("--year", "years", type=int, multiple=True,
               default=(2021, 2022, 2023, 2024, 2025, 2026))

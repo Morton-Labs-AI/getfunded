@@ -337,10 +337,13 @@ SQL_INLINE = [
     },
     {
         "id": "F7", "series": "F",
-        # Recipient-side vetting floor + an honesty TRIPWIRE. Clause (b)
-        # asserts charity core-form financials do NOT exist; the day that
-        # phase lands F7 FAILS, which forces the "what this can't tell you
-        # yet" copy to be updated instead of quietly going stale.
+        # Recipient-side vetting. Clause (b) was a TRIPWIRE asserting charity
+        # core-form financials did NOT exist, so that landing them would fail
+        # this check and force the "can't tell you yet" copy to be updated.
+        # It fired as designed on 2026-08-09 when the 990 core-form pass
+        # landed; the copy was updated and the clause inverted into a coverage
+        # floor. Left in this shape deliberately — the next person to extend
+        # charity data has a check that notices.
         "sql": """select
                     (select count(distinct funder_org_id) from internal.funding_events
                      where recipient_org_id = (
@@ -354,13 +357,16 @@ SQL_INLINE = [
                        and event_type = 'grant'),
                     (select count(*) from internal.filings f
                      join internal.filing_financials ff on ff.object_id = f.object_id
-                     where f.return_type = '990')""",
+                     where f.return_type = '990'),
+                    (select count(*) from internal.filing_financials
+                     where expenses_program_services is not null)""",
         "assert": lambda rows: (
-            int(rows[0][0]) >= 5 and int(rows[0][1]) >= 2 and int(rows[0][2]) == 0,
+            int(rows[0][0]) >= 5 and int(rows[0][1]) >= 2 and int(rows[0][2]) > 0
+            and int(rows[0][3]) > 0,
             f"MIT as a vetting subject: {int(rows[0][0])} distinct funders "
             f"(floor 5) across {int(rows[0][1])} fiscal years (floor 2); "
-            f"charity 990 core-form financials on file: {int(rows[0][2])} "
-            "(must be 0 — when this fires, update CHARITY_VETTING_LIMIT_NOTE)"),
+            f"charity 990 core-form financials: {int(rows[0][2]):,} filings, "
+            f"{int(rows[0][3]):,} with a program-services expense split"),
     },
 ]
 

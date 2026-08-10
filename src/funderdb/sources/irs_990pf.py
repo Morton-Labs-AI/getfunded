@@ -424,6 +424,7 @@ def parse_filing(data: bytes, filing: PfFiling) -> Parsed:
                 _int(grp, "CompensationAmt"),
                 _int(grp, "EmployeeBenefitProgramAmt"),
                 _int(grp, "ExpenseAccountOtherAllwncAmt"),
+                None,  # related_org_compensation: 990-PF Part VIII has no such line
             ))
             if not name:
                 continue  # corporate trustees never enter the people pipeline
@@ -541,6 +542,7 @@ _OFF_STAGE_DDL = """
 create temp table _pf_off (
   object_id text, seq integer, person_name text, business_name text,
   title text, hours numeric, comp bigint, benefits bigint, expense bigint,
+  related_comp bigint,
   primary key (object_id, seq)
 ) on commit drop
 """
@@ -579,7 +581,8 @@ create temp table _pf_hdr (
 def _load_details(cur, raw_file_id: int, filings: list[PfFiling],
                   parsed: list[Parsed],
                   errors: list[tuple[PfFiling, str]] = (),
-                  update_grants: bool = False) -> dict:
+                  update_grants: bool = False,
+                  fin_columns: list[str] | None = None) -> dict:
     """Detail tables + filing header for one chunk. Shared by the fresh ingest
     (_load_batch) and the re-parse pass (reparse_details). Caller owns the
     transaction; internal.filings rows must already exist (FK targets).
@@ -590,9 +593,17 @@ def _load_details(cur, raw_file_id: int, filings: list[PfFiling],
     onto existing funding_events rows (re-parse path; the fresh path writes
     them inline).
     """
+    # The 990 core form fills a different subset of filing_financials than the
+    # 990-PF does, so the staging table and insert are driven by the caller's
+    # column list rather than a hard-coded one.
+    fin_columns = fin_columns or FIN_COLUMNS
     counts = {"financials": 0, "filing_officers": 0, "contributors": 0,
               "app_info": 0, "commitments": 0, "grant_detail_updates": 0}
-    for ddl in (_FIN_STAGE_DDL, _OFF_STAGE_DDL, _CONTRIB_STAGE_DDL,
+    fin_ddl = ("create temp table _pf_fin (object_id text primary key, "
+               "ein text not null, "
+               + ", ".join(f"{c} bigint" for c in fin_columns)
+               + ") on commit drop")
+    for ddl in (fin_ddl, _OFF_STAGE_DDL, _CONTRIB_STAGE_DDL,
                 _APP_STAGE_DDL, _HDR_STAGE_DDL, _FUTGRANT_STAGE_DDL):
         cur.execute(ddl)
 
@@ -600,7 +611,7 @@ def _load_details(cur, raw_file_id: int, filings: list[PfFiling],
         for f, p in zip(filings, parsed):
             if p.fin:
                 copy.write_row((f.object_id, f.ein,
-                                *(p.fin.get(c) for c in FIN_COLUMNS)))
+                                *(p.fin.get(c) for c in fin_columns)))
 
     with cur.copy("copy _pf_off from stdin") as copy:
         for f, p in zip(filings, parsed):
@@ -641,26 +652,36 @@ def _load_details(cur, raw_file_id: int, filings: list[PfFiling],
         for f, err in errors:
             copy.write_row((f.object_id,) + (None,) * 17 + (err[:500],))
 
-    fin_cols = ", ".join(FIN_COLUMNS)
+    fin_cols = ", ".join(fin_columns)
+    # The 990 core form and the 990-PF fill disjoint marker columns; use one
+    # of them rather than comparing list identity.
+    locator = ("xpath:/Return/ReturnData/IRS990"
+               if "expenses_program_services" in fin_columns
+               else "xpath:/Return/ReturnData/IRS990PF")
     cur.execute(f"""
         insert into internal.filing_financials
           (object_id, ein, {fin_cols}, raw_file_id, source_record_locator)
-        select s.object_id, s.ein, {", ".join("s." + c for c in FIN_COLUMNS)},
-               %(rfid)s, 'xpath:/Return/ReturnData/IRS990PF'
+        select s.object_id, s.ein, {", ".join("s." + c for c in fin_columns)},
+               %(rfid)s, %(loc)s
         from _pf_fin s
         on conflict (object_id) do nothing
-    """, {"rfid": raw_file_id})
+    """, {"rfid": raw_file_id, "loc": locator})
     counts["financials"] = cur.rowcount
 
     cur.execute("""
         insert into internal.filing_officers
           (object_id, ein, seq, person_name, business_name, title,
            avg_hours_per_week, compensation, employee_benefits, expense_account,
-           raw_file_id, source_record_locator)
+           related_org_compensation, raw_file_id, source_record_locator)
         select s.object_id, f.ein, s.seq, s.person_name, s.business_name,
-               s.title, s.hours, s.comp, s.benefits, s.expense, %(rfid)s,
-               'xpath:/Return/ReturnData/IRS990PF/OfficerDirTrstKeyEmplInfoGrp/'
-                 || 'OfficerDirTrstKeyEmplGrp[' || (s.seq + 1) || ']'
+               s.title, s.hours, s.comp, s.benefits, s.expense, s.related_comp,
+               %(rfid)s,
+               case when f.return_type = '990'
+                    then 'xpath:/Return/ReturnData/IRS990/Form990PartVIISectionAGrp['
+                         || (s.seq + 1) || ']'
+                    else 'xpath:/Return/ReturnData/IRS990PF/OfficerDirTrstKeyEmplInfoGrp/'
+                         || 'OfficerDirTrstKeyEmplGrp[' || (s.seq + 1) || ']'
+               end
         from _pf_off s
         join internal.filings f on f.object_id = s.object_id
         on conflict (object_id, seq) do nothing
