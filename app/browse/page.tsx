@@ -2,10 +2,12 @@ import Link from "next/link";
 import {
   browseOrgs,
   browseOrgsByThesis,
+  parseBrowseFilters,
   segmentCounts,
   thesisCapable,
   type BrowseFilters,
 } from "@/lib/queries/browse";
+import { POSTURE_SCOPE_NOTE } from "@/lib/content/facts";
 import { BrowseControls } from "@/components/browse-controls";
 import { TrichotomyBadge } from "@/components/trichotomy-badge";
 import { countCompact, moneyCompact, MDASH, ORG_TYPE_LABELS } from "@/lib/format";
@@ -24,31 +26,16 @@ export default async function BrowsePage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
-  const segment = (SEGMENTS.some((s) => s.key === sp.segment)
-    ? sp.segment
-    : "foundations") as BrowseFilters["segment"];
-
-  const filters: BrowseFilters = {
-    segment,
-    state: sp.state,
-    q: sp.q,
-    thesis: sp.thesis,
-    minAssets: sp.min ? Number(sp.min) : undefined,
-    maxAssets: sp.max ? Number(sp.max) : undefined,
-    ntee: sp.ntee,
-    era: sp.era as BrowseFilters["era"],
-    fundType: sp.fundType,
-    cursor: sp.cursor
-      ? { name: sp.cursor.split("~~")[0], id: sp.cursor.split("~~")[1] }
-      : undefined,
-    dir: sp.dir === "prev" ? "prev" : "next",
-  };
+  // One allowlisting validator, shared with /api/filters so a model-authored
+  // filter set goes through the same gate a hand-typed URL does.
+  const { page: parsedPage, ...filters } = parseBrowseFilters(sp);
+  const segment = filters.segment;
 
   // Thesis mode: RRF rank order over the semantic corpus, offset-paged
-  // within the fixed top-200 set. Keyset cursors don't apply to rank order,
+  // within a fixed candidate pool. Keyset cursors don't apply to rank order,
   // so thesis and cursor are mutually exclusive.
-  const thesisMode = Boolean(sp.thesis) && thesisCapable(segment);
-  const page = thesisMode ? Math.max(0, Number(sp.page) || 0) : 0;
+  const thesisMode = Boolean(filters.thesis) && thesisCapable(segment);
+  const page = thesisMode ? parsedPage : 0;
   const [result, counts] = await Promise.all([
     thesisMode
       ? browseOrgsByThesis(filters as BrowseFilters & { thesis: string }, page)
@@ -83,7 +70,9 @@ export default async function BrowsePage({
       {/* segmented control */}
       <div className="flex flex-wrap gap-1 border-b border-border-1">
         {SEGMENTS.map((s) => {
-          const next = qsWithout(["cursor", "dir", "page", "ntee", "era", "fundType", "segment"]);
+          // posture/mindist/basis are foundations-only facets.
+          const next = qsWithout(["cursor", "dir", "page", "ntee", "era",
+                                  "fundType", "posture", "mindist", "basis", "segment"]);
           next.set("segment", s.key);
           const active = s.key === segment;
           return (
@@ -217,8 +206,11 @@ export default async function BrowsePage({
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-3.5 py-10 text-center text-[13.5px] text-ink-3">
-                    No {segment} match these filters. Keyword search matches names
-                    and locations, not grant text —{" "}
+                    No {segment} match these filters.{" "}
+                    {(filters.posture || filters.minDist) && (
+                      <span className="block pb-2">{POSTURE_SCOPE_NOTE}</span>
+                    )}
+                    Keyword search matches names and locations, not grant text —{" "}
                     <Link
                       href={`/?q=${encodeURIComponent(`Find ${segment} matching: ${sp.q ?? ""} ${sp.state ?? ""}`)}`}
                       className="text-accent hover:text-accent-hover"
@@ -236,7 +228,7 @@ export default async function BrowsePage({
           <div className="flex items-center justify-between border-t border-border-1 px-3.5 py-2">
             <span className="tnum font-mono text-[11px] text-ink-3">
               {thesisMode && !result.fallback
-                ? `rank-ordered · top ${result.totalMatched} by thesis match`
+                ? `rank-ordered · ${result.totalMatched} thesis matches in the candidate pool`
                 : `${rows.length} per page · keyset-paginated`}
             </span>
             <div className="flex gap-2">

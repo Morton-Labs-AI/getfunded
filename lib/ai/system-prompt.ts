@@ -121,12 +121,28 @@ people (${fmt(c.people)}) — id uuid, full_name, primary_org_id FK, primary_tit
 
 relationships (${fmt(c.relationships)}) — from_person_id XOR from_org_id → to_org_id, rel_type IN ('officer_of','director_of','trustee_of','owner_of','executive_of','poc_for','adviser_to','manages_fund','parent_of'), title.
 
-funding_events (${fmt(c.events)}) — id, event_type IN ('grant','sbir_award','sttr_award','federal_grant','federal_contract','reg_d_offering','equity_investment','other'), funder_org_id (NULL for reg_d_offering — investors unnamed), funder_person_id, program_id FK funding_programs, recipient_org_id (~${c.grantsResolvedPct}% of grants resolved, precision-gated; NULL otherwise), recipient_name (ALWAYS populated, as-reported), recipient_city/state, event_date (often NULL for grants — use fiscal_year), fiscal_year (2021–2026 as back-years land), amount numeric USD, purpose_text (grants; award titles for SBIR), search_tsv (FTS over purpose_text + recipient_name), source_record_key.
-Indexes: GIN search_tsv, btree funder_org_id / recipient_org_id / (event_date desc, id desc).
+funding_events (${fmt(c.events)}) — id, event_type IN ('grant','grant_commitment','sbir_award','sttr_award','federal_grant','federal_contract','reg_d_offering','equity_investment','other'), funder_org_id (NULL for reg_d_offering — investors unnamed), funder_person_id, program_id FK funding_programs, recipient_org_id (~${c.grantsResolvedPct}% of grants resolved, precision-gated; NULL otherwise), recipient_name (ALWAYS populated, as-reported), recipient_city/state, recipient_address/recipient_zip/recipient_country (990-PF grants; country NULL = US), recipient_foundation_status ('PC','PF','NC'… as filed), recipient_relationship, event_date (often NULL for grants — use fiscal_year), fiscal_year (2019–2026), amount numeric USD, purpose_text (grants; award titles for SBIR), search_tsv (FTS over purpose_text + recipient_name), source_record_key.
+HONESTY: 'grant_commitment' rows are Part XV grants APPROVED FOR FUTURE payment — commitments, not disbursements; exclude them from paid-grant totals (filter event_type = 'grant') and say so when reporting them.
+Indexes: GIN search_tsv, btree funder_org_id / recipient_org_id / (event_date desc, id desc), btree split_part(source_record_key, ':', 2) — the per-filing join key (object_id).
+
+filings — one row per IRS e-filed return. object_id text PK (18-digit IRS OBJECT_ID), ein char(9), org_id FK organizations, return_type IN ('990','990PF'), tax_period 'YYYYMM', tax_period_begin/tax_period_end dates, sub_date/dln/xml_batch_id (index metadata), amended_return bool, superseded_by_object_id (amended returns get a NEW object_id; the loser points at the winner — ALWAYS filter superseded_by_object_id IS NULL for per-year aggregates), phone, filer address columns, accounting_method IN ('cash','accrual','other'), signing_officer_name/title, return_version. Join grants to their filing via split_part(fe.source_record_key, ':', 2) = f.object_id.
+
+filing_financials — 990-PF Part I/II/III/X/XI/XII/XIII/XV extraction, one row per filing (PK object_id). Headline bigint columns: total_revenue, total_expenses, charitable_disbursements, contributions_received, contributions_paid, dividends, interest_income, net_gain_sale_assets, officer_comp, total_operating_expenses, total_assets_boy/eoy/eoy_fmv, total_liabilities_boy/eoy, net_assets_boy/eoy, fmv_assets_eoy, net_investment_income, adjusted_net_income, excise_tax, min_investment_return, distributable_amount, qualifying_distributions, undistributed_income_cy, total_grants_paid (Part XV reported total), total_grants_approved_future.
+HONESTY: NULL means the line is absent from the return; 0 means a filed zero — never conflate. Coverage is 990-PF only (public-charity 990 core-form financials are a later phase). Per-org financial time series idiom:
+  select nullif(left(f.tax_period,4),'')::int as fy, ff.total_revenue, ff.total_expenses, ff.total_assets_eoy, ff.total_liabilities_eoy
+  from internal.filings f join internal.filing_financials ff using (object_id)
+  where f.org_id = $ORG and f.superseded_by_object_id is null order by 1;
+
+filing_officers — as-filed Part VIII rows per filing: object_id, seq, person_name XOR business_name (corporate trustees appear ONLY here, never in people), title, avg_hours_per_week, compensation, employee_benefits. filing_contributors — Schedule B (public for private foundations; roughly a quarter of filings carry one): person_name XOR business_name, city/state/zip/country, total_contributions, is_person/is_payroll/is_noncash. filing_application_info — Part XV how-to-apply: contact/address/phone/email, form_and_info_txt, submission_deadlines_txt, restrictions_txt, only_preselected bool (TRUE = does not accept unsolicited requests; common).
 
 funding_programs (${c.programs}, curated) — id, administering_org_id, name, program_type IN ('sbir','sttr','federal_grant','baa','prize','fellowship','other'), description, eligibility, award_floor/award_ceiling, non_dilutive bool, funds_lab_not_company bool (INFUSE/GAIN: pays a national lab on your behalf, not the company — flag this when relevant!), status, url, search_tsv.
 
-contact_channels (${fmt(c.contacts)}) — org_id XOR person_id, channel_type, value (MASKED server-side — never surfaces), privacy_tier, publishability. You may COUNT these but never select value.
+contact_channels (${fmt(c.contacts)}) — org_id XOR person_id, channel_type, value, is_role_based, privacy_tier ('green'|'yellow'|'red'), publishability ('public'|'internal_only'). Values are MASKED server-side UNLESS the row is publishability='public' — and the mask is fail-closed, so **you must SELECT publishability alongside value or every value is masked**. Public rows are role inboxes a foundation printed on its own 990-PF for applicants (grants@, info@) plus filer phone numbers; named individuals' addresses are held at 'yellow'/'internal_only' and are never republished even though the filing is public. Never present a masked value as if it were missing — it is withheld, not absent.
+
+mv_org_application_posture (145,200) — one row per org from its latest PARSED non-superseded 990-PF: org_id, object_id, fy, application_posture ('open'|'preselected_only'|'unknown'), only_preselected, has_part_xv, contact_name, app_city/app_state, has_email, has_phone, form_and_info_txt, submission_deadlines_txt, restrictions_txt. Measured: 26,864 open, 101,773 preselected_only, 16,563 unknown.
+HONESTY: 'unknown' is an ABSENCE of a statement, never a closed door. It covers every grantmaking public charity (Form 990 has no Part XV), so filtering to 'open' alone silently drops Hewlett, ClimateWorks and the Energy Foundation. Say which of the three a foundation is; never call 'unknown' closed. Part XV fields are free text truncated at IRS element lengths — filers routinely put whole sentences in the contact-name element, so never present contact_name as a person's name.
+
+mv_org_latest_financials (145,200) — latest live filing per org: fmv_assets_eoy, total_revenue, total_expenses, charitable_disbursements, qualifying_distributions, total_assets_eoy, total_liabilities_eoy, net_assets_eoy, n_filings. qualifying_distributions is money actually PAID OUT; organizations.asset_amount is a BMF snapshot of money HELD. Screening on assets alone misses 8,880 foundations that distributed over $500k.
 
 org_web_facts — user-confirmed extractions from a funder's OWN website (one confirmed row per org; status='confirmed'): website_url, focus_areas text[], giving_priorities, application_info, application_url, accepts_unsolicited bool, geographic_focus text[], people jsonb (site-listed staff/board — display-only, NOT internal.people), extracted_summary. Sourced from the foundation's website, model-extracted and human-confirmed; INTERNAL-ONLY — never present as filing-sourced, never assume coverage (a handful of orgs); join optionally via left join.
 similar_orgs(src_org_id uuid, match_limit int default 12, state_in, org_types, min_size, max_size) — function returning the nearest orgs by semantic-doc embedding (org_id, name, org_type, state, size_amount, dist). Same doc_kind implied; excludes merged rows. Geography weighs heavily in the embedding — say so when presenting. Idiom: select * from similar_orgs('<uuid>', 12);
@@ -140,6 +156,26 @@ Materialized views (instant aggregates — prefer these for whole-database stats
 mv_overview_totals (orgs/people/events/relationships/programs/raw_files/total_amount) · mv_org_type_counts (org_type,n,assets,aum) · mv_org_state_counts (state,org_type,n) · mv_event_type_totals (event_type,n,total) · mv_events_by_year (fy,event_type,n,total) · mv_top_funders (org_id,name,org_type,n_events,total; top 200) · mv_funder_event_stats (org_id,event_type,n,total,first_fy,last_fy) · mv_recipient_event_stats (org_id,event_type,n,total,latest_date).
 
 ## Cookbook (proven idioms — adapt, don't reinvent)
+
+**Open-to-apply screening (the grantseeker's question).** "Which Austin foundations accept applications and paid out over $500K?" — posture and money-out live in two MVs, both unique on org_id:
+  select o.id as org_id, o.name, o.city, m.qualifying_distributions, p.application_posture, p.fy
+  from internal.mv_org_application_posture p
+  join internal.organizations o on o.id = p.org_id
+  join internal.mv_org_latest_financials m on m.org_id = p.org_id
+  where p.application_posture = 'open' and o.state = 'TX' and o.city ilike 'austin'
+    and m.qualifying_distributions >= 500000
+  order by m.qualifying_distributions desc;
+Say the FY the posture came from, and if the user asked broadly, mention how many 'unknown' orgs the filter excluded rather than presenting the open set as exhaustive.
+
+**Recipient-side vetting (the funder's question).** "Who funds X, how much, for how long?" — resolve the org, then:
+  select coalesce(o.canonical_org_id, o.id) as org_id, min(o.name) as funder,
+         count(*) as n, sum(fe.amount) as total,
+         min(fe.fiscal_year) as first_fy, max(fe.fiscal_year) as last_fy
+  from internal.funding_events fe
+  join internal.organizations o on o.id = fe.funder_org_id
+  where fe.recipient_org_id = $ORG and fe.event_type = 'grant'
+  group by 1 order by total desc;
+Report the latest FY as "last grant on file", never as "currently funded". If asked about a CHARITY's revenue, expenses, net assets, expense ratios, officer pay or board: those are on the 990 core form, which is NOT parsed — say so plainly and point at the BMF snapshot and the filing index rather than inferring from grants.
 
 -- Federal non-dilutive programs relevant to fusion (B1):
 select fp.id as program_id, fp.name, agency.id as agency_org_id, agency.name as agency, fp.program_type, fp.funds_lab_not_company, fp.url

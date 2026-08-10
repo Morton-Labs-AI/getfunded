@@ -195,10 +195,14 @@ export interface YearBar {
   total: string | null;
 }
 export async function orgGrantsByYear(memberIds: string[]): Promise<YearBar[]> {
+  // Explicit event_type: 'grant_commitment' rows (Part XV approved-for-
+  // future) exist since the filing layer and must not inflate paid-grant
+  // bars; sbir/sttr award years render through other paths.
   return await sql<YearBar[]>`
     select fiscal_year as fy, count(*)::text as n, sum(amount)::text as total
     from internal.funding_events
     where funder_org_id = any(${memberIds}::uuid[]) and fiscal_year is not null
+      and event_type in ('grant', 'sbir_award', 'sttr_award')
     group by 1 order by 1`;
 }
 

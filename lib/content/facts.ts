@@ -31,6 +31,83 @@ export const SIMILAR_PROFILES_NOTE =
   "geography weighs heavily. Ordering is the signal; treat it as a starting " +
   "list, not a ranking of fit.";
 
+export const FILING_AS_FILED_NOTE =
+  "Figures are as reported on the e-filed return (Form 990-PF), extracted " +
+  "from the IRS bulk XML — no restatements or normalization. Fiscal years " +
+  "are each foundation's own tax year, labeled by the calendar year the " +
+  "period ends in.";
+
+export const AMENDED_RULE_NOTE =
+  "When an amended return supersedes an original, charts, stats, and grant " +
+  "rows use the amended figures; the original filing remains viewable and " +
+  "is marked superseded.";
+
+export const BMF_SNAPSHOT_NOTE =
+  "Asset/income/revenue snapshot from the IRS Business Master File — a " +
+  "coarse annual extract; per-year as-filed figures appear once this " +
+  "organization's e-filed returns are ingested.";
+
+export const SCHEDULE_B_NOTE =
+  "Schedule B contributor lists are public information for private " +
+  "foundations (unlike public charities, whose donor lists are redacted). " +
+  "24% of the 990-PF e-filings parsed so far carry one.";
+
+export const HOW_TO_APPLY_NOTE =
+  "Application guidance from Form 990-PF Part XV, as filed — the " +
+  "foundation's own words to would-be applicants, distinct from " +
+  "website-derived info. 23% of parsed filings give an actual route in " +
+  "(contact, materials, or deadlines); most of the rest state only that the " +
+  "foundation funds preselected organizations and takes no unsolicited " +
+  "requests, which is itself a useful answer.";
+
+export const APPLICATION_POSTURE_NOTE =
+  "Whether the foundation accepts unsolicited applications, read from Part XV " +
+  "of its latest parsed Form 990-PF. This is the foundation's own answer on " +
+  "its own return — not our inference — and a foundation that changes policy " +
+  "shows the newest one filed.";
+
+export const POSTURE_UNSTATED_NOTE =
+  "“Not stated” means the return carries no Part XV application block. It is " +
+  "neither an open door nor a closed one: 16,563 foundations with a parsed " +
+  "return say nothing either way, and grantmaking public charities file " +
+  "Form 990, which has no Part XV at all.";
+
+export const POSTURE_SCOPE_NOTE =
+  "Application posture and distributions are known only for the 145,200 " +
+  "organizations with a parsed Form 990-PF, so screening on them narrows the " +
+  "list to those. A foundation absent from this screen has not told the IRS " +
+  "either way.";
+
+export const PART_XV_FREE_TEXT_NOTE =
+  "Part XV fields are free text, truncated at the IRS schema's element " +
+  "lengths. Filers routinely put whole sentences in the contact-name element. " +
+  "Shown exactly as filed.";
+
+export const CONTACT_TIER_NOTE =
+  "Application contacts printed on the return are shown when they are role " +
+  "inboxes (grants@, info@) — the desks the foundation published for " +
+  "applicants. Addresses belonging to a named individual are held internally " +
+  "and never republished, even though the filing itself is public.";
+
+export const DISTRIBUTIONS_NOTE =
+  "Qualifying distributions (Part XII) are what the foundation actually paid " +
+  "out toward its charitable purpose. Assets are a stock; this is the flow — " +
+  "and screening on assets alone misses 8,880 foundations that distributed " +
+  "over $500,000 in their latest filing.";
+
+export const CHARITY_VETTING_LIMIT_NOTE =
+  "This organization has Form 990 filings on record but none of them are " +
+  "parsed yet, so revenue, expenses, net assets and the expense split are " +
+  "not available here. The raw XML is linked on each filing if you need them " +
+  "today.";
+
+export const EXPENSE_SPLIT_NOTE =
+  "Form 990 Part IX splits total expenses three ways. The program-services " +
+  "share is the ratio most funders look at first — but read it with the " +
+  "organization's model in mind: a grantmaker, a research institute and a " +
+  "direct-service nonprofit book the same work differently, and the split is " +
+  "self-reported.";
+
 export const RESOLVED_COVERAGE_NOTE = (rowsPct: number, dollarsPct: number) =>
   `${rowsPct}% of this foundation's grant rows (${dollarsPct}% of dollars) ` +
   "are resolved to organization records by precision-gated matching; the " +
@@ -57,4 +134,15 @@ export const KNOWN_LIMITS = [
     "exist for only a handful of foundations, are extracted from the " +
     "foundation's own site by a language model and human-confirmed, and are " +
     "internal-only — never filing-sourced and never republished.",
+  "Filing financials cover 990-PF returns (Parts I/II/X–XIII) and Form 990 " +
+    "core-form returns (Parts I/VII–X), both 2020–2026, extracted from the " +
+    "IRS bulk XML. A NULL line means the element is absent from that return; " +
+    "a $0 means the filer reported zero — never conflate them. Not parsed: " +
+    "Schedule J compensation detail, Schedule A public-support tests, and " +
+    "Schedule O narratives.",
+  AMENDED_RULE_NOTE,
+  SCHEDULE_B_NOTE,
+  POSTURE_UNSTATED_NOTE,
+  CONTACT_TIER_NOTE,
+  CHARITY_VETTING_LIMIT_NOTE,
 ];

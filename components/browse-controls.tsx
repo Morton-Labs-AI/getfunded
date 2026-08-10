@@ -27,6 +27,24 @@ const ASSET_PRESETS = [
   { label: "$1B+", v: 1_000_000_000 },
 ];
 
+// Money actually paid out, not money held. A >$10M asset screen misses 8,880
+// foundations that distributed over $500k in their latest filing, so on the
+// foundations segment this is the default basis.
+const DIST_PRESETS = [
+  { label: "$100K+", v: 100_000 },
+  { label: "$500K+", v: 500_000 },
+  { label: "$1M+", v: 1_000_000 },
+  { label: "$10M+", v: 10_000_000 },
+];
+
+const POSTURE_OPTIONS = [
+  { v: "", label: "posture: any" },
+  { v: "open", label: "open to applications" },
+  { v: "preselected", label: "preselected only" },
+  // Never "closed": an absence of a statement is not a refusal.
+  { v: "unstated", label: "not stated on the latest return" },
+];
+
 export function BrowseControls({ segment }: { segment: string }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -66,6 +84,11 @@ export function BrowseControls({ segment }: { segment: string }) {
         if (f.thesis) next.set("thesis", String(f.thesis));
         if (f.minAssets) next.set("min", String(f.minAssets));
         if (f.maxAssets) next.set("max", String(f.maxAssets));
+        // Any field not copied here is silently dropped, so the AI path
+        // cannot set a facet that is missing from this list.
+        if (f.posture) next.set("posture", String(f.posture));
+        if (f.minDistributions) next.set("mindist", String(f.minDistributions));
+        if (f.minDistributions) next.set("basis", "dist");
         if (f.ntee) next.set("ntee", String(f.ntee));
         if (f.era) next.set("era", String(f.era));
         if (f.fundType) next.set("fundType", String(f.fundType));
@@ -85,6 +108,11 @@ export function BrowseControls({ segment }: { segment: string }) {
     ["thesis", (v) => `✦ thesis: ${v}`],
     ["min", (v) => `≥ $${Number(v).toLocaleString()}`],
     ["max", (v) => `≤ $${Number(v).toLocaleString()}`],
+    ["posture", (v) =>
+      v === "open" ? "open to applications"
+      : v === "preselected" ? "preselected only"
+      : "posture not stated"],
+    ["mindist", (v) => `distributed ≥ $${Number(v).toLocaleString()}`],
     ["ntee", (v) => `NTEE ${v} — ${NTEE[v] ?? v}`],
     ["era", (v) => (v === "era" ? "ERA only" : "RIA only")],
     ["fundType", (v) => v],
@@ -168,19 +196,62 @@ export function BrowseControls({ segment }: { segment: string }) {
           </select>
         )}
 
-        {ASSET_PRESETS.map((p) => (
-          <button
-            key={p.v}
-            onClick={() => setParam({ min: params.get("min") === String(p.v) ? null : String(p.v) })}
-            className={`h-8 rounded-[8px] border px-2.5 font-mono text-[11.5px] transition-colors duration-[90ms] ${
-              params.get("min") === String(p.v)
-                ? "border-accent-border bg-accent-tint text-accent"
-                : "border-border-1 bg-surface text-ink-3 hover:border-border-2"
-            }`}
+        {segment === "foundations" && (
+          <select
+            value={params.get("posture") ?? ""}
+            onChange={(e) => setParam({ posture: e.target.value || null })}
+            className="h-8 rounded-[8px] border border-border-1 bg-surface px-2 text-[12.5px] text-ink-2"
+            title="Whether the foundation accepts unsolicited applications, from Part XV of its latest parsed 990-PF"
           >
-            {p.label}
-          </button>
-        ))}
+            {POSTURE_OPTIONS.map((o) => (
+              <option key={o.v} value={o.v}>{o.label}</option>
+            ))}
+          </select>
+        )}
+
+        {segment === "foundations" && (
+          // Which money screen the presets write. Distributions is the
+          // default because a grantseeker screens on flow, not stock.
+          <span className="inline-flex overflow-hidden rounded-[8px] border border-border-1">
+            {(["dist", "assets"] as const).map((b) => {
+              const active = (params.get("basis") ?? "dist") === b;
+              return (
+                <button
+                  key={b}
+                  onClick={() => setParam({ basis: b, min: null, mindist: null })}
+                  className={`h-8 px-2.5 text-[11.5px] transition-colors duration-[90ms] ${
+                    active ? "bg-accent-tint text-accent" : "bg-surface text-ink-3 hover:text-ink-1"
+                  }`}
+                  title={b === "dist"
+                    ? "Screen on money paid out (qualifying distributions)"
+                    : "Screen on assets held (IRS Business Master File snapshot)"}
+                >
+                  {b === "dist" ? "distributed" : "assets"}
+                </button>
+              );
+            })}
+          </span>
+        )}
+
+        {(() => {
+          const distBasis =
+            segment === "foundations" && (params.get("basis") ?? "dist") === "dist";
+          const key = distBasis ? "mindist" : "min";
+          const presets = distBasis ? DIST_PRESETS : ASSET_PRESETS;
+          return presets.map((p) => (
+            <button
+              key={`${key}-${p.v}`}
+              onClick={() => setParam({ [key]: params.get(key) === String(p.v) ? null : String(p.v) })}
+              className={`h-8 rounded-[8px] border px-2.5 font-mono text-[11.5px] transition-colors duration-[90ms] ${
+                params.get(key) === String(p.v)
+                  ? "border-accent-border bg-accent-tint text-accent"
+                  : "border-border-1 bg-surface text-ink-3 hover:border-border-2"
+              }`}
+            >
+              {p.label}
+            </button>
+          ));
+        })()}
         {pending && <span className="thinking-cursor text-[12px]">▍</span>}
       </div>
 
@@ -198,7 +269,9 @@ export function BrowseControls({ segment }: { segment: string }) {
           ))}
           <button
             onClick={() =>
-              setParam({ state: null, q: null, thesis: null, min: null, max: null, ntee: null, era: null, fundType: null })
+              setParam({ state: null, q: null, thesis: null, min: null, max: null,
+                         posture: null, mindist: null, basis: null,
+                         ntee: null, era: null, fundType: null })
             }
             className="text-[12px] text-ink-4 hover:text-ink-2"
           >
