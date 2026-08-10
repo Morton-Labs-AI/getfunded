@@ -210,4 +210,21 @@ def reparse_details(years: tuple[int, ...] = (2026, 2025, 2024)) -> dict:
                         pass
                     raise
             totals[f"detail_pending_after_{year}"] = len(remaining)
+
+        # mv_org_latest_financials is what the browse distributions screen and
+        # the analyst's cookbook read. Without this refresh the charity rows
+        # land in filing_financials and are invisible to both — verified
+        # 2026-08-09, when 878,130 charity filings had financials while the MV
+        # still held only the 145,200 foundations. Targeted rather than
+        # refresh_dashboard_stats(), which also rebuilds MVs over 14.5M events.
+        if totals.get("financials"):
+            with conn.cursor() as cur:
+                cur.execute("set local statement_timeout = '30min'")
+                cur.execute(
+                    "refresh materialized view internal.mv_org_latest_financials")
+            conn.commit()
+            with conn.cursor() as cur:
+                cur.execute("""select count(*) from internal.mv_org_latest_financials
+                               where return_type = '990'""")
+                totals["mv_charity_rows"] = cur.fetchone()[0]
     return dict(totals)

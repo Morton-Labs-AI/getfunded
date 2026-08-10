@@ -124,6 +124,41 @@ disappeared (traceable to the F2 supersession sweep), which the builder no
 longer produces but the upsert never deletes. A prune step in `embed sync` is
 the fix.
 
+## F7 — public-charity core-form financials (2026-08-09)
+
+The weakest direction in the product was "a foundation vetting a nonprofit":
+1,881,691 Form 990 filings carried Schedule I grants but **no financials**, so
+charity profiles showed em-dashes where revenue and expenses belong and the
+program-vs-administrative expense split existed nowhere.
+
+| Gate | Content | Status |
+|---|---|---|
+| F7a | Migration 0021: 990 core-form columns on `filing_financials` (Part IX functional split, program-service revenue, headcount) + `related_org_compensation` on `filing_officers` | ✅ |
+| F7b | `ingest 990-detail` — Part I/VII/VIII/IX/X extraction, newest-first, resumable | 🟡 **825,755 filings + 8,983,516 officer rows** for 2024–26 (first attempt, no retries); 2021–23 in progress |
+| F7c | Charity vetting surface + adaptive expense split + corrected honesty copy | ✅ Mount Sinai renders $4.65B revenue / $4.54B expenses at 91% program services |
+
+**Why it was cheap downstream.** The 990's Part I summary maps one-to-one onto
+`filing_financials` columns that were return-type-agnostic from the start
+(`total_revenue`, `total_expenses`, `total_assets_eoy`, `net_assets_eoy`…), so
+`mv_org_latest_financials`, the browse distributions screen, the FY trend
+charts and the CC-BY export all lit up for charities **with no downstream
+change**. Only genuinely 990-specific concepts needed new columns.
+
+**The tripwire fired as designed.** F7's second clause asserted charity
+financials did *not* exist, precisely so that landing them would break the
+check and force the "what this profile can't tell you yet" copy to be updated
+instead of quietly going stale. It broke; the copy and the stale
+`KNOWN_LIMITS` entry were corrected, and the clause is now a coverage floor so
+the next extension still gets caught.
+
+**Export determinism defect found by testing it properly.** `GzipFile` writes
+the source filename into the gzip header, so a file's recorded sha256 depended
+on what it was *called*, not only what it contained — a rename would have
+silently invalidated a published hash. Fixed with `filename=""`; verified in
+the strong form (identical content under different filenames now yields the
+identical digest). **The published export needs one clean re-run**, since the
+fix changes every hash once.
+
 **Benchmark v2:** one command — `uv run funderdb eval all` (subsets: `eval sql`,
 `eval semantic`, `eval er`). B-series executes verbatim from
 [benchmarks/queries.sql](benchmarks/queries.sql) (append-only record; the
