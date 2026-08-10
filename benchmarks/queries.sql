@@ -833,3 +833,86 @@ select
 -- licensing question but a coherence one: internal.people is our derived,
 -- entity-unresolved layer and the people ER gate has not certified.
 -- Re-entry condition is stated in the export README.
+
+-- ===========================================================================
+-- 2026-08-09 · F7: PUBLIC-CHARITY 990 CORE-FORM FINANCIALS
+--
+-- The weakest direction in the product was "a foundation vetting a nonprofit":
+-- 1,881,691 Form 990 filings carried Schedule I grants but ZERO financials, so
+-- charity profiles showed em-dashes where revenue and expenses belong and the
+-- program-vs-administrative expense split — the first ratio a program officer
+-- asks for — existed nowhere in the database.
+--
+-- RESULT: 1,803,820 of 1,881,691 charity filings detailed (95.9%), all six
+-- index years, EVERY run completing on the first attempt with no retries.
+-- The 77,871 remaining are exactly the IRS zip-packaging backlog (the same
+-- structural absence as the 990-PF side's 35,649), so coverage over filings
+-- whose XML actually exists is 100%.
+--     filing_financials  2,443,977 rows   (was 635,301, 990-PF only)
+--     filing_officers   22,000,950 rows   (charities average ~11 board
+--                                          members vs foundations' 3.3)
+--     database          27.83 GB          (projected 27.5 at 3.4 KB/filing)
+--
+-- WHY IT WAS CHEAP DOWNSTREAM: the 990's Part I summary maps one-to-one onto
+-- filing_financials columns that were return-type-agnostic from the start
+-- (total_revenue, total_expenses, total_assets_eoy, net_assets_eoy...), so
+-- the FY trend charts, the browse distributions screen and the CC-BY export
+-- all lit up for charities with no schema fork. Only genuinely 990-specific
+-- concepts needed new columns (0021): the Part IX functional split, program
+-- service revenue, headcount, and Part VII related-org compensation — kept
+-- separate from compensation because an officer paid $1 by the charity and
+-- $400k by its related entity is a materially different fact.
+--
+-- THE TRIPWIRE FIRED, EXACTLY AS DESIGNED. F7's second clause asserted that
+-- charity core-form financials did NOT exist, so that landing them would FAIL
+-- the check and force the "what this profile can't tell you yet" copy to be
+-- updated rather than quietly going stale. It fired on the first pass. The
+-- copy was rewritten, the KNOWN_LIMITS entry claiming charities show "only
+-- the BMF snapshot" was corrected, and the clause is now a coverage floor so
+-- the next person extending charity data still has a check that notices.
+--
+-- A GAP THE DESIGN HID, FOUND BY RUNNING THE COOKBOOK QUERY FOR REAL:
+-- 878,130 charity filings had financials in filing_financials while
+-- mv_org_latest_financials still held ONLY the 145,200 foundations — the 990
+-- loader never refreshed it. Profiles were fine (they read the base tables),
+-- but the browse distributions screen and the analyst cookbook are MV-backed
+-- and were blind to all of it. "The shared-column design means everything
+-- works unchanged" was true for the tables and false for the MV. Fixed with a
+-- targeted refresh in the loader (not refresh_dashboard_stats(), which also
+-- rebuilds MVs over 14.5M events); the loader now self-reports mv_charity_rows
+-- (416,718) so a future silent failure is visible in its own output.
+--
+-- MV PRECEDENCE, worth knowing before it surprises someone:
+-- mv_org_latest_financials elects ONE row per org by latest tax period across
+-- BOTH return types, so 661 organizations that filed a 990-PF and later a
+-- Form 990 now show the newer 990. Correct precedence, and it moved F4 from
+-- 8,880 to 8,875 — comfortably inside its 8,000 floor. This is the reason
+-- these checks assert floors and not exact counts.
+--
+-- EXPORT DETERMINISM — a real defect the first test would have missed:
+-- the initial hash-stability check compared a manifest against a COPY OF
+-- ITSELF and "passed" vacuously. Redone against files on disk, 54 of 55
+-- matched; the one difference was an EMPTY file (sha256 e3b0c442…b855)
+-- produced by two concurrent exports racing on the same directory, not by
+-- non-determinism. But testing it properly then exposed a genuine bug:
+-- GzipFile derives a filename from fileobj.name and writes it into the gzip
+-- header, so a file's recorded sha256 depended on what it was CALLED, not
+-- only on what it contained — renaming a published file would have silently
+-- invalidated its hash. Fixed with filename=""; verified in the strong form
+-- (identical content under completely different filenames now yields the
+-- identical digest, FLG byte 00). Every export hash changes once as a result.
+--
+-- CANONICAL EXPORT after F7 and the gzip fix (2026-08-10):
+--   47,324,142 rows across 55 files, 2.9GB, CC BY 4.0, schema 0021.
+--   All seven boundary assertions PASS (they run BEFORE any byte is written
+--   and abort on failure, so an artifact existing is itself the proof).
+--   Grew from 25,571,806 rows because filing_officers went 2.0M -> 22.0M and
+--   filing_financials 635k -> 2.44M when the charity core form landed.
+--   Shipped gzip headers now read 1f8b0800...02ff — FLG byte 00, no filename
+--   embedded, so every recorded sha256 depends on content alone.
+--   people and relationships remain excluded pending the people ER gate.
+--
+-- 2026-08-09 `funderdb eval sql` after F7: 22 PASS · 0 FAIL
+--      F7 [F] PASS: MIT as a vetting subject: 792 distinct funders across 9
+--                   fiscal years; charity 990 core-form financials:
+--                   1,803,820 filings, 1,701,132 with a program-services split

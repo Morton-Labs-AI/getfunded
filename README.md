@@ -100,7 +100,7 @@ snapshot, which **misses 8,880 foundations that actually distributed ≥$500k**.
 | G5–G6 | `hybrid_search` rebuilt at 9 args (`app_postures`, `min_distributions`); `search_documents` filter columns; **`org_types` suite bug fixed** | ✅ one overload, grant intact; an impossible `org_types` now returns 0 rows where it previously returned 30 and passed for the wrong reason |
 | G7 | Corpus enrichment: posture sentence + Part XV narrative in `doc_text` | ✅ 116,322 docs re-embedded (25.2M tokens, ~$1.51); all 16 federal programs carry posture |
 | G8 | Browse posture/distribution facets, Applying section, tiered contact rendering, recipient-side vetting, analyst filters + fail-closed contact mask | ✅ verified on Topfer, Austin, Chicago, Denver |
-| G9 | `funderdb export public` — CC-BY dataset | ✅ **25,571,806 rows across 55 files, 2.2GB**; all 7 boundary assertions pass *before* any byte is written |
+| G9 | `funderdb export public` — CC-BY dataset | ✅ **47,324,142 rows across 55 files, 2.9GB** (re-run after F7 and the gzip fix); all 7 boundary assertions pass *before* any byte is written, so the artifact existing is the proof |
 
 **The load-bearing correctness rule.** Posture comes from each org's latest
 **parsed** filing, never its latest filing. Using the latter lets the 35,648
@@ -134,8 +134,9 @@ program-vs-administrative expense split existed nowhere.
 | Gate | Content | Status |
 |---|---|---|
 | F7a | Migration 0021: 990 core-form columns on `filing_financials` (Part IX functional split, program-service revenue, headcount) + `related_org_compensation` on `filing_officers` | ✅ |
-| F7b | `ingest 990-detail` — Part I/VII/VIII/IX/X extraction, newest-first, resumable | 🟡 **825,755 filings + 8,983,516 officer rows** for 2024–26 (first attempt, no retries); 2021–23 in progress |
-| F7c | Charity vetting surface + adaptive expense split + corrected honesty copy | ✅ Mount Sinai renders $4.65B revenue / $4.54B expenses at 91% program services |
+| F7b | `ingest 990-detail` — Part I/VII/VIII/IX/X extraction, newest-first, resumable | ✅ **1,803,820 of 1,881,691 charity filings (95.9%)**, all six index years, every run first-attempt with no retries. The 77,871 remaining are exactly the IRS zip-packaging backlog, so coverage over filings whose XML exists is 100%. Database-wide: 2,443,977 financial rows and 22,000,950 officer rows |
+| F7c | Charity vetting surface + adaptive expense split + corrected honesty copy | ✅ Mount Sinai renders $4.65B revenue / $4.54B expenses at 91% program services; funders-of-record with concentration share; the "can't tell you yet" panel now appears only for genuinely unparsed charities |
+| F7d | `mv_org_latest_financials` refreshed by the 990 loader | ✅ **416,718 charity rows** (was 0 — the loader never refreshed it, so the browse distributions screen and the analyst cookbook were blind to 878,130 parsed filings). Found by running the cookbook query rather than trusting the design |
 
 **Why it was cheap downstream.** The 990's Part I summary maps one-to-one onto
 `filing_financials` columns that were return-type-agnostic from the start
