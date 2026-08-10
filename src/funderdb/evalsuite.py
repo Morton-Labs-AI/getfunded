@@ -107,15 +107,23 @@ def _run_semantic(res: _Result, conn) -> None:
                 continue
             try:
                 vec = query_embed(spec["query"])
+                # org_types was documented in E_CHECKS but bound as a literal
+                # null here until 2026-08-09 — any check that set it ran
+                # UNFILTERED and passed for the wrong reason. Bind every
+                # argument the spec can carry, or the suite lies.
                 cur.execute(
                     """select * from internal.hybrid_search(
                          %(q)s, %(vec)s::extensions.halfvec(512), %(lim)s,
-                         %(kinds)s, null, %(state)s, %(min_size)s)""",
+                         %(kinds)s, %(org_types)s, %(state)s, %(min_size)s,
+                         %(app_postures)s, %(min_dist)s)""",
                     {"q": spec["query"],
                      "vec": "[" + ",".join(f"{x:.6f}" for x in vec) + "]",
                      "lim": spec["limit"], "kinds": spec.get("kinds"),
+                     "org_types": spec.get("org_types"),
                      "state": spec.get("state"),
-                     "min_size": spec.get("min_size")})
+                     "min_size": spec.get("min_size"),
+                     "app_postures": spec.get("app_postures"),
+                     "min_dist": spec.get("min_distributions")})
                 ok, summary = spec["assert"](cur.fetchall())
             except Exception as exc:
                 conn.rollback()
@@ -179,6 +187,80 @@ def _run_er(res: _Result, conn) -> None:
                 certified = (n or 0) >= 100 and low > 0.90
                 res.add(f"ER-{job_key}", "ER", certified,
                         detail + ("" if certified else " — APPLIED WITHOUT CERTIFICATION"))
+
+
+def parity(n: int = 50) -> int:
+    """ProPublica Nonprofit Explorer API v2 spot-validation — REPORT-only.
+
+    Network-dependent and comparing against a DERIVED source (ProPublica's own
+    parse of the same IRS XML, with its own amended-return choices), so this
+    never gates and is deliberately excluded from `eval all`. Mismatches
+    inform; exact agreement on totals is strong parser corroboration.
+    """
+    import time
+
+    import httpx
+
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("""
+            select f.ein, f.tax_period, ff.total_revenue, ff.total_expenses,
+                   ff.total_assets_eoy
+            from internal.filings f
+            join internal.filing_financials ff on ff.object_id = f.object_id
+            where f.return_type = '990PF' and f.superseded_by_object_id is null
+              and ff.total_revenue is not null
+            order by random() limit %s""", (n,))
+        sample = cur.fetchall()
+        conn.rollback()
+
+    agree = mismatch = missing = ahead = 0
+    fields = (("totrevenue", 2), ("totexpns", 3), ("totassetsend", 4))
+    with httpx.Client(timeout=30.0, headers={
+            "User-Agent": "MortonLabs-funderdb parity check (zach@mortonlabs.ai)"}) as client:
+        for ein, tax_period, *ours in sample:
+            time.sleep(0.4)  # be polite to a free public API
+            try:
+                r = client.get("https://projects.propublica.org/nonprofits"
+                               f"/api/v2/organizations/{int(ein)}.json")
+                if r.status_code != 200:
+                    missing += 1
+                    print(f"  {ein} {tax_period}: HTTP {r.status_code}")
+                    continue
+                filings = r.json().get("filings_with_data") or []
+            except httpx.HTTPError as exc:
+                missing += 1
+                print(f"  {ein} {tax_period}: {type(exc).__name__}")
+                continue
+            match = next((fl for fl in filings
+                          if str(fl.get("tax_prd") or "") == tax_period), None)
+            if match is None:
+                missing += 1
+                periods = sorted(str(fl.get("tax_prd") or "") for fl in filings)
+                newest = periods[-1] if periods else None
+                if newest and newest < tax_period:
+                    ahead += 1
+                    print(f"  {ein} {tax_period}: we are AHEAD — ProPublica's "
+                          f"newest is {newest}")
+                else:
+                    print(f"  {ein} {tax_period}: no matching tax_prd "
+                          f"(ProPublica has {periods[-3:] or 'none'})")
+                continue
+            diffs = []
+            for key, idx in fields:
+                theirs = match.get(key)
+                if theirs is None or ours[idx - 2] is None:
+                    continue
+                if int(theirs) != int(ours[idx - 2]):
+                    diffs.append(f"{key} ours={ours[idx - 2]:,} theirs={int(theirs):,}")
+            if diffs:
+                mismatch += 1
+                print(f"  {ein} {tax_period}: " + "; ".join(diffs))
+            else:
+                agree += 1
+    print(f"\nparity [REPORT]: {agree} agree · {mismatch} mismatch · "
+          f"{missing} not comparable — of which {ahead} are filings we hold "
+          f"and ProPublica has not published yet (of {len(sample)} sampled)")
+    return 0
 
 
 def run(series: str) -> int:

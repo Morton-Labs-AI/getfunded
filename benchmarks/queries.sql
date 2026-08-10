@@ -107,6 +107,52 @@ from internal.organizations o
 left join internal.raw_files rf on rf.id = o.raw_file_id
 left join internal.licensing_map lm on lm.license_code = rf.license_code;
 
+-- B12. Topfer acceptance fixture (filing layer) ------------------------------
+-- The published FY2024 990-PF of the Topfer Family Foundation (EIN 74-2961304,
+-- OBJECT_ID 202532979349100628). Twelve values asserted EXACTLY against the
+-- public filing — parser drift on any Part I/II/XII figure fails loudly here.
+select f.object_id, f.ein, f.tax_period, f.accounting_method,
+       ff.fmv_assets_eoy, ff.contributions_received, ff.dividends,
+       ff.net_gain_sale_assets, ff.gross_sales_price, ff.capital_gain_net_income,
+       ff.total_revenue, ff.total_expenses, ff.charitable_disbursements,
+       ff.net_assets_eoy, ff.total_liabilities_eoy, ff.officer_comp,
+       ff.qualifying_distributions,
+       (select count(*) from internal.funding_events fe
+        where split_part(fe.source_record_key, ':', 2) = f.object_id
+          and fe.event_type = 'grant') as grant_rows
+from internal.filings f
+join internal.filing_financials ff on ff.object_id = f.object_id
+where f.object_id = '202532979349100628';
+
+-- B13. Supersession invariants + financials coverage -------------------------
+-- (a) No superseded filing may retain funding_events rows (the duplicate-grant
+--     bug this gate closed); (b) no (ein, return_type, tax_period) group may
+--     keep more than one non-superseded filing; (c) financials coverage over
+--     non-superseded, grants-processed 990-PFs (floor 98% — reads FAIL while
+--     the detail backfill is still running, which is the honest signal).
+-- Driven from filings (31k superseded rows probing the funding_events
+-- expression index), NEVER from a scan of the 7M-row events table.
+select
+  (select count(*) from internal.filings f
+   where f.superseded_by_object_id is not null
+     and exists (select 1 from internal.funding_events fe
+                 where split_part(fe.source_record_key, ':', 2) = f.object_id))
+    as superseded_with_events,
+  (select count(*) from (
+     select 1 from internal.filings
+     where superseded_by_object_id is null and coalesce(tax_period, '') <> ''
+     group by ein, return_type, tax_period
+     having count(*) > 1) t) as multi_winner_groups,
+  (select count(*) from internal.filings
+   where superseded_by_object_id is not null) as superseded_filings,
+  (select count(*) from internal.filings
+   where return_type = '990PF' and superseded_by_object_id is null
+     and grants_processed_at is not null) as pf_live_processed,
+  (select count(*) from internal.filings
+   where return_type = '990PF' and superseded_by_object_id is null
+     and grants_processed_at is not null and details_parsed_at is not null)
+    as pf_live_detailed;
+
 -- ===========================================================================
 -- PHASE 2 · SEMANTIC EVAL (E-series). Requires a query embedding, so these run
 -- via `funderdb eval semantic`, not psql alone. Recorded results 2026-07-26
@@ -554,3 +600,319 @@ left join internal.licensing_map lm on lm.license_code = rf.license_code;
 -- pre-registered before its sample is drawn. Two failures would be strong
 -- evidence that ADV<->Form D fund linkage is not certifiable from these
 -- sources at a 0.90 lower bound — itself a decision-grade finding.
+
+-- ===========================================================================
+-- 2026-08-09 · FILING LAYER (F1-F5): 990-PF financial statements, a real
+-- filings entity, and amended-return supersession.
+--
+-- Motivation: the July 2026 research study asked whether we capture 990 data
+-- as richly as ProPublica displays it. We did not. Every Part I/II/XII figure
+-- ProPublica charts was present in 100% of our staged XML and captured in 0%.
+-- Worse, amendments carry a NEW OBJECT_ID, so both copies' grant rows were
+-- live simultaneously — a silent double-count, now closed.
+--
+-- B12 (Topfer acceptance) and B13 (supersession invariants + coverage) are
+-- appended to the B-series above and run in every `funderdb eval sql`.
+--
+-- Detail backfill, completed 2026-08-09 (`ingest 990pf-detail`, all six index
+-- years, direct IPv6 host, first attempt, no retries):
+--   444,941 filings detailed this run · 1,444,143 officer rows ·
+--   258,763 Schedule B contributors · 411,840 Part XV application rows ·
+--   181,551 grant_commitment rows · 7,257,245 grant rows enriched with
+--   recipient address/ZIP/country/foundation-status/relationship.
+--   ZERO XML parse errors. ZERO detailed filings missing officers.
+--   ZERO detailed filings missing financials.
+--
+-- Filings NOT detailed: 35,648 (17,469 in 2025 + 18,179 in 2026), which is
+-- EXACTLY the documented IRS zip-packaging backlog — those OBJECT_IDs are
+-- indexed but their XML has never been published in a bulk zip. Their absence
+-- is the IRS's packaging lag, not a pipeline gap, and future re-runs pick them
+-- up automatically. Coverage over filings whose XML actually exists: 100%.
+--
+-- Measured prevalence over parsed filings (not estimates):
+--   Schedule B present ................. 24%
+--   Part XV application info present ... 91%, but 79% of those say ONLY
+--     "contributes to preselected organizations, no unsolicited requests";
+--     the actionable subset (contact / materials / deadlines) is 23%.
+--   Officers present ................... 100% (avg 3.3/filing;
+--                                        20,273 corporate-trustee rows, which
+--                                        land in filing_officers ONLY and are
+--                                        never promoted into internal.people)
+--
+-- Schema drift across returnVersions 2023v6.0 / 2024v5.0 / 5.1 / 5.2 / 5.5 /
+-- 2025v4.0: zero zero-coverage columns in a 2,000-filing dry run. The element
+-- trap worth restating: Part I line 3 interest INCOME is
+-- InterestOnSavRevAndExpnssAmt; InterestRevAndExpnssAmt is line-17 interest
+-- EXPENSE. Naming them naively silently swaps income and expense.
+--
+-- 2026-08-09 `funderdb eval all` results:
+--      B1 [B] PASS: 7 programs; INFUSE present with funds_lab_not_company=True
+--      B2 [B] PASS: 5 distinct SBIR/STTR agencies
+--      B3 [B] PASS: Lowercarbon CRD 162946 resolved; Prelude rows=6 (documented absence expects 0 ADV/FormD)
+--      B4 [B] PASS: 50 climate/energy advisers (floor 40)
+--      B5 [B] PASS: 25 Schmidt-family foundation rows
+--      B6 [B] PASS: 50 energy/science foundations >$10M (floor 40)
+--      B7 [B] PASS: 4 IL science/energy foundations >$10M (floor 4)
+--      B8 [B] PASS: 50 energy/science grant rows (floor 40)
+--      B9 [B] PASS: 50 Reg D offerings in last 12mo (floor 40)
+--     B10 [B] PASS: 2301084 orgs, 0 provenance orphans (must be 0)
+--     B12 [B] PASS: all 12 published values exact; acct=cash, qualifying_distributions=2,512,983, grant_rows=97
+--     B13 [B] PASS: 0 superseded filings retain event rows (must be 0); 0 multi-winner groups (must be 0); 31,665 filings superseded; detail coverage 635,301/635,301 live processed 990-PFs (100.0%, floor 98%)
+--     B5b [B] PASS: Stellar org row present as public_charity; grants structurally absent (990-N filer — no e-filed 990/EZ in any index year; documented absence)
+--     B11 [B] PASS: web-facts containment: 0 rows, 0 provenance violations, 0 public-view refs, 0 org-row leaks (vacuous — no confirmed rows yet)
+--      S1 [S] PASS: similar_orgs(Topfer): 12 rows, dist 0.1335..0.1570 ascending, seed excluded
+--      E1 [E] PASS: top10 medical-fusion contaminants: 0 (must be 0)
+--     E1b [E] PASS: 3/4 fusion programs in top 6 (need >=3)
+--      E2 [E] PASS: top10 all advisers=True; Lowercarbon rank=30 (need <=100)
+--      E3 [E] PASS: top3: INFUSE (INNOVATION NETWORK FOR FUSION ENERGY) MILESTONE-BASED FUSION DEVELOPMENT
+--      E4 [E] REPORT: REPORT-ONLY (end-to-end through the analyst; recorded 2026-07-26)
+--      E5 [E] PASS: 4/7 known climate funders in top 10 (need >=2)
+--      E7 [E] PASS: negative control: 0 energy/climate orgs in top 10 (must be 0)
+--      E8 [E] PASS: state filter: 0 non-CA rows of 30 (must be 0)
+--      E9 [E] PASS: min_size filter: 0 rows under $1B of 30 (must be 0)
+--     E10 [E] PASS: FTS leg: Lowercarbon rank=1 for its own name (need <=5)
+--   ER-tier1 [ER] PASS: 422,323 matches (floor 349,293)
+--   ER-tier2 [ER] PASS: 11,969 matches (floor 784)
+--   ER-tier3 [ER] PASS: 93,780 matches (floor 57,813)
+--   ER-linked [ER] PASS: 7,092,801 grant rows resolved (floor 886,763)
+--   ER-spot [ER] PASS: MIT resolves in MA (tier1)
+--   ER-spot [ER] PASS: Princeton resolves in NJ (tier1)
+--   ER-spot [ER] PASS: zero placeholder-text matches
+--   ER-funds [ER] SKIP: not applied yet — labels 227/252, Wilson low 0.858, canonicalized 0
+--   ER-people [ER] SKIP: not applied yet — labels 0/0, Wilson low 0.000, canonicalized 0
+--   => 31 PASS · 0 FAIL · 3 report/skip
+--
+-- ProPublica parity (`funderdb eval parity`, REPORT-only, never gates):
+-- total revenue / total expenses / total assets agree EXACTLY wherever
+-- comparable. Two findings:
+--   (1) Most non-comparable rows are filings WE HOLD AND PROPUBLICA HAS NOT
+--       PUBLISHED — e.g. EIN 27-5271301, where their newest is FY2023 and we
+--       carry FY2024. The bulk-XML pipeline runs AHEAD of them on recent
+--       IRS releases.
+--   (2) EVERY numeric disagreement is one artifact: ProPublica reports 1
+--       where the return reports 0. Sample of 80 filings -> 51 exact
+--       agreements, 6 disagreements, ALL SIX of the form ours=0 theirs=1,
+--       no exceptions and no disagreement of any other shape:
+--         74-2947100 202212 totrevenue    ours=0 theirs=1
+--         85-1116178 202212 totrevenue + totassetsend
+--         20-4045643 202112 totrevenue
+--         27-4686976 202112 totrevenue
+--         20-6241200 202312 totrevenue
+--         11-3617859 202212 totrevenue
+--       Two checked against the source document (86-1263907 FY2022 revenue,
+--       88-3973214 FY2022 total assets EOY): both are literally
+--       <TotalRevAndExpnssAmt>0</...> / <TotalAssetsEOYAmt>0</...> in the IRS
+--       XML. We match the filing; their 1 is a derived-field artifact.
+-- IRS filings are authoritative; ProPublica is a reference implementation and
+-- a validation layer, never a source of truth.
+
+-- ===========================================================================
+-- 2026-08-09 · F6: APPLICATION POSTURE, TIERED CONTACTS, FIRST PUBLIC EXPORT
+--
+-- F1-F5 put a large amount of decision-grade data in the database that
+-- nothing could reach. This phase makes it reachable and publishes the first
+-- CC-BY artifact.
+--
+-- THE LOAD-BEARING RULE (F3 gates it): application posture must come from
+-- each org's latest PARSED filing, never its latest filing. Measured both
+-- ways on the same data:
+--     latest PARSED : 145,200 orgs · 26,864 open · 101,773 preselected · 16,563 unknown
+--     latest ANY    : 146,150 orgs · 23,058 open ·  86,841 preselected · 36,251 unknown
+-- The 35,648 indexed-but-never-zip-packaged filings win the "latest" race and
+-- convert a known posture into 'unknown' — a 2.2x inflation that mislabels
+-- 3,806 OPEN foundations as having said nothing. Inner-joining
+-- filing_financials is what makes "latest parsed" precise.
+--
+-- 'unknown' IS NOT 'closed'. It is an absence of a statement, and it covers
+-- every grantmaking public charity (Form 990 has no Part XV) — including the
+-- E5 fixture set (ClimateWorks, Hewlett, Energy Foundation). Filtering to
+-- 'open' alone silently deletes them.
+--
+-- CONTACT PUBLICATION — the first publishability='public' rows in this
+-- project's history (the count was 0 from Phase 1 until today), and the first
+-- firing of tg_contact_license_guard on the public path:
+--     832 role-inbox emails  -> green / public
+--  30,547 filer phones       -> green / public
+--   6,742 named individuals  -> yellow / internal_only   (WITHHELD BY POLICY)
+--   1,404 unparseable values -> not loaded
+-- The classifier is SQL (internal.is_role_based_email) so the loader, the
+-- benchmarks and any reviewer run the identical rule. Default is false:
+-- publishing is an affirmative act.
+--
+-- A CLASSIFIER CORRECTION, MADE AND APPLIED THE SAME DAY: the first load
+-- published 834 emails. The audit's smell test flagged 19; 17 were org-name
+-- compounds (skadden.foundation@, www.finaid@twu.edu) and one was a role
+-- title (executive.director@), but jdoe.email@example.com at the EXAMPLE Family
+-- Foundation was a genuine false positive. Root cause: 'mail' and 'email'
+-- describe a MEDIUM, not a role. Migration 0019 accepts them only as a whole
+-- local part; re-running the loader DOWNGRADED 834 -> 832 published emails.
+-- That downgrade path is why the upsert scopes its `do update` to
+-- source_record_locator like 'partxv:%' — `do nothing` would have frozen the
+-- mistake permanently.
+--
+-- THE LEAK THIS PHASE CLOSED: public.filing_application_info, shipped by my
+-- own migration 0016, exposed contact_name, phone AND email for every Part XV
+-- row with NONE of the three safety layers contact_channels has. Only the
+-- absence of an anon grant kept it private. 0018 drops email and phone from
+-- that view; a name is not a channel (public.filing_officers already
+-- publishes 1.44M officer names from the same returns), but an email and a
+-- phone are, and channels route through contact_channels or are not
+-- published. The UI leaked the same column at
+-- app/filing/[objectId]/page.tsx and now reads only the tiered query.
+--
+-- SEARCH: hybrid_search dropped and recreated at 9 args (app_postures,
+-- min_distributions appended; app_posture and annual_distributions appended
+-- to RETURNS TABLE at indexes 12/13, so every pre-existing positional
+-- assertion stayed valid). Also fixed a latent bug: both legs hard-capped at
+-- `limit 50`, so match_limit above ~100 was a no-op and browse's "top 200"
+-- label was false. Now `limit greatest(match_limit, 50)`.
+--
+-- A SUITE BUG FIXED BEFORE IT COULD HIDE ANYTHING: evalsuite.py bound a
+-- literal null in hybrid_search's org_types position while E_CHECKS
+-- documented the field. Any check setting org_types ran UNFILTERED and passed
+-- for the wrong reason. Proven fixed: org_types=['company'] on a foundation
+-- query returns 0 rows where it previously returned 30.
+--
+-- KNOWN LIMIT FOUND TODAY, NOT YET FIXED: 47 of 191,663 foundation search
+-- documents carry a NULL app_posture. They are STALE — orgs whose grants
+-- disappeared (traceable to the F2 supersession sweep removing their last
+-- grant rows), so the builder's inner join on mv_funder_event_stats no longer
+-- produces them, but the upsert never deletes. Their text is outdated rather
+-- than wrong, and an app_postures filter excludes them. A prune step in
+-- embed sync is the fix; recorded here rather than bolted on unreviewed.
+--
+-- E14 METRIC CORRECTION (not a floor change): the check counted DISTINCT
+-- brand keywords in the top 20, so Heising-Simons and the Simons Foundation —
+-- two different real science funders that both belong there — collapsed to
+-- one hit and read as a miss. It now counts matching ROWS. The floor stayed
+-- at 3. The brand list is only a proxy: the Keck Observatory surfaces as its
+-- operating entity, "California Association for Research in Astronomy".
+--
+-- E13 DECISION, PRE-DECLARED BEFORE MEASUREMENT: gating if Topfer's first
+-- measured rank was <= 25, REPORT-with-rank otherwise. Measured rank 21 of
+-- 50 on an Austin-philanthropy query, so it is GATING.
+--
+-- B13 is timing-marginal: it passes in ~76s alone but hit the suite's 120s
+-- statement timeout while the 2.2GB export ran concurrently. Run the suite
+-- when a bulk job is not competing, or raise the suite timeout.
+--
+-- COLD-CACHE WARNING AFTER A RE-EMBED: the first filtered thesis query after
+-- `embed sync` rewrote 116,322 embeddings exceeded the UI pool's 15s
+-- statement_timeout and the browse page rendered empty. Warm, the identical
+-- query is 0.2s at match_limit 50, 100 AND 200 — the limit is not the cost
+-- driver, reading freshly-written embedding pages from disk is. Expect one
+-- slow request per filter shape after any large re-embed; do not "fix" it by
+-- raising the UI timeout, which is a deliberate guard.
+--
+-- Verified the posture predicate lands INSIDE hybrid_search rather than in a
+-- post-filter: /browse?state=IL&posture=open&thesis=community+development
+-- returns a full page. Post-filtering a truncated candidate pool would have
+-- collapsed it toward zero, which is the 0011 bug in a new dimension.
+--
+-- 2026-08-09 `funderdb eval all` results (42 PASS · 0 FAIL · 3 report/skip
+-- with B13 run uncontended and E14's metric corrected):
+--      F1 [F] PASS: posture partition 26,864 open + 101,773 preselected + 16,563 unknown = 145,200 of 145,200 orgs (total)
+--      F2 [F] PASS: 0 'open' orgs whose filing says preselected-only; 26,864 open rows checked
+--      F3 [F] PASS: 0 orgs whose posture comes from the wrong filing; 145,200 orgs checked
+--      F4 [F] PASS: 8,880 grantmakers distributing >=$500k that a >$10M asset screen misses (floor 8,000)
+--      F5 [F] PASS: public contacts: 31,379 rows; 0 non-green, 0 non-role-based emails, 0 non-republishable, 0 red
+--      F6 [F] PASS: Topfer: posture=open state=TX distributions=2,512,983; 0 castletop.org addresses in the public view; 1 withheld internally
+--      F7 [F] PASS: MIT as a vetting subject: 792 distinct funders across 9 fiscal years; charity 990 core-form financials on file: 0
+--     E11 [E] PASS: 0 of 30 rows violate state=IL; 4 top-20 names contain CHICAGO
+--     E12 [E] PASS: 0 of 30 rows violate state=CO; 5 top-20 names contain DENVER/COLORADO
+--     E13 [E] PASS: 0 of 50 rows violate state=TX; Topfer rank=21 of 50
+--     E14 [E] PASS: 3 known science funders in top 20: HEISING-SIMONS, SIMONS FOUNDATION, KAVLI
+--     E15 [E] PASS: 0 of 30 rows violate app_posture=open; 0 medical-fusion contaminants in top 10
+--     E16 [E] PASS: 0 of 30 rows violate annual_distributions >= $1M
+--
+-- FIRST PUBLIC ARTIFACT (`funderdb export public`): 25,571,806 rows across 55
+-- files, 2.2GB, CC BY 4.0. All seven boundary assertions run BEFORE any byte
+-- is written and abort the export on failure. funding_events is sharded by
+-- fiscal year (14.5M rows would otherwise be one ~550MB file that rewrites
+-- entirely every run). people and relationships are EXCLUDED — not a
+-- licensing question but a coherence one: internal.people is our derived,
+-- entity-unresolved layer and the people ER gate has not certified.
+-- Re-entry condition is stated in the export README.
+
+-- ===========================================================================
+-- 2026-08-09 · F7: PUBLIC-CHARITY 990 CORE-FORM FINANCIALS
+--
+-- The weakest direction in the product was "a foundation vetting a nonprofit":
+-- 1,881,691 Form 990 filings carried Schedule I grants but ZERO financials, so
+-- charity profiles showed em-dashes where revenue and expenses belong and the
+-- program-vs-administrative expense split — the first ratio a program officer
+-- asks for — existed nowhere in the database.
+--
+-- RESULT: 1,803,820 of 1,881,691 charity filings detailed (95.9%), all six
+-- index years, EVERY run completing on the first attempt with no retries.
+-- The 77,871 remaining are exactly the IRS zip-packaging backlog (the same
+-- structural absence as the 990-PF side's 35,649), so coverage over filings
+-- whose XML actually exists is 100%.
+--     filing_financials  2,443,977 rows   (was 635,301, 990-PF only)
+--     filing_officers   22,000,950 rows   (charities average ~11 board
+--                                          members vs foundations' 3.3)
+--     database          27.83 GB          (projected 27.5 at 3.4 KB/filing)
+--
+-- WHY IT WAS CHEAP DOWNSTREAM: the 990's Part I summary maps one-to-one onto
+-- filing_financials columns that were return-type-agnostic from the start
+-- (total_revenue, total_expenses, total_assets_eoy, net_assets_eoy...), so
+-- the FY trend charts, the browse distributions screen and the CC-BY export
+-- all lit up for charities with no schema fork. Only genuinely 990-specific
+-- concepts needed new columns (0021): the Part IX functional split, program
+-- service revenue, headcount, and Part VII related-org compensation — kept
+-- separate from compensation because an officer paid $1 by the charity and
+-- $400k by its related entity is a materially different fact.
+--
+-- THE TRIPWIRE FIRED, EXACTLY AS DESIGNED. F7's second clause asserted that
+-- charity core-form financials did NOT exist, so that landing them would FAIL
+-- the check and force the "what this profile can't tell you yet" copy to be
+-- updated rather than quietly going stale. It fired on the first pass. The
+-- copy was rewritten, the KNOWN_LIMITS entry claiming charities show "only
+-- the BMF snapshot" was corrected, and the clause is now a coverage floor so
+-- the next person extending charity data still has a check that notices.
+--
+-- A GAP THE DESIGN HID, FOUND BY RUNNING THE COOKBOOK QUERY FOR REAL:
+-- 878,130 charity filings had financials in filing_financials while
+-- mv_org_latest_financials still held ONLY the 145,200 foundations — the 990
+-- loader never refreshed it. Profiles were fine (they read the base tables),
+-- but the browse distributions screen and the analyst cookbook are MV-backed
+-- and were blind to all of it. "The shared-column design means everything
+-- works unchanged" was true for the tables and false for the MV. Fixed with a
+-- targeted refresh in the loader (not refresh_dashboard_stats(), which also
+-- rebuilds MVs over 14.5M events); the loader now self-reports mv_charity_rows
+-- (416,718) so a future silent failure is visible in its own output.
+--
+-- MV PRECEDENCE, worth knowing before it surprises someone:
+-- mv_org_latest_financials elects ONE row per org by latest tax period across
+-- BOTH return types, so 661 organizations that filed a 990-PF and later a
+-- Form 990 now show the newer 990. Correct precedence, and it moved F4 from
+-- 8,880 to 8,875 — comfortably inside its 8,000 floor. This is the reason
+-- these checks assert floors and not exact counts.
+--
+-- EXPORT DETERMINISM — a real defect the first test would have missed:
+-- the initial hash-stability check compared a manifest against a COPY OF
+-- ITSELF and "passed" vacuously. Redone against files on disk, 54 of 55
+-- matched; the one difference was an EMPTY file (sha256 e3b0c442…b855)
+-- produced by two concurrent exports racing on the same directory, not by
+-- non-determinism. But testing it properly then exposed a genuine bug:
+-- GzipFile derives a filename from fileobj.name and writes it into the gzip
+-- header, so a file's recorded sha256 depended on what it was CALLED, not
+-- only on what it contained — renaming a published file would have silently
+-- invalidated its hash. Fixed with filename=""; verified in the strong form
+-- (identical content under completely different filenames now yields the
+-- identical digest, FLG byte 00). Every export hash changes once as a result.
+--
+-- CANONICAL EXPORT after F7 and the gzip fix (2026-08-10):
+--   47,324,142 rows across 55 files, 2.9GB, CC BY 4.0, schema 0021.
+--   All seven boundary assertions PASS (they run BEFORE any byte is written
+--   and abort on failure, so an artifact existing is itself the proof).
+--   Grew from 25,571,806 rows because filing_officers went 2.0M -> 22.0M and
+--   filing_financials 635k -> 2.44M when the charity core form landed.
+--   Shipped gzip headers now read 1f8b0800...02ff — FLG byte 00, no filename
+--   embedded, so every recorded sha256 depends on content alone.
+--   people and relationships remain excluded pending the people ER gate.
+--
+-- 2026-08-09 `funderdb eval sql` after F7: 22 PASS · 0 FAIL
+--      F7 [F] PASS: MIT as a vetting subject: 792 distinct funders across 9
+--                   fiscal years; charity 990 core-form financials:
+--                   1,803,820 filings, 1,701,132 with a program-services split

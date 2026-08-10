@@ -224,12 +224,19 @@ def _load_batch(conn, raw_file_id: int, filings: list[PfFiling],
               on ri.id_type = 'ein' and ri.id_value = s.recipient_ein""")
         counts["grants_ein_resolved"] = cur.fetchone()[0]
 
+        # Spine rows (index-only) already exist — flip their marker; keep the
+        # original zip pointer on rows a previous grants pass already saw.
         cur.execute("""
-            insert into internal.processed_filings
-              (object_id, ein, return_type, tax_period, raw_file_id)
+            insert into internal.filings as f
+              (object_id, ein, return_type, tax_period, raw_file_id,
+               grants_processed_at)
             select unnest(%(oids)s::text[]), unnest(%(eins)s::text[]), '990',
-                   unnest(%(periods)s::text[]), %(rfid)s
-            on conflict (object_id) do nothing
+                   unnest(%(periods)s::text[]), %(rfid)s, now()
+            on conflict (object_id) do update set
+              grants_processed_at = coalesce(f.grants_processed_at, now()),
+              raw_file_id = case when f.grants_processed_at is null
+                                 then excluded.raw_file_id
+                                 else f.raw_file_id end
         """, {
             "oids": [f.object_id for f in filings],
             "eins": [f.ein for f in filings],
@@ -301,7 +308,8 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
         for year in years:
             filings = load_index(year, return_type="990")
             with conn.cursor() as cur:
-                cur.execute("select object_id from internal.processed_filings")
+                cur.execute("select object_id from internal.filings "
+                            "where grants_processed_at is not null")
                 done = {r[0] for r in cur.fetchall()}
             skipped_daf = [f for f in filings
                            if f.ein in daf_eins and f.object_id not in done]
@@ -375,4 +383,9 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                         pass
                     raise
             totals[f"missing_after_all_batches_{year}"] = len(remaining)
+        # Amended-return supersession + org_id backfill + MV refresh.
+        from .irs_filings import reconcile
+
+        for k, v in reconcile(conn).items():
+            totals[f"reconcile_{k}"] = v
     return dict(totals)

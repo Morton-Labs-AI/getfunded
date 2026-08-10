@@ -67,6 +67,27 @@ def ingest_990pf(years: tuple[int, ...]) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+@ingest.command("990pf-detail")
+@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025, 2024))
+@click.option("--dry-run", is_flag=True,
+              help="Parse staged zips + per-returnVersion FIN_FIELDS coverage "
+                   "histogram; no DB writes, no downloads.")
+@click.option("--limit", type=int, default=None,
+              help="Dry-run: stop after N filings scanned.")
+def ingest_990pf_detail(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None:
+    """990-PF financials/officers/Schedule B/how-to-apply from staged zips.
+
+    Never inserts grant rows (those stay behind the G2 disk gate) — upgrades
+    already-known filings with the detail tables and header columns.
+    """
+    from .sources import irs_990pf
+
+    totals = (irs_990pf.dry_run_details(years=years, limit=limit)
+              if dry_run else irs_990pf.reparse_details(years=years))
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("990")
 @click.option("--year", "years", type=int, multiple=True, default=(2026, 2025))
 @click.option("--dry-run", is_flag=True,
@@ -80,6 +101,34 @@ def ingest_990(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None
 
     totals = (irs_990_sched_i.dry_run(years=years, limit=limit)
               if dry_run else irs_990_sched_i.ingest(years=years))
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
+@ingest.command("990-detail")
+@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025, 2024))
+def ingest_990_detail(years: tuple[int, ...]) -> None:
+    """Form 990 CORE-FORM financials for public charities, from staged zips.
+
+    Revenue, expenses, balance sheet, the Part IX program-vs-admin expense
+    split, and Part VII officer compensation. Newest-first, resumable, never
+    downloads and never touches grant rows (Schedule I is a separate pass).
+    """
+    from .sources import irs_990_detail
+
+    totals = irs_990_detail.reparse_details(years=years)
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
+@ingest.command("filings")
+@click.option("--year", "years", type=int, multiple=True,
+              default=(2021, 2022, 2023, 2024, 2025, 2026))
+def ingest_filings(years: tuple[int, ...]) -> None:
+    """Filings spine from the annual index CSVs (no zips) + supersession sweep."""
+    from .sources import irs_filings
+
+    totals = irs_filings.ingest(years=years)
     for k, v in sorted(totals.items()):
         click.echo(f"{k}: {v:,}")
 
@@ -121,6 +170,63 @@ def ingest_seed() -> None:
         f"agencies: +{counts['agencies_inserted']} / ~{counts['agencies_updated']}   "
         f"programs: +{counts['programs_inserted']} / ~{counts['programs_updated']}"
     )
+
+
+@main.group()
+def contacts() -> None:
+    """Contact channels: tiered load + publication audit.
+
+    Its own group, not `ingest`: this derives from already-ingested rows, and
+    the only surface in the database that can publish a contact deserves an
+    audit command sitting next to its loader.
+    """
+
+
+@contacts.command("sync-part-xv")
+@click.option("--dry-run", is_flag=True,
+              help="Classify and count only; writes nothing.")
+@click.option("--sample", "sample_n", type=int, default=None,
+              help="Dry-run: also print N sampled role-based (publishable) rows.")
+@click.option("--sample-named", is_flag=True,
+              help="With --sample, show the NAMED (withheld) bucket instead.")
+def contacts_sync_part_xv(dry_run: bool, sample_n: int | None,
+                          sample_named: bool) -> None:
+    """990-PF Part XV application contacts -> contact_channels, tiered.
+
+    Role-based inboxes (grants@) publish; named individuals (jane_doe@) stay
+    internal-only. Idempotent — a re-run re-tiers rows this loader owns, so a
+    classifier correction can DOWNGRADE a published row.
+    """
+    from .sources import part_xv_contacts
+
+    if dry_run:
+        for k, v in part_xv_contacts.project().items():
+            click.echo(f"{k}: {v:,}")
+        if sample_n:
+            bucket = "NAMED (withheld)" if sample_named else "ROLE-BASED (publishable)"
+            click.echo(f"\n-- {sample_n} sampled {bucket} rows --")
+            for email, contact, org, state in part_xv_contacts.sample(
+                    sample_n, role=not sample_named):
+                click.echo(f"{email:<44} {(contact or '')[:26]:<26} "
+                           f"{(org or '')[:34]:<34} {state or ''}")
+        return
+    for k, v in part_xv_contacts.sync().items():
+        click.echo(f"{k}: {v:,}")
+
+
+@contacts.command("audit")
+def contacts_audit() -> None:
+    """Publication invariants. Every count must be 0."""
+    from .sources import part_xv_contacts
+
+    failed = 0
+    for label, n in part_xv_contacts.audit():
+        status = "OK  " if n == 0 else "FAIL"
+        if n:
+            failed += 1
+        click.echo(f"{status} {n:>8,}  {label}")
+    if failed:
+        raise SystemExit(1)
 
 
 @main.group()
@@ -261,6 +367,31 @@ def resolve_recipients(no_apply: bool, max_tier: int) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+@main.group()
+def export() -> None:
+    """Public dataset export (CC BY 4.0)."""
+
+
+@export.command("public")
+@click.option("--out", "out_dir", type=click.Path(), default=None,
+              help="Output directory (default data/export/public).")
+@click.option("--verify-only", is_flag=True,
+              help="Run the boundary assertions and write nothing.")
+def export_public(out_dir: str | None, verify_only: bool) -> None:
+    """Export the public.* views as a hash-stable CC-BY dataset.
+
+    The seven publishability assertions run FIRST; a single failure aborts
+    with a nonzero exit and writes no files.
+    """
+    from pathlib import Path
+
+    from . import export as export_mod
+
+    m = export_mod.run(Path(out_dir) if out_dir else None, verify_only=verify_only)
+    if not verify_only:
+        click.echo(f"\n{m['row_count_total']:,} rows across {len(m['files'])} files")
+
+
 @main.group("eval")
 def eval_group() -> None:
     """Benchmark suite v2: B-series SQL, E-series semantic, ER precision."""
@@ -292,6 +423,17 @@ def eval_all() -> None:
     from . import evalsuite
 
     evalsuite.main("all")
+
+
+@eval_group.command("parity")
+@click.option("--n", type=int, default=50, show_default=True)
+def eval_parity(n: int) -> None:
+    """ProPublica API spot-validation of filing financials (REPORT-only, network)."""
+    import sys
+
+    from . import evalsuite
+
+    sys.exit(evalsuite.parity(n=n))
 
 
 @main.command()

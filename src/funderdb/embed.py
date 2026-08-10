@@ -89,6 +89,9 @@ geo as (
   group by funder_org_id
 )
 select o.id as org_id, o.org_type, o.state, o.asset_amount as size_amount,
+  coalesce(ap.application_posture, 'unknown') as app_posture,
+  coalesce(fin.qualifying_distributions, fin.charitable_disbursements,
+           gs.total / nullif(gs.last_fy - gs.first_fy + 1, 0)) as annual_distributions,
   left(
     o.name || ' - ' ||
     case when o.org_type = 'public_charity' then 'grantmaking public charity'
@@ -96,17 +99,41 @@ select o.id as org_id, o.org_type, o.state, o.asset_amount as size_amount,
     coalesce(o.city || ', ', '') || coalesce(o.state, 'US') || '. ' ||
     coalesce('%(ntee_case)s' || '. ', '') ||
     coalesce('Assets $' || o.asset_amount::bigint || '. ', '') ||
+    -- Posture goes EARLY, on purpose. DOC_CAP truncates from the right, so
+    -- the one sentence a grantseeker most needs must not be the thing that
+    -- gets cut off the biggest funders. Emit nothing for 'unknown' rather
+    -- than the word — across ~80k docs it would become an embedding
+    -- attractor, and an absence of a statement is not a fact.
+    case ap.application_posture
+      when 'open' then 'Accepts unsolicited grant applications. '
+      when 'preselected_only'
+        then 'Does not accept unsolicited applications; contributes only to '
+             || 'preselected organizations. '
+      else '' end ||
+    coalesce('Annual charitable distributions $'
+             || coalesce(fin.qualifying_distributions,
+                         fin.charitable_disbursements)::bigint || '. ', '') ||
     gs.n || ' grants on file, FY' || coalesce(gs.first_fy::text, '?') ||
     '-' || coalesce(gs.last_fy::text, '?') || '. ' ||
     coalesce('Grant purposes: ' || p.txt || '. ', '') ||
     coalesce('Grantees: ' || r.txt || '. ', '') ||
-    coalesce('Grant geography: ' || g.txt || '.', ''),
+    coalesce('Grant geography: ' || g.txt || '.', '') ||
+    -- Filer free text goes LAST and capped per field, so it can never crowd
+    -- out grant purposes — the signal every existing E-check depends on.
+    -- NOTE: contact_name, email and phone must NEVER appear here.
+    -- hybrid_search returns left(doc_text, 240) as a snippet to the UI and
+    -- the agent, so anything in doc_text is published in effect.
+    coalesce(' Application materials: ' || left(ap.form_and_info_txt, 400) || '.', '') ||
+    coalesce(' Application deadlines: ' || left(ap.submission_deadlines_txt, 240) || '.', '') ||
+    coalesce(' Award restrictions: ' || left(ap.restrictions_txt, 400) || '.', ''),
   {DOC_CAP}) as doc_text
 from internal.organizations o
 join grant_stats gs on gs.org_id = o.id
 left join purposes p on p.funder_org_id = o.id
 left join recipients r on r.funder_org_id = o.id
 left join geo g on g.funder_org_id = o.id
+left join internal.mv_org_application_posture ap on ap.org_id = o.id
+left join internal.mv_org_latest_financials fin on fin.org_id = o.id
 where o.org_type in ('private_foundation', 'public_charity')
 """
 # Public charities joined the 'foundation' doc kind when Schedule I landed
@@ -135,6 +162,7 @@ with awards as (
   group by recipient_org_id
 )
 select o.id as org_id, o.org_type, o.state, null::numeric as size_amount,
+  null::text as app_posture, null::numeric as annual_distributions,
   left(
     o.name || ' - company in ' ||
     coalesce(o.city || ', ', '') || coalesce(o.state, 'US') ||
@@ -166,6 +194,7 @@ with funds as (
 )
 select o.id as org_id, o.org_type, o.state,
   coalesce(o.aum, o.fund_size) as size_amount,
+  null::text as app_posture, null::numeric as annual_distributions,
   left(
     o.name ||
     case o.org_type when 'vc' then ' - venture capital firm'
@@ -185,6 +214,8 @@ where o.org_type in ('vc', 'pe', 'investment_adviser')
 PROGRAM_DOCS_SQL = f"""
 select fp.id as program_id, 'gov_agency' as org_type, null::text as state,
   fp.award_ceiling as size_amount,
+  case when fp.status = 'open' then 'open' else 'unknown' end as app_posture,
+  null::numeric as annual_distributions,
   left(
     fp.name || ' - federal ' || fp.program_type || ' program administered by ' ||
     a.name || '. ' ||
@@ -245,6 +276,8 @@ def build_docs(kinds: list[str] | None = None, dry_run: bool = False) -> dict:
                     "org_type": r[idx["org_type"]],
                     "state": r[idx["state"]],
                     "size_amount": r[idx["size_amount"]],
+                    "app_posture": r[idx["app_posture"]],
+                    "annual_distributions": r[idx["annual_distributions"]],
                     "doc_text": text,
                     "doc_hash": _doc_hash(text),
                     "token_count": len(text) // 4,
@@ -264,23 +297,28 @@ def build_docs(kinds: list[str] | None = None, dry_run: bool = False) -> dict:
                 cur.execute("""
                     create temp table _docs (
                       org_id uuid, program_id uuid, org_type text, state text,
-                      size_amount numeric, doc_text text, doc_hash char(64),
-                      token_count int
+                      size_amount numeric, app_posture text,
+                      annual_distributions numeric,
+                      doc_text text, doc_hash char(64), token_count int
                     ) on commit drop""")
                 with cur.copy(
                     "copy _docs (org_id, program_id, org_type, state, size_amount,"
+                    " app_posture, annual_distributions,"
                     " doc_text, doc_hash, token_count) from stdin"
                 ) as copy:
                     for d in built:
                         copy.write_row((d["org_id"], d["program_id"], d["org_type"],
-                                        d["state"], d["size_amount"], d["doc_text"],
-                                        d["doc_hash"], d["token_count"]))
+                                        d["state"], d["size_amount"],
+                                        d["app_posture"], d["annual_distributions"],
+                                        d["doc_text"], d["doc_hash"], d["token_count"]))
                 cur.execute("""
                     insert into internal.search_documents
                       (org_id, program_id, doc_kind, doc_text, doc_hash,
-                       org_type, state, size_amount, model, token_count)
+                       org_type, state, size_amount, app_posture,
+                       annual_distributions, model, token_count)
                     select org_id, program_id, %(kind)s, doc_text, doc_hash,
-                           org_type, state, size_amount, %(model)s, token_count
+                           org_type, state, size_amount, app_posture,
+                           annual_distributions, %(model)s, token_count
                     from _docs
                     on conflict (org_id, program_id) do update set
                       doc_text = excluded.doc_text,
@@ -288,6 +326,8 @@ def build_docs(kinds: list[str] | None = None, dry_run: bool = False) -> dict:
                       org_type = excluded.org_type,
                       state = excluded.state,
                       size_amount = excluded.size_amount,
+                      app_posture = excluded.app_posture,
+                      annual_distributions = excluded.annual_distributions,
                       token_count = excluded.token_count,
                       embedding = case when internal.search_documents.doc_hash
                                             <> excluded.doc_hash
