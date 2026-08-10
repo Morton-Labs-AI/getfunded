@@ -1,7 +1,7 @@
 import { FyBars, type FyBarDatum } from "@/components/fy-bars";
 import { BreakdownBars } from "@/components/breakdown-bars";
 import { SourceGlyph, type Provenance } from "@/components/source-glyph";
-import { FILING_AS_FILED_NOTE } from "@/lib/content/facts";
+import { FILING_AS_FILED_NOTE, EXPENSE_SPLIT_NOTE } from "@/lib/content/facts";
 import { moneyFull, moneyRegister, MDASH } from "@/lib/format";
 import type { FilingRow } from "@/lib/queries/filings";
 
@@ -88,16 +88,35 @@ export function FinancialTrends({ filings }: { filings: FilingRow[] }) {
         </div>
         <div>
           <div className="mono-label mb-2.5">{`where it went · FY${latest.fy} as filed`}</div>
-          <BreakdownBars
-            fill="var(--cat-grant-fill)"
-            total={latest.total_expenses}
-            rows={[
-              { label: "contributions & grants paid", value: latest.contributions_paid },
-              { label: "charitable disbursements (total)", value: latest.charitable_disbursements },
-              { label: "officer compensation", value: latest.officer_comp },
-              { label: "operating expenses", value: latest.total_operating_expenses },
-            ]}
-          />
+          {/* Form 990 filers report a three-way functional split (Part IX);
+              990-PF filers do not. Show whichever the return actually
+              carries rather than a mostly-empty union of both. */}
+          {latest.expenses_program_services !== null ? (
+            <>
+              <BreakdownBars
+                fill="var(--cat-grant-fill)"
+                total={latest.total_expenses}
+                rows={[
+                  { label: "program services", value: latest.expenses_program_services },
+                  { label: "management & general", value: latest.expenses_management },
+                  { label: "fundraising", value: latest.expenses_fundraising },
+                  { label: "grants paid", value: latest.contributions_paid },
+                ]}
+              />
+              <p className="mt-2.5 text-[11.5px] text-ink-4">{EXPENSE_SPLIT_NOTE}</p>
+            </>
+          ) : (
+            <BreakdownBars
+              fill="var(--cat-grant-fill)"
+              total={latest.total_expenses}
+              rows={[
+                { label: "contributions & grants paid", value: latest.contributions_paid },
+                { label: "charitable disbursements (total)", value: latest.charitable_disbursements },
+                { label: "officer compensation", value: latest.officer_comp },
+                { label: "operating expenses", value: latest.total_operating_expenses },
+              ]}
+            />
+          )}
         </div>
       </div>
       <p className="mt-4 text-[11.5px] text-ink-4">{FILING_AS_FILED_NOTE}</p>

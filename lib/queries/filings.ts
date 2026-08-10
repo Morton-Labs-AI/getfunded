@@ -55,6 +55,13 @@ export interface FilingRow {
   total_liabilities_eoy: string | null;
   fmv_assets_eoy: string | null;
   qualifying_distributions: string | null;
+  // Form 990 core form (NULL on 990-PF rows)
+  expenses_program_services: string | null;
+  expenses_management: string | null;
+  expenses_fundraising: string | null;
+  program_service_revenue: string | null;
+  investment_income: string | null;
+  total_employees: number | null;
   // per-filing file provenance
   dataset_name: string;
   sha256: string;
@@ -77,6 +84,9 @@ const FILING_SELECT = sql`
          ff.total_assets_eoy::text, ff.total_assets_eoy_fmv::text,
          ff.total_liabilities_eoy::text, ff.fmv_assets_eoy::text,
          ff.qualifying_distributions::text,
+         ff.expenses_program_services::text, ff.expenses_management::text,
+         ff.expenses_fundraising::text, ff.program_service_revenue::text,
+         ff.investment_income::text, ff.total_employees,
          rf.dataset_name, rf.sha256, rf.source_url, rf.downloaded_at::text,
          lm.license_name
   from internal.filings f

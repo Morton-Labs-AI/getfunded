@@ -96,12 +96,17 @@ export const DISTRIBUTIONS_NOTE =
   "over $500,000 in their latest filing.";
 
 export const CHARITY_VETTING_LIMIT_NOTE =
-  "For public charities we hold the IRS Business Master File snapshot, grants " +
-  "received, grants paid (Schedule I), and the filing index — but not " +
-  "revenue, expenses, net assets, the program-vs-administrative expense " +
-  "split, officer compensation, or the board list. Those live on the 990 " +
-  "core form, which is not parsed yet. The raw XML is linked on each filing " +
-  "if you need them today.";
+  "This organization has Form 990 filings on record but none of them are " +
+  "parsed yet, so revenue, expenses, net assets and the expense split are " +
+  "not available here. The raw XML is linked on each filing if you need them " +
+  "today.";
+
+export const EXPENSE_SPLIT_NOTE =
+  "Form 990 Part IX splits total expenses three ways. The program-services " +
+  "share is the ratio most funders look at first — but read it with the " +
+  "organization's model in mind: a grantmaker, a research institute and a " +
+  "direct-service nonprofit book the same work differently, and the split is " +
+  "self-reported.";
 
 export const RESOLVED_COVERAGE_NOTE = (rowsPct: number, dollarsPct: number) =>
   `${rowsPct}% of this foundation's grant rows (${dollarsPct}% of dollars) ` +
@@ -129,10 +134,12 @@ export const KNOWN_LIMITS = [
     "exist for only a handful of foundations, are extracted from the " +
     "foundation's own site by a language model and human-confirmed, and are " +
     "internal-only — never filing-sourced and never republished.",
-  "Filing financials cover 990-PF e-filings (2020–2026 tax periods); public-" +
-    "charity 990 core-form financials are a later phase, so charity profiles " +
-    "show only the BMF snapshot for now. A NULL line means the element is " +
-    "absent from the return; a $0 means the foundation filed a zero.",
+  "Filing financials cover 990-PF returns (Parts I/II/X–XIII) and Form 990 " +
+    "core-form returns (Parts I/VII–X), both 2020–2026, extracted from the " +
+    "IRS bulk XML. A NULL line means the element is absent from that return; " +
+    "a $0 means the filer reported zero — never conflate them. Not parsed: " +
+    "Schedule J compensation detail, Schedule A public-support tests, and " +
+    "Schedule O narratives.",
   AMENDED_RULE_NOTE,
   SCHEDULE_B_NOTE,
   POSTURE_UNSTATED_NOTE,
