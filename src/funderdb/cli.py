@@ -121,6 +121,28 @@ def ingest_990_detail(years: tuple[int, ...]) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+@ingest.command("websites")
+@click.option("--year", "years", type=int, multiple=True,
+              default=(2026, 2025, 2024, 2023, 2022, 2021))
+@click.option("--dry-run", is_flag=True,
+              help="Measure website yield over already-staged zips; "
+                   "no DB writes, no downloads.")
+@click.option("--limit", type=int, default=None,
+              help="Dry-run: stop after N filings parsed.")
+def ingest_websites(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None:
+    """Filer-stated websites (WebsiteAddressTxt) from staged 990/990-PF XML.
+
+    First-party public-domain data, republishable, flows to the export.
+    Both form types in one sweep; idempotent via filings.website_parsed_at.
+    """
+    from .sources import irs_990_websites
+
+    totals = (irs_990_websites.dry_run(years=years, limit=limit)
+              if dry_run else irs_990_websites.ingest(years=years))
+    for k, v in sorted(totals.items()):
+        click.echo(f"{k}: {v:,}")
+
+
 @ingest.command("filings")
 @click.option("--year", "years", type=int, multiple=True,
               default=(2021, 2022, 2023, 2024, 2025, 2026))

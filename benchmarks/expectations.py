@@ -368,6 +368,43 @@ SQL_INLINE = [
             f"charity 990 core-form financials: {int(rows[0][2]):,} filings, "
             f"{int(rows[0][3]):,} with a program-services expense split"),
     },
+    {
+        "id": "F8", "series": "F",
+        # Filer-stated websites (0023). The junk clause re-runs the
+        # normalize_website contract IN SQL, so a loader regression that
+        # starts writing raw values fails here rather than in a browser.
+        # Precedence mirrors F3: no org may carry a website from anything but
+        # its newest parsed, unsuperseded filing. Floors, never exact counts.
+        "sql": """select
+                    (select count(*) from internal.filings
+                     where website is not null),
+                    (select count(*) from internal.org_website),
+                    (select count(*) from internal.filings
+                     where website is not null
+                       and (website like '% %'
+                            or website !~ '^https?://[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}(/[^ ]*)?$')),
+                    (select count(*) from internal.org_website ow
+                     where exists (select 1 from internal.filings f
+                                   where f.org_id = ow.org_id
+                                     and f.website is not null
+                                     and f.website_parsed_at is not null
+                                     and f.superseded_by_object_id is null
+                                     and (f.tax_period, f.object_id)
+                                         > (ow.tax_period, ow.object_id))),
+                    (select count(*) from internal.org_website ow
+                     join internal.organizations o on o.id = ow.org_id
+                     where o.name ilike '%HEWLETT%FOUNDATION%'
+                       and ow.website ilike '%hewlett%')""",
+        "assert": lambda rows: (
+            int(rows[0][0]) >= 400_000 and int(rows[0][1]) >= 200_000
+            and int(rows[0][2]) == 0 and int(rows[0][3]) == 0
+            and int(rows[0][4]) >= 1,
+            f"filer-stated websites: {int(rows[0][0]):,} filings (floor 400,000) "
+            f"-> {int(rows[0][1]):,} orgs (floor 200,000); "
+            f"{int(rows[0][2])} junk/malformed in filings.website, "
+            f"{int(rows[0][3])} precedence violations (both must be 0); "
+            f"Hewlett fixture rows: {int(rows[0][4])} (need >=1)"),
+    },
 ]
 
 # --- E-series ---------------------------------------------------------------
