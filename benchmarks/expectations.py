@@ -396,11 +396,11 @@ SQL_INLINE = [
                      where o.name ilike '%HEWLETT%FOUNDATION%'
                        and ow.website ilike '%hewlett%')""",
         "assert": lambda rows: (
-            int(rows[0][0]) >= 400_000 and int(rows[0][1]) >= 200_000
+            int(rows[0][0]) >= 1_100_000 and int(rows[0][1]) >= 270_000
             and int(rows[0][2]) == 0 and int(rows[0][3]) == 0
             and int(rows[0][4]) >= 1,
-            f"filer-stated websites: {int(rows[0][0]):,} filings (floor 400,000) "
-            f"-> {int(rows[0][1]):,} orgs (floor 200,000); "
+            f"filer-stated websites: {int(rows[0][0]):,} filings (floor 1,100,000) "
+            f"-> {int(rows[0][1]):,} orgs (floor 270,000); "
             f"{int(rows[0][2])} junk/malformed in filings.website, "
             f"{int(rows[0][3])} precedence violations (both must be 0); "
             f"Hewlett fixture rows: {int(rows[0][4])} (need >=1)"),
