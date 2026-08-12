@@ -23,6 +23,8 @@ import {
   orgProvenanceFiles,
   similarOrgs,
   orgWebFacts,
+  orgFilingWebsite,
+  type FilingWebsiteRow,
   type OrgWebFactsRow,
   type GrantPageRow,
   type GeoRow,
@@ -153,11 +155,12 @@ export default async function OrgPage({
   ]);
   // Filing layer: data-presence gated, not org_type gated — charity pages
   // light up automatically when the 990 core-form phase lands.
-  const [filings, posture, contactRows, fundersOfRecord] = await Promise.all([
+  const [filings, posture, contactRows, fundersOfRecord, filingSite] = await Promise.all([
     isGrantmaker ? orgFilings(memberIds) : Promise.resolve([] as FilingRow[]),
     orgApplicationPosture(memberIds),
     orgContactChannels(memberIds),
     isCharity ? orgFundersOfRecord(memberIds) : Promise.resolve([]),
+    orgFilingWebsite(memberIds),
   ]);
   const grantCounts = await filingGrantCounts(filings.map((f) => f.object_id));
   const liveFilings = filings.filter(
@@ -277,14 +280,23 @@ export default async function OrgPage({
             </span>
           )}
           {(() => {
-            // Enrichment fills the gap for foundations (organizations.website
-            // is never backfilled from website snapshots — provenance).
-            const site = webFacts?.website_url ?? org.website;
+            // Precedence: human-confirmed enrichment, then the website the
+            // filer stated on its latest PARSED 990/990-PF (0023 — public
+            // domain, republishable), then registry sources (SBIR/ADV/seed).
+            // organizations.website is never backfilled from snapshots.
+            const site = webFacts?.website_url ?? filingSite?.website ?? org.website;
+            const siteSource = webFacts?.website_url
+              ? "human-confirmed from the organization's own website"
+              : filingSite?.website
+                ? `stated by the filer on its FY${filingSite.tax_period.slice(0, 4)} ` +
+                  `${filingSite.return_type === "990PF" ? "990-PF" : filingSite.return_type} return`
+                : "from a registry source (SBIR/ADV/seed)";
             return site ? (
               <a
                 href={site.startsWith("http") ? site : `https://${site}`}
                 target="_blank"
                 rel="noreferrer"
+                title={siteSource}
                 className="text-[12.5px] text-accent hover:text-accent-hover"
               >
                 website ↗
