@@ -916,3 +916,63 @@ select
 --      F7 [F] PASS: MIT as a vetting subject: 792 distinct funders across 9
 --                   fiscal years; charity 990 core-form financials:
 --                   1,803,820 filings, 1,701,132 with a program-services split
+
+-- ===========================================================================
+-- 2026-08-10 — stale-document prune, and the suite after it.
+-- ===========================================================================
+--
+-- PRUNE SHIPPED. The 47 NULL-app_posture foundation documents recorded above
+-- as "KNOWN LIMIT FOUND TODAY, NOT YET FIXED" are gone. embed sync now deletes
+-- rows the builder no longer produces, scoped to doc_kind.
+--   foundation      191,663 -> 191,616
+--   NULL app_posture     47 -> 0
+--   corpus total    249,769 -> 249,722
+--   unembedded            0    (518 docs re-embedded, 81,381 tokens, ~$0.005 —
+--                               F7 changed their doc_text; the corpus was last
+--                               built before it landed)
+--
+-- Two ways to write this prune that do not work, both found by writing them:
+--   1. `(org_id, program_id) not in (select ... from _docs)` deletes NOTHING.
+--      program_id is NULL for foundation/company/adviser docs and org_id is
+--      NULL for program docs, so the row-constructor comparison yields NULL
+--      and the WHERE drops every candidate.
+--   2. `is not distinct from` has precisely the right semantics — it is what
+--      uq_sd_owner's NULLS NOT DISTINCT means — but it is NOT joinable. The
+--      planner nested-loops the unindexed 191k-row temp table and the
+--      statement dies on the 30-minute timeout.
+-- What works: equality over a coalesce nil-UUID sentinel (safe — every id is a
+-- gen_random_uuid(), which never emits nil), plus `analyze _docs` after the
+-- COPY, because a temp table carries no statistics and the planner will still
+-- pick a nested loop without it. EXPLAIN then shows a merge anti join.
+--
+-- The prune refuses above a 1% ceiling. It deletes, counts, and raises — which
+-- rolls the per-kind transaction back, delete included — so the ceiling is
+-- tested against a real count, not a prediction. A builder returning a
+-- degenerate result (unrefreshed MV, broken join) would otherwise prune the
+-- corpus silently and cost a full re-embed.
+--
+-- NOT A STALENESS SIGNAL ELSEWHERE: app_posture is NULL for ALL 23,626 adviser
+-- and 34,464 company docs by design. Only the foundation builder populates it.
+--
+-- ALSO FIXED: `embed sync --rebuild` had no WHERE clause and ignored --kind,
+-- blanking doc_hash for all four kinds while rebuilding one, so a scoped
+-- rebuild paid the full-corpus Voyage cost and left three kinds carrying an
+-- empty-string doc_hash. Now scoped to the selected kinds.
+--
+-- 2026-08-10 `funderdb eval all`: 44 PASS · 0 FAIL · 3 report/skip
+--   B13 PASSED with nothing competing (~76s; it false-fails against a
+--       concurrent bulk job, which is why the export was not run alongside it)
+--   B11 PASS: web-facts containment now non-vacuous — 1 confirmed row
+--       (the Topfer enrichment), 0 provenance violations, 0 public-view refs
+--   E13 PASS: Topfer rank=21 of 50 (gating rule: first measured rank <= 25)
+--   F3  PASS: 0 orgs whose posture comes from the wrong filing, 145,200 checked
+--   ER-funds SKIP: labels 227/252, Wilson low 0.858, canonicalized 0 — the
+--       gate ran and FAILED; a tighter class needs a fresh stratum and a fresh
+--       fixed-n sample. Not this session's call.
+--
+-- EXPORT NOT RE-RUN, DELIBERATELY. The clean re-run the gzip fix required had
+-- already happened (manifest generated_at 2026-08-10T01:24:47Z, 55 files,
+-- 47,324,142 rows, FLG byte 00 verified on disk). The prune touches only
+-- internal.search_documents, which no public view exports, so the bytes cannot
+-- have changed. `funderdb export public --verify-only` re-ran all seven
+-- boundary assertions against live state: X1-X7 PASS, 0 files written.

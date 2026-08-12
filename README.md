@@ -118,11 +118,27 @@ Migration 0019 accepts them only as a whole local part, and re-running the
 loader **downgraded 834 → 832**. That is why the upsert scopes its `do update`
 to rows the loader owns — `do nothing` would have frozen the mistake forever.
 
-**Known limit found today, not yet fixed:** 47 of 191,663 foundation search
-documents carry a NULL `app_posture`. They are stale rows for orgs whose grants
-disappeared (traceable to the F2 supersession sweep), which the builder no
-longer produces but the upsert never deletes. A prune step in `embed sync` is
-the fix.
+**Known limit found 2026-08-09, FIXED 2026-08-10:** 47 of 191,663 foundation
+search documents carried a NULL `app_posture`. They were stale rows for orgs
+whose grants disappeared (traceable to the F2 supersession sweep), which the
+builder no longer produced but the upsert never deleted. `embed sync` now
+prunes, scoped to `doc_kind`: foundation 191,663 → 191,616, NULL `app_posture`
+47 → 0, corpus 249,769 → 249,722.
+
+Two traps in that prune, both worth knowing before touching it. A row-
+constructor `NOT IN` deletes **nothing** — `program_id` is NULL for foundation,
+company and adviser docs and `org_id` is NULL for program docs, so the
+comparison yields NULL. And `is not distinct from`, which has exactly the right
+semantics, is **not joinable**, so the planner nested-loops the unindexed 191k
+temp table and blows the 30-minute timeout. The working form is equality over a
+`coalesce` nil-UUID sentinel plus `analyze _docs` — a temp table carries no
+statistics, so without the ANALYZE the planner can still choose a nested loop.
+The prune refuses outright above a 1% ceiling, since a builder returning a
+degenerate result would otherwise silently cost a full re-embed.
+
+Note `app_posture` is NULL for **all** 23,626 adviser and 34,464 company docs
+by design — only the foundation builder populates it. The staleness signal is
+foundation-specific.
 
 ## F7 — public-charity core-form financials (2026-08-09)
 
@@ -157,8 +173,9 @@ the source filename into the gzip header, so a file's recorded sha256 depended
 on what it was *called*, not only what it contained — a rename would have
 silently invalidated a published hash. Fixed with `filename=""`; verified in
 the strong form (identical content under different filenames now yields the
-identical digest). **The published export needs one clean re-run**, since the
-fix changes every hash once.
+identical digest). The clean re-run this required **was done 2026-08-10** —
+every shipped file now carries FLG byte `00` (`1f8b0800...02ff`), so each
+recorded sha256 depends on content alone.
 
 **Benchmark v2:** one command — `uv run funderdb eval all` (subsets: `eval sql`,
 `eval semantic`, `eval er`). B-series executes verbatim from

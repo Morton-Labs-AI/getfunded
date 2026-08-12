@@ -31,6 +31,15 @@ VOYAGE_URL = "https://api.voyageai.com/v1/embeddings"
 BATCH = 128
 DOC_CAP = 4000
 
+# Prune safety ceiling (build_docs). A legitimate prune is a handful of rows;
+# anything larger is a builder fault, not a stale corpus. A floor as well as a
+# fraction so tiny kinds (program: 16 docs) are not held to a 1%% ceiling.
+PRUNE_FLOOR = 100
+PRUNE_MAX_FRAC = 0.01
+# Sentinel for NULLS-NOT-DISTINCT equality in the prune's anti-join. Safe
+# because every org/program id is a gen_random_uuid(), which never emits nil.
+NIL_UUID = "00000000-0000-0000-0000-000000000000"
+
 NTEE_MAJOR = {
     "A": "Arts & Culture", "B": "Education", "C": "Environment", "D": "Animal Welfare",
     "E": "Health Care", "F": "Mental Health", "G": "Disease Research", "H": "Medical Research",
@@ -311,6 +320,11 @@ def build_docs(kinds: list[str] | None = None, dry_run: bool = False) -> dict:
                                         d["state"], d["size_amount"],
                                         d["app_posture"], d["annual_distributions"],
                                         d["doc_text"], d["doc_hash"], d["token_count"]))
+                # A temp table carries no statistics, so the planner defaults to
+                # a generic estimate and can pick a nested loop for the prune's
+                # anti-join below -- which on 191k rows never finishes inside
+                # the statement timeout. One ANALYZE buys a merge/hash anti-join.
+                cur.execute("analyze _docs")
                 cur.execute("""
                     insert into internal.search_documents
                       (org_id, program_id, doc_kind, doc_text, doc_hash,
@@ -334,6 +348,71 @@ def build_docs(kinds: list[str] | None = None, dry_run: bool = False) -> dict:
                                        then null
                                        else internal.search_documents.embedding end
                 """, {"kind": kind, "model": MODEL_TAG})
+
+                # Prune rows the builder no longer produces. The upsert above
+                # only ever INSERTs or UPDATEs; without this, an org that drops
+                # out of a builder's join (e.g. its grants vanish in an amended-
+                # return supersession sweep) keeps a stale row forever. Those
+                # rows are detectable by a NULL app_posture, which the builders
+                # never emit -- 47 of them were found on 2026-08-09.
+                #
+                # Scoped to doc_kind because sync(kinds=[...]) rebuilds only the
+                # selected kinds: an unscoped delete run with --kind foundation
+                # would wipe every company/adviser/program doc.
+                #
+                # NOT IN is wrong here. program_id is NULL for foundation,
+                # company and adviser docs and org_id is NULL for program docs,
+                # so a row-constructor NOT IN against a NULL yields NULL and the
+                # delete would silently match nothing.
+                #
+                # `is not distinct from` has the right semantics -- it is what
+                # uq_sd_owner's NULLS NOT DISTINCT means -- but it is NOT
+                # hash-joinable, so the planner nested-loops over the unindexed
+                # 191k-row temp table and the statement blows its 30min timeout.
+                # Equality over a coalesce sentinel gives identical semantics
+                # and hash anti-joins in milliseconds. The nil UUID is safe as a
+                # sentinel: every id here comes from gen_random_uuid(), which
+                # never emits it.
+                cur.execute("""
+                    delete from internal.search_documents sd
+                    where sd.doc_kind = %(kind)s
+                      and not exists (
+                        select 1 from _docs d
+                        where coalesce(d.org_id, %(nil)s::uuid)
+                              = coalesce(sd.org_id, %(nil)s::uuid)
+                          and coalesce(d.program_id, %(nil)s::uuid)
+                              = coalesce(sd.program_id, %(nil)s::uuid)
+                      )
+                """, {"kind": kind, "nil": NIL_UUID})
+                pruned = cur.rowcount
+
+                # Deleting is destructive and the embeddings cost real money to
+                # rebuild (~$1.50-2.00 for the full corpus). A builder that
+                # returns a degenerate result set -- an unrefreshed MV, a failed
+                # join -- would otherwise prune almost everything silently. A
+                # legitimate prune is a handful of rows; refuse anything that
+                # looks like a builder fault and make the operator look.
+                #
+                # Raising here rolls the whole per-kind transaction back, delete
+                # included: the connection context manager aborts on exception
+                # and conn.commit() below is never reached. So this checks the
+                # real count rather than a prediction, and still costs nothing
+                # when it refuses.
+                cur.execute("select count(*) from internal.search_documents"
+                            " where doc_kind = %(kind)s", {"kind": kind})
+                remaining = cur.fetchone()[0]
+                before = remaining + pruned
+                if before and pruned > max(PRUNE_FLOOR, before * PRUNE_MAX_FRAC):
+                    raise RuntimeError(
+                        f"prune refused for {kind}: {pruned} of {before} rows "
+                        f"({pruned / before:.1%}) are absent from the builder's "
+                        f"result set, over the {PRUNE_MAX_FRAC:.0%} ceiling. "
+                        f"Rolled back, nothing deleted. This usually means the "
+                        f"builder returned a degenerate result, not that the "
+                        f"corpus is stale -- verify its joins, and that its MVs "
+                        f"are refreshed, before pruning."
+                    )
+                counts[kind]["pruned"] = pruned
             conn.commit()
     return counts
 
@@ -436,8 +515,22 @@ def ensure_hnsw() -> bool:
 def sync(kinds: list[str] | None = None, dry_run: bool = False,
          rebuild: bool = False, skip_index: bool = False) -> dict:
     if rebuild and not dry_run:
+        # Scoped to the selected kinds. This UPDATE used to have no WHERE
+        # clause, so `--kind foundation --rebuild` blanked doc_hash for ALL
+        # four kinds while build_docs rebuilt only foundation -- and
+        # embed_pending() then re-embedded the entire corpus at full Voyage
+        # cost, leaving the non-selected kinds carrying an empty-string
+        # doc_hash instead of a real digest until a later unfiltered sync.
         with connect() as conn, conn.cursor() as cur:
-            cur.execute("update internal.search_documents set embedding = null, doc_hash = ''")
+            if kinds:
+                cur.execute(
+                    "update internal.search_documents"
+                    " set embedding = null, doc_hash = ''"
+                    " where doc_kind = any(%(kinds)s)", {"kinds": list(kinds)})
+            else:
+                cur.execute(
+                    "update internal.search_documents"
+                    " set embedding = null, doc_hash = ''")
             conn.commit()
 
     counts = build_docs(kinds, dry_run=dry_run)
