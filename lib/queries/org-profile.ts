@@ -231,3 +231,32 @@ export async function orgWebFacts(memberIds: string[]): Promise<OrgWebFactsRow |
     return null;
   }
 }
+
+export interface FilingWebsiteRow {
+  website: string;
+  object_id: string;
+  tax_period: string;
+  return_type: string;
+}
+/** Filer-stated website from the latest PARSED filing (migration 0023).
+    First-party public-domain data — the org wrote it on the 990 itself — so
+    unlike org_web_facts it is republishable and lives in the export. The
+    view already enforces latest-parsed precedence and supersession; the sort
+    here only arbitrates across a canonical cluster's members. Soft-fails to
+    null on a pre-0023 database. */
+export async function orgFilingWebsite(
+  memberIds: string[],
+): Promise<FilingWebsiteRow | null> {
+  try {
+    const rows = await sql<FilingWebsiteRow[]>`
+      select ow.website, ow.object_id, ow.tax_period, ow.return_type
+      from internal.org_website ow
+      where ow.org_id = any(${memberIds}::uuid[])
+      order by ow.tax_period desc, ow.object_id desc
+      limit 1`;
+    return rows[0] ?? null;
+  } catch (e) {
+    console.warn("orgFilingWebsite unavailable:", (e as Error).message);
+    return null;
+  }
+}
