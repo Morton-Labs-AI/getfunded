@@ -174,51 +174,81 @@ def run(out_dir: Path | None = None, verify_only: bool = False) -> dict:
     out = out_dir or (settings.data_root / "export" / "public")
     generated = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
+    # One connection PER STREAM, not one for the run. The 2026-08-12 re-run
+    # died twice with "SSL SYSCALL error: Operation timed out" mid-COPY — the
+    # network path drops long-lived connections somewhere past the ~35-minute
+    # mark regardless of activity (TCP keepalives did not save it), and a
+    # full export holds a single connection ~75 minutes. Scoping a connection
+    # to one COPY keeps every connection under the drop window and makes a
+    # retry resume-shaped: completed shards are byte-identical on a re-run.
+    #
+    # The trade: streams no longer share one snapshot. That is acceptable
+    # because the export doctrine already forbids concurrent bulk writes
+    # ("don't run two exports at once", suite-vs-export contention), and the
+    # boundary assertions re-run against live state immediately before the
+    # first byte. If concurrent-write-during-export ever becomes real, the
+    # fix is pg_export_snapshot() from a coordinator, not a return to the
+    # single 75-minute connection.
+    def _pinned(conn):
+        cur = conn.cursor()
+        cur.execute("set local statement_timeout = '60min'")
+        # Locale and timezone leak into text output; pin both.
+        cur.execute("set local timezone = 'UTC'")
+        cur.execute("set local datestyle = 'ISO, MDY'")
+        return cur
+
     with connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute("set local statement_timeout = '60min'")
-            # Locale and timezone leak into text output; pin both.
-            cur.execute("set local timezone = 'UTC'")
-            cur.execute("set local datestyle = 'ISO, MDY'")
-
+        with _pinned(conn) as cur:
             assertions = _assert_boundary(cur)
-            failed = [a for a in assertions if a["result"] == "FAIL"]
-            for a in assertions:
-                print(f"  {a['result']} {a['id']}  {a['statement']}"
-                      + (f"  (measured {a['measured']}, must be 0)" if a["measured"] else ""))
-            if failed:
-                raise SystemExit(
-                    f"\nBOUNDARY VIOLATION — {len(failed)} assertion(s) failed. "
-                    "No files written.")
-            if verify_only:
-                print("\nverify-only: boundary clean, 0 files written.")
-                return {"assertions": assertions, "files": []}
+        conn.rollback()
+    failed = [a for a in assertions if a["result"] == "FAIL"]
+    for a in assertions:
+        print(f"  {a['result']} {a['id']}  {a['statement']}"
+              + (f"  (measured {a['measured']}, must be 0)" if a["measured"] else ""))
+    if failed:
+        raise SystemExit(
+            f"\nBOUNDARY VIOLATION — {len(failed)} assertion(s) failed. "
+            "No files written.")
+    if verify_only:
+        print("\nverify-only: boundary clean, 0 files written.")
+        return {"assertions": assertions, "files": []}
 
-            files: list[dict] = []
-            for view, stem, order in TABLES:
+    files: list[dict] = []
+    for view, stem, order in TABLES:
+        with connect() as conn:
+            with _pinned(conn) as cur:
                 meta = _write_csv_gz(
                     cur, f"select * from {view} order by {order}",
                     out / f"{stem}.csv.gz")
-                meta.update({"view": view, "order_by": order})
-                files.append(meta)
-                print(f"  {meta['rows']:>10,}  {meta['name']}")
+            conn.rollback()
+        meta.update({"view": view, "order_by": order})
+        files.append(meta)
+        print(f"  {meta['rows']:>10,}  {meta['name']}", flush=True)
 
+    with connect() as conn:
+        with conn.cursor() as cur:
             cur.execute(f"""select distinct fiscal_year from {EVENTS_VIEW}
                             order by fiscal_year nulls last""")
             years = [r[0] for r in cur.fetchall()]
-            for fy in years:
-                where = ("fiscal_year is null" if fy is None
-                         else f"fiscal_year = {int(fy)}")
-                label = "null" if fy is None else str(int(fy))
+        conn.rollback()
+    for fy in years:
+        where = ("fiscal_year is null" if fy is None
+                 else f"fiscal_year = {int(fy)}")
+        label = "null" if fy is None else str(int(fy))
+        with connect() as conn:
+            with _pinned(conn) as cur:
                 meta = _write_csv_gz(
                     cur,
                     f"select * from {EVENTS_VIEW} where {where} order by id",
                     out / "funding_events" / f"fy={label}.csv.gz")
-                meta.update({"view": EVENTS_VIEW, "order_by": "id",
-                             "name": f"funding_events/fy={label}.csv.gz"})
-                files.append(meta)
-                print(f"  {meta['rows']:>10,}  funding_events/fy={label}.csv.gz")
+            conn.rollback()
+        meta.update({"view": EVENTS_VIEW, "order_by": "id",
+                     "name": f"funding_events/fy={label}.csv.gz"})
+        files.append(meta)
+        print(f"  {meta['rows']:>10,}  funding_events/fy={label}.csv.gz", flush=True)
 
+    with connect() as conn:
+        with conn.cursor() as cur:
             cur.execute("""select license_code, license_name, republishable,
                                   attribution_required, license_url
                            from internal.licensing_map

@@ -976,3 +976,150 @@ select
 -- internal.search_documents, which no public view exports, so the bytes cannot
 -- have changed. `funderdb export public --verify-only` re-ran all seven
 -- boundary assertions against live state: X1-X7 PASS, 0 files written.
+
+-- ===========================================================================
+-- 2026-08-12 — the enrichment wave (run 2026-08-10 → 08-12): filer-stated
+-- websites (F8),
+-- grant hygiene on a public API that was already live, and the discovery
+-- that G5 had already run.
+-- ===========================================================================
+--
+-- F8: FILER-STATED WEBSITES (migration 0023, `funderdb ingest websites`).
+-- The 08-07 handoff recorded "no IRS source carries website". Wrong for both
+-- form types: WebsiteAddressTxt is in the Form 990 header and in 990-PF Part
+-- VII-A (StatementsRegardingActyGrp), in the same staged zips the filing
+-- layer parses. First-party us_public_domain data -> public.filings and the
+-- export, unlike the human-gated publisher_website enrichment.
+--
+-- Full backfill, all six index years, one pass, 0 XML errors:
+--   filings parsed            2,443,977  (100% of live XML; the 113,520
+--                                         remainder is exactly the IRS
+--                                         zip-packaging backlog: 55,945 +
+--                                         57,574 + 1)
+--   websites stated           2,091,271  (85.6%)
+--   usable after normalize    1,255,366  (51.4%)
+--   orgs (internal.org_website)  294,416
+--
+-- normalize_website() is precision-over-recall: junk set ("N/A" x3,215 in
+-- one 2026 zip alone), host regex, alphabetic TLD, no interior whitespace,
+-- no e-mail addresses, no ports. Junk leaks measured in SQL: 0. Values like
+-- guidestar.org survive because the filer genuinely stated them — editorial
+-- judgment belongs to the enrich console's human gate, not the parser.
+--
+-- Precedence is the F3 doctrine transplanted: internal.org_website picks the
+-- newest PARSED, unsuperseded filing (website_parsed_at is only stamped when
+-- the XML was actually read), so a never-zip-packaged filing can't win.
+-- F8 gates all of it: floors 1.1M filings / 270k orgs (measured above),
+-- zero junk, zero precedence violations, a Hewlett fixture.
+--
+-- G5 WAS ALREADY DONE — THE README STATUS WAS STALE. Discovered when the
+-- planned Schedule I ingest (`funderdb ingest 990 --year 2026 --year 2025`)
+-- processed 0 filings and added 0 grants across every staged zip: the rows
+-- were already in production — 4,147,721 Schedule I grant rows from 79,230
+-- charity grantmakers, 3,358,843 (81.0%) recipient-EIN-resolved, the rest
+-- as-reported text + NULL recipient_org_id (no stubs, per doctrine). The
+-- 77,883 unprocessed 990s are exactly the zip-packaging backlog. F7's MIT
+-- vetting gate (792 distinct funders) has been running on these rows all
+-- along. The zero-row run is the idempotency receipt, and its reconcile
+-- found 0 superseded events and left all 7,092,801 linked grants unchanged.
+-- Charity giving still has no core-form number (the 990 detail pass does not
+-- extract Part IX line 1), so giving-ranked surfaces stay foundations-only;
+-- recorded in README known-limits.
+--
+-- THE ANONYMOUS READ API WAS ALREADY LIVE (migration 0024). Found while
+-- checking grants for 0023: Supabase default privileges had granted ALL on
+-- every public.* view to anon and authenticated, and the Data API is
+-- enabled — 0003's "nothing is granted to anon in Phase 1" was never true in
+-- production. Verified with the anon key over PostgREST. The boundary held:
+-- the API serves only the licensing-filtered projections. 0024 revoked
+-- insert/update/delete/truncate/references/trigger on all 14 views, kept
+-- SELECT deliberately (anonymous reads of republishable data are the stated
+-- end goal), and re-verified reads — including
+--   GET /rest/v1/filings?website=not.is.null
+-- now serving filer-stated websites to anyone. Rate limiting is the gap
+-- that remains before announcing the API. Supabase default privileges will
+-- re-grant ALL on any future public view; every create-view migration must
+-- repeat the revoke until the API phase changes the defaults.
+--
+-- EMBED SYNC after all of the above: 213 docs re-embedded (24,094 tokens,
+-- ~$0.001) — the reconcile's MV refresh legitimately changed 213 doc texts;
+-- the hash discipline caught exactly those. Corpus stable at 249,722, no
+-- prune, 0 unembedded. Websites are deliberately NOT in doc_text (a URL adds
+-- no semantic signal), so W1 cost zero re-embeds.
+--
+-- EXPORT TRAP HIT ON THE RE-RUN: the first attempt died ~40 minutes in with
+-- "SSL SYSCALL error: Operation timed out" mid-COPY on filing_officers (the
+-- 22M-row shard) — the direct-host path dropped a long-idle-ish stream. The
+-- export writes shards IN PLACE with the manifest last, so a mid-run death
+-- leaves the directory inconsistent (five shards rewritten, one partial, old
+-- manifest). Determinism is what makes this safe: a clean re-run reproduces
+-- every completed shard byte-for-byte and rewrites the manifest, so recovery
+-- is simply "run it again." TCP keepalives
+-- (?keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=6)
+-- added to the bulk-COPY connection string for the retry; X1-X7 PASSed
+-- before any byte was written on both attempts.
+-- The fix that worked: one connection PER STREAM (export.py restructured) —
+-- the path drops long-lived connections past ~35-55 minutes regardless of
+-- activity, and a full export held one connection ~75 minutes. Per-stream
+-- scoping keeps every connection under the window; determinism makes the
+-- retry resume-shaped. Trade recorded in the code: streams no longer share
+-- one snapshot, acceptable while the doctrine forbids concurrent bulk
+-- writes during an export.
+--
+-- CANONICAL EXPORT (2026-08-13T01:07:09Z, schema_migration 20260812231412):
+--   47,324,142 rows across 55 files — the SAME row count as the previous
+--   canonical export, as it must be: filer-stated websites are a new COLUMN
+--   on public.filings (position 28), not new rows. X1-X7 PASS, FLG byte 00,
+--   real values verified in the shard. Anyone can now pull websites from
+--   the export or live via GET /rest/v1/filings?website=not.is.null.
+
+-- paste-ready block for benchmarks/queries.sql (append via a reviewed commit, never rewrite):
+-- 2026-08-12 `funderdb eval all` results:
+--      B1 [B] PASS: 7 programs; INFUSE present with funds_lab_not_company=True
+--      B2 [B] PASS: 5 distinct SBIR/STTR agencies
+--      B3 [B] PASS: Lowercarbon CRD 162946 resolved; Prelude rows=6 (documented absence expects 0 ADV/FormD)
+--      B4 [B] PASS: 50 climate/energy advisers (floor 40)
+--      B5 [B] PASS: 25 Schmidt-family foundation rows
+--      B6 [B] PASS: 50 energy/science foundations >$10M (floor 40)
+--      B7 [B] PASS: 4 IL science/energy foundations >$10M (floor 4)
+--      B8 [B] PASS: 50 energy/science grant rows (floor 40)
+--      B9 [B] PASS: 50 Reg D offerings in last 12mo (floor 40)
+--     B10 [B] PASS: 2301084 orgs, 0 provenance orphans (must be 0)
+--     B12 [B] PASS: all 12 published values exact; acct=cash, qualifying_distributions=2,512,983, grant_rows=97
+--     B13 [B] PASS: 0 superseded filings retain event rows (must be 0); 0 multi-winner groups (must be 0); 31,665 filings superseded; detail coverage 635,301/635,301 live processed 990-PFs (100.0%, floor 98%)
+--     B5b [B] PASS: Stellar org row present as public_charity; grants structurally absent (990-N filer — no e-filed 990/EZ in any index year; documented absence)
+--     B11 [B] PASS: web-facts containment: 1 rows, 0 provenance violations, 0 public-view refs, 0 org-row leaks
+--      S1 [S] PASS: similar_orgs(Topfer): 12 rows, dist 0.1345..0.1583 ascending, seed excluded
+--      F1 [F] PASS: posture partition 26,864 open + 101,773 preselected + 16,563 unknown = 145,200 of 145,200 orgs (total; floors 20,000/80,000/10,000)
+--      F2 [F] PASS: 0 'open' orgs whose filing says preselected-only (must be 0); 26,864 open rows checked (floor 20,000)
+--      F3 [F] PASS: 0 orgs whose posture comes from the wrong filing (must be 0); 145,200 orgs checked
+--      F4 [F] PASS: 8,875 grantmakers distributing >=$500k that a >$10M asset screen misses (floor 8,000); 0 negative distributions (must be 0)
+--      F5 [F] PASS: public contacts: 31,379 rows; 0 non-green, 0 non-role-based emails, 0 non-republishable, 0 red (all must be 0)
+--      F6 [F] PASS: Topfer: posture=open state=TX distributions=2,512,983; 0 castletop.org addresses in the public view (must be 0); 1 withheld internally
+--      F7 [F] PASS: MIT as a vetting subject: 792 distinct funders (floor 5) across 9 fiscal years (floor 2); charity 990 core-form financials: 1,803,820 filings, 1,701,132 with a program-services expense split
+--      F8 [F] PASS: filer-stated websites: 1,255,366 filings (floor 1,100,000) -> 294,416 orgs (floor 270,000); 0 junk/malformed in filings.website, 0 precedence violations (both must be 0); Hewlett fixture rows: 1 (need >=1)
+--      E1 [E] PASS: top10 medical-fusion contaminants: 0 (must be 0)
+--     E1b [E] PASS: 4/4 fusion programs in top 6 (need >=3)
+--      E2 [E] PASS: top10 all advisers=True; Lowercarbon rank=30 (need <=100)
+--      E3 [E] PASS: top3: INFUSE (INNOVATION NETWORK FOR FUSION ENERGY) MILESTONE-BASED FUSION DEVELOPMENT
+--      E4 [E] REPORT: REPORT-ONLY (end-to-end through the analyst; recorded 2026-07-26: discovery+evidence pairing incl. mid-answer self-correction — not asserted headlessly)
+--      E5 [E] PASS: 4/7 known climate funders in top 10 (need >=2)
+--      E7 [E] PASS: negative control: 0 energy/climate orgs in top 10 (must be 0)
+--      E8 [E] PASS: state filter: 0 non-CA rows of 30 (must be 0)
+--      E9 [E] PASS: min_size filter: 0 rows under $1B of 30 (must be 0)
+--     E10 [E] PASS: FTS leg: Lowercarbon rank=1 for its own name (need <=5)
+--     E11 [E] PASS: 0 of 30 rows violate state=IL (must be 0); 4 top-20 names contain CHICAGO (need >=2)
+--     E12 [E] PASS: 0 of 30 rows violate state=CO (must be 0); 5 top-20 names contain DENVER/COLORADO (need >=1)
+--     E13 [E] PASS: 0 of 50 rows violate state=TX (must be 0); Topfer rank=21 of 50
+--     E14 [E] PASS: 3 known science funders in top 20 (need >=3): THE HEISING-SIMONS FOUNDATIO, SIMONS FOUNDATION INC, KAVLI FOUNDATION
+--     E15 [E] PASS: 0 of 30 rows violate app_posture=open (must be 0); 0 medical-fusion contaminants in top 10
+--     E16 [E] PASS: 0 of 30 rows violate annual_distributions >= $1M (must be 0)
+--   ER-tier1 [ER] PASS: 422,323 matches (floor 349,293)
+--   ER-tier2 [ER] PASS: 11,969 matches (floor 784)
+--   ER-tier3 [ER] PASS: 93,780 matches (floor 57,813)
+--   ER-linked [ER] PASS: 7,092,801 grant rows resolved (floor 886,763)
+--   ER-spot [ER] PASS: MIT resolves in MA (tier1)
+--   ER-spot [ER] PASS: Princeton resolves in NJ (tier1)
+--   ER-spot [ER] PASS: zero placeholder-text matches
+--   ER-funds [ER] SKIP: not applied yet — labels 227/252, Wilson low 0.858, canonicalized 0
+--   ER-people [ER] SKIP: not applied yet — labels 0/0, Wilson low 0.000, canonicalized 0

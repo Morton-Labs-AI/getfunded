@@ -40,7 +40,7 @@ The April 2026 predecessor produced 60 files and zero rows. Inverted here:
 | G2 | 990-PF back-years | 🟡 2024 complete (126,982/126,982 indexed filings — zero missing; +1.7M grants); 2023/2022/2021 gated on the 16GB disk bump |
 | G3 | Full BMF exempt spine (2.26M orgs; never-demote-a-grantmaker) | ✅ |
 | G4 | Entity resolution | 🟡 recipients tiers 1–3 applied (886,763 grant rows); **funds gate RAN and FAILED** 2026-08-08 — 252 labels, 227/252 match, Wilson low 0.858 vs the >0.90 bar, so the `splink:% + gamma_people>=1` class is **not certifiable as defined**; no apply ran (`canonical_org_id` still 0), 25 human `not_match` pairs recorded as `rejected`, all 254 labels exported CC-BY; a tighter class needs a fresh stratum + fresh fixed-n sample; people job BUILT (org-evidence-gated auto-accept, the Eric Schmidt rule enforced twice), still downstream of a funds apply |
-| G5 | Schedule I (public-charity grants) | 🟡 parser built + fixture-tested + real-data dry-run (11.3% of 990s carry Schedule I; 89.6% of rows carry recipient EIN → direct resolution); runs after back-years + size gate, newest-first |
+| G5 | Schedule I (public-charity grants) | ✅ **status was stale — the ingest had already run** (discovered 2026-08-10 when an idempotent top-up pass added 0 rows): 4,147,721 grant rows from 79,230 charity grantmakers, 3,358,843 (81.0%) recipient-EIN-resolved, the rest as-reported text + NULL recipient_org_id (no stubs). Coverage is every 990 whose XML exists — the 77,883 unprocessed 990s are exactly the IRS zip-packaging backlog. F7's vetting gate (MIT: 792 distinct funders) runs on these rows |
 | G6 | UI v2 | 🟡 ungated commits shipped (recipient links, canonical plumbing incl. redirect + identifier union, shared YearBars, charity variant, /browse thesis blend, facts.ts + census prompt + /data ER section); **2026-08-08 merged to UI `main`**: blinded fund-pair labeling UI (dev-only) and Foundation Profiles v2 — profile v2 from existing data (geography, top-recipient rollups, paginated grants, corrected per-row 990 seals, NTEE staleness caveat), `similar_orgs` panel, and the dev-only human-gated website-enrichment flow; **`/person/[id]` shipped** — people chips link from every org type, but the people ER job has not run so every person is per-source and the cluster/redirect paths stay inert until the people precision gate certifies |
 | Suite v2 | `uv run funderdb eval all` — B1–B11 verbatim + S-series similarity + E-series semantic + ER floors | ✅ 29 PASS · 0 FAIL · 3 REPORT/SKIP (2026-08-08; link jobs SKIP until applied, B11 vacuous until a confirmed enrichment) |
 
@@ -184,6 +184,37 @@ runner prints a paste-ready dated block); assertions live in
 [benchmarks/expectations.py](benchmarks/expectations.py). Link-job precision
 reports SKIP until a job applies; an uncertified (forced) apply reads as FAIL.
 
+## F8 — filer-stated websites (2026-08-10)
+
+The 08-07 handoff recorded "no IRS source carries website" as the reason
+foundation websites were 0% populated. Wrong for both form types:
+`WebsiteAddressTxt` sits in the Form 990 header and in 990-PF Part VII-A,
+in the same staged zips the filing layer already parses. First-party
+public-domain data — the filer states its own website — so it flows to
+`public.filings` and the CC-BY export, unlike the human-gated
+`publisher_website` enrichment (which stays internal and takes precedence
+in the UI when confirmed).
+
+Measured on the full backfill (all six index years, one pass, 0 XML errors):
+
+| | |
+|---|---|
+| filings parsed | 2,443,977 (100% of live XML; the 113,520 remainder is exactly the IRS zip-packaging backlog) |
+| websites stated | 2,091,271 (85.6%) |
+| usable after normalization | 1,255,366 (51.4%) |
+| orgs with a website (`internal.org_website`) | **294,416** |
+
+`normalize_website()` is deliberately conservative — junk set, host regex,
+alphabetic TLD, no interior whitespace, no e-mail addresses, no ports — a
+wrong website on a profile is worse than a missing one. Values like
+`guidestar.org` survive because the filer genuinely stated them; the enrich
+console's human gate is where editorial judgment happens.
+
+**F8 gates it** (`eval sql`): floors 1.1M filings / 270k orgs; zero
+junk/malformed values (the normalize contract re-run in SQL); zero
+precedence violations — an org's website comes from its newest PARSED,
+unsuperseded filing, mirroring F3's posture doctrine; a Hewlett fixture.
+
 ## Phase-1 gates — ALL COMPLETE (2026-07-25)
 
 | Gate | Content | Status |
@@ -256,10 +287,11 @@ uv run funderdb status                 # ledger + row counts
 - Yet-to-occur Form D first sales carry null `event_date` (filing-date fallback
   is a candidate refinement); a handful of filer-entered absurd amounts survive
   in the Reg D tail.
-- Financial-statement extraction is **990-PF only**. Public-charity 990
-  core-form financials (Part I/VIII/IX/X) are a later phase — charity profiles
-  show a BMF snapshot and a filings index, and the UI lights up automatically
-  when those land (its gates are data-presence, not org-type).
+- ~~Financial-statement extraction is 990-PF only~~ — stale since F7
+  (2026-08-09): public-charity 990 core-form financials shipped, 1.8M filings.
+  Still true within it: the 990 pass does not extract Part IX line 1
+  (GrantsAndSimilarAmountsPaid), so `total_grants_paid` is 990-PF-only and
+  giving-ranked surfaces are foundations-only until Schedule I events land.
 - 990-EZ, 990-T, 990-N, Pub. 78, auto-revocations, and determination letters
   are not ingested. Highest-paid-employee and contractor compensation tables
   (which use different element names from the officer group) are parsed but
@@ -267,9 +299,15 @@ uv run funderdb status                 # ledger + row counts
 - No pixel-faithful filing render: `/filing/[objectId]` is a structured
   reconstruction from parsed fields plus the original XML, not the IRS MeF
   XSL stylesheet output.
-- Supabase linter flags the `public.*` views as SECURITY DEFINER — **intentional**
-  in Phase 1 (owner-rights filtered views, nothing granted to `anon`); flip to
-  `security_invoker` when RLS lands in Phase 2.
+- Supabase linter flags the `public.*` views as SECURITY DEFINER — owner-rights
+  filtered views, intentional. **Correction (2026-08-10, migration 0024):**
+  "nothing granted to `anon`" was never true in production — Supabase default
+  privileges had granted ALL on every view, and the Data API is enabled, so the
+  anonymous read API has been live since the views were created. The boundary
+  held (views serve only the licensing-filtered projection). 0024 revoked the
+  write-shaped grants, keeping SELECT deliberately; rate limiting is the gap
+  that remains before announcing the API. Every future `create view public.*`
+  must repeat the revoke until the API phase changes the defaults.
 
 ## Operational notes
 
