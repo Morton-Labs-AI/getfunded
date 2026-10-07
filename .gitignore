@@ -1,0 +1,26 @@
+# dependencies / builds
+node_modules/
+.next/
+dist/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# environment — never commit secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# local workspaces & caches
+.local/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+.vercel/
+playwright-report/
+test-results/
+coverage/
