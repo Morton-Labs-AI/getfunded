@@ -1,0 +1,18 @@
+.env
+data/raw/
+data/incoming/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+dist/
+
+# Run manifests (regenerated each run; provenance lives in raw_files + ledger)
+data/resolve/
+data/embeddings/
+data/logs/
+
+# Public dataset exports (regenerated each run; provenance lives in raw_files + ledger)
+data/export/
