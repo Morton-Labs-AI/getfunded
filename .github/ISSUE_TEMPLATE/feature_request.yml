@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest something new or a change to how something works.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Not sure yet? Start a thread in [Discussions](https://github.com/Morton-Labs-AI/getfunded/discussions) instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do? Why is it hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: Describe the change. Screenshots or sketches help.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who are you
+      options:
+        - Nonprofit staff or volunteer
+        - Developer
+        - Building an AI agent on GetFunded
+        - Funder
+        - Other
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Data rules
+      options:
+        - label: I read the Non-negotiable data rules in GOVERNANCE.md and this request respects them.

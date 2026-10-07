@@ -1,0 +1,6 @@
+# Code owners are requested for review automatically.
+# See MAINTAINERS.md for areas and GOVERNANCE.md for how this list changes.
+
+*            @zach-hynek
+/corpus/     @zach-hynek
+/apps/web/   @zach-hynek

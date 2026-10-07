@@ -19,9 +19,13 @@ from __future__ import annotations
 
 import gzip
 import json
+import re
+import sys
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta, timezone
+from pathlib import Path
 
+import httpx
 from lxml import etree
 
 from .. import ledger, staging
@@ -34,6 +38,15 @@ FEED_URL = (
     "https://reports.adviserinfo.sec.gov/reports/CompilationReports/"
     "IA_FIRM_SEC_Feed_{mm}_{dd}_{yyyy}.xml.gz"
 )
+_FEED_NAME_RE = re.compile(r"IA_FIRM_SEC_Feed_(\d{2})_(\d{2})_(\d{4})\.xml\.gz$")
+
+# A staged feed older than this is considered stale: `ingest adv` fetches the
+# newest available day instead of silently reusing it. Override with
+# --max-age-days; `--refresh` forces the fetch regardless.
+DEFAULT_MAX_AGE = timedelta(days=7)
+# The host regenerates the feed daily and keeps ~7 days; when today's file is
+# not published yet we walk back this many days to find the newest one.
+_LOOKBACK_DAYS = 7
 
 _COUNTRY_MAP = {"United States": "US"}
 
@@ -57,23 +70,85 @@ class AdvFirm:
     raw: dict
 
 
-def stage_feed(feed_date: date | None = None) -> staging.StagedFile:
-    """Download (or reuse) the daily firm feed. Defaults to the newest staged
-    file; if none exists, fetches today's."""
-    settings = get_settings()
-    feed_dir = settings.raw_dir / DATASET
-    if feed_date is None:
-        existing = sorted(feed_dir.glob("*_IA_FIRM_SEC_Feed_*.xml.gz"))
-        if existing:
-            path = existing[-1]
-            return staging.StagedFile(
-                DATASET, None, path, staging._sha256_of(path), path.stat().st_size
-            )
-        feed_date = datetime.now().date()
-    url = FEED_URL.format(
+def feed_date_of(name: str | Path) -> date | None:
+    """Vintage of a staged feed file, read from its dated filename (never from
+    the hash prefix the staged name starts with)."""
+    m = _FEED_NAME_RE.search(Path(name).name)
+    if not m:
+        return None
+    mm, dd, yyyy = (int(x) for x in m.groups())
+    try:
+        return date(yyyy, mm, dd)
+    except ValueError:
+        return None
+
+
+def feed_url(feed_date: date) -> str:
+    return FEED_URL.format(
         mm=f"{feed_date.month:02d}", dd=f"{feed_date.day:02d}", yyyy=feed_date.year
     )
-    return staging.stage_download(DATASET, url, timeout=300.0)
+
+
+def newest_staged_feed(feed_dir: Path) -> tuple[date, Path] | None:
+    """Newest staged feed BY FEED DATE. Ties (same day staged twice) go to the
+    later fetch per the sidecar. Hash order never enters into it."""
+    dated: list[tuple[date, float, Path]] = []
+    for p in feed_dir.glob("*_IA_FIRM_SEC_Feed_*.xml.gz"):
+        if p.name.startswith((".partial", ".corrupt")):
+            continue
+        d = feed_date_of(p)
+        if d is None:
+            continue
+        dated.append((d, p.stat().st_mtime, p))
+    if not dated:
+        return None
+    d, _, p = max(dated, key=lambda t: (t[0], t[1]))
+    return d, p
+
+
+def stage_feed(feed_date: date | None = None, *, refresh: bool = False,
+               max_age: timedelta = DEFAULT_MAX_AGE) -> staging.StagedFile:
+    """Stage the daily firm feed with an explicit vintage.
+
+    * ``feed_date`` given: that day's file (immutable once published; cached
+      copies are reused).
+    * otherwise: the newest staged feed is reused while its feed date is
+      within ``max_age``; past that, or with ``refresh=True``, the newest
+      available day is fetched (today, walking back up to a week).
+    """
+    settings = get_settings()
+    headers = {"User-Agent": settings.require_sec_user_agent()}
+    feed_dir = settings.raw_dir / DATASET
+    if feed_date is not None:
+        return staging.stage_download(DATASET, feed_url(feed_date), headers=headers,
+                                      timeout=300.0)
+
+    newest = newest_staged_feed(feed_dir)
+    today = datetime.now(timezone.utc).date()
+    if newest is not None and not refresh:
+        d, path = newest
+        if today - d <= max_age:
+            return staging.staged_from_path(DATASET, path, feed_url(d))
+        print(f"  staged ADV feed {d.isoformat()} is older than {max_age.days} days; "
+              "fetching the newest available feed", file=sys.stderr)
+
+    last_err: Exception | None = None
+    for back in range(_LOOKBACK_DAYS + 1):
+        d = today - timedelta(days=back)
+        try:
+            return staging.stage_download(DATASET, feed_url(d), headers=headers,
+                                          timeout=300.0)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+            last_err = exc
+    if newest is not None:
+        d, path = newest
+        print(f"  WARNING: no ADV feed published in the last {_LOOKBACK_DAYS} days; "
+              f"using STALE staged feed {d.isoformat()}", file=sys.stderr)
+        return staging.staged_from_path(DATASET, path, feed_url(d))
+    raise RuntimeError(
+        f"no ADV firm feed found for the last {_LOOKBACK_DAYS} days ({last_err!r})")
 
 
 def parse_firms(path) -> list[AdvFirm]:
@@ -164,7 +239,7 @@ set name = s.name, legal_name = s.legal_name, name_normalized = s.name_norm,
     raw_file_id = %(rfid)s,
     source_record_locator = 'row:CRD=' || s.crd,
     raw_source = s.raw,
-    last_verified_at = now()
+    last_verified_at = %(verified_at)s
 from _adv_stage s
 join internal.org_identifiers oi on oi.id_type = 'crd' and oi.id_value = s.crd
 where o.id = oi.org_id
@@ -183,7 +258,7 @@ with new_rows as (
      raw_file_id, source_record_locator, raw_source, last_verified_at)
   select name, legal_name, name_norm, 'investment_adviser', street, city, state, zip,
          country, website, aum, is_era,
-         %(rfid)s, 'row:CRD=' || crd, raw, now()
+         %(rfid)s, 'row:CRD=' || crd, raw, %(verified_at)s
   from new_rows
   returning id, source_record_locator
 )
@@ -214,13 +289,19 @@ on conflict (org_id, person_id, channel_type, value) do nothing
 """
 
 
-def ingest(feed_date: date | None = None) -> dict:
-    staged = stage_feed(feed_date)
+def ingest(feed_date: date | None = None, *, refresh: bool = False,
+           max_age: timedelta = DEFAULT_MAX_AGE) -> dict:
+    staged = stage_feed(feed_date, refresh=refresh, max_age=max_age)
     firms = parse_firms(staged.path)
+    # The feed DATE is the vintage: rows are "verified" as of the day the SEC
+    # generated the file, not the day we happened to parse it.
+    vintage = feed_date_of(staged.path) or staged.vintage_date
+    verified_at = (datetime.combine(vintage, time.min, tzinfo=timezone.utc)
+                   if vintage else staging.verified_at(staged))
     with connect() as conn:
         raw_file_id = staging.register_raw_file(
             conn, staged, license_code="us_public_domain",
-            as_of_date=feed_date, content_type="application/gzip",
+            as_of_date=vintage, content_type="application/gzip",
         )
         conn.commit()
         run_id = ledger.start_run(conn, raw_file_id, DATASET)
@@ -238,9 +319,10 @@ def ingest(feed_date: date | None = None) -> dict:
                             f.street, f.city, f.state, f.zip, f.country, f.phone,
                             f.website, f.is_era, f.aum, json.dumps(f.raw),
                         ))
-                cur.execute(_UPDATE_SQL, {"rfid": raw_file_id})
+                params = {"rfid": raw_file_id, "verified_at": verified_at}
+                cur.execute(_UPDATE_SQL, params)
                 updated = cur.rowcount
-                cur.execute(_INSERT_SQL, {"rfid": raw_file_id})
+                cur.execute(_INSERT_SQL, params)
                 inserted = cur.rowcount
                 cur.execute(_SEC_NUMBER_SQL, {"rfid": raw_file_id})
                 cur.execute(_PHONE_SQL, {"rfid": raw_file_id})
@@ -249,7 +331,9 @@ def ingest(feed_date: date | None = None) -> dict:
                 conn, run_id, inserted=inserted, updated=updated,
                 notes=f"{staged.path.name}: {len(firms)} firms parsed",
             )
-            return {"parsed": len(firms), "inserted": inserted, "updated": updated}
+            return {"parsed": len(firms), "inserted": inserted, "updated": updated,
+                    "feed_date": vintage.isoformat() if vintage else None,
+                    "from_cache": staged.from_cache}
         except Exception as exc:
             try:
                 conn.rollback()

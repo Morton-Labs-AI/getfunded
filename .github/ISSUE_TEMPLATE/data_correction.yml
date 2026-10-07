@@ -1,0 +1,57 @@
+name: Data correction
+description: A funder profile shows something wrong or out of date.
+title: "data: "
+labels: ["data-correction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. We publish what government filings say, so we will trace this fact back to its source record.
+        You do not need to know any code to file this.
+  - type: input
+    id: funder
+    attributes:
+      label: Funder name
+      placeholder: Example Family Foundation
+    validations:
+      required: true
+  - type: input
+    id: identifier
+    attributes:
+      label: EIN or other identifier
+      description: EIN for foundations and charities. CRD or SEC file number for advisers. Award id for SBIR.
+      placeholder: 12-3456789
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Profile URL
+      description: The page on getfunded.ai (or your self-install) where you saw the problem.
+      placeholder: https://getfunded.ai/funder/...
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What is wrong
+      description: Say what the page shows and what you believe is correct.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: The source you checked
+      description: Where did you see the correct value? A filing, the IRS site, the SEC site, the funder's own site. Links help.
+    validations:
+      required: true
+  - type: dropdown
+    id: contact
+    attributes:
+      label: May we contact you about this?
+      options:
+        - "Yes, through this issue"
+        - "Yes, by email (I will add it in a comment)"
+        - "No"
+    validations:
+      required: true

@@ -169,7 +169,9 @@ def _load_batch(conn, raw_file_id: int, filings: list[PfFiling],
                     copy.write_row((key, ein, locator, recipient, r_ein,
                                     city, state, purpose, amount, fy))
 
-        cur.execute("analyze _si_orgs"); cur.execute("analyze _si_grants")
+        cur.execute("analyze _si_orgs")
+
+        cur.execute("analyze _si_grants")
 
         # Filers missing from the BMF spine — created as public charities
         # (990 filers are not PFs; existing EINs are reused as-is, never

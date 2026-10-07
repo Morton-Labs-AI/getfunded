@@ -24,14 +24,26 @@
 -- `create view public.*` migration must repeat the revoke (0023's
 -- public.filings recreate is covered below).
 
+-- `anon` and `authenticated` are Supabase roles. On vanilla Postgres they do
+-- not exist and `revoke ... from anon` would abort the replay, so the revoke
+-- runs only for the roles actually present (there is nothing to revoke from
+-- a role that does not exist).
 do $$
-declare v record;
+declare
+  v record;
+  roles text;
 begin
+  select string_agg(quote_ident(rolname), ', ') into roles
+  from pg_roles where rolname in ('anon', 'authenticated');
+  if roles is null then
+    raise notice '0024: no anon/authenticated roles in this cluster; nothing to revoke';
+    return;
+  end if;
   for v in select table_name from information_schema.views
             where table_schema = 'public'
   loop
     execute format(
       'revoke insert, update, delete, truncate, references, trigger '
-      'on public.%I from anon, authenticated', v.table_name);
+      'on public.%I from %s', v.table_name, roles);
   end loop;
 end $$;

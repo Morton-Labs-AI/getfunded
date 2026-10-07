@@ -1,26 +1,468 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/* Class-strategy dark mode (next-themes sets .dark on <html>). */
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================================
+   GETFUNDED — design tokens
+
+   Every colour in the product lives here, once, as a CSS custom property.
+   Components never carry literal hex; they use Tailwind utilities that map
+   (through @theme inline below) back to these tokens, so the .dark overrides
+   flow through every bg-/text-/border- utility automatically.
+
+   THE THREE DATA CLASSES are the product's core honesty contract:
+     --source  teal    verified from public filings (IRS 990/990-PF, etc.)
+     --ai      violet  machine-suggested; deliberately OUTSIDE the brand
+                       palette so AI output can never read as "the record"
+     --yours   green   the workspace's own data (brand green = "yours")
+   Colour is never the only signal: source gets a dotted underline, AI gets a
+   dashed border + sparkle glyph + the literal word "AI", yours gets a solid
+   left rule.
+============================================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* Brand — Evergreen scale */
+  --evergreen-50: #f0f7f2;
+  --evergreen-100: #dcefe1;
+  --evergreen-200: #b9dfc4;
+  --evergreen-300: #8bc79f;
+  --evergreen-400: #5aaa76;
+  --evergreen-500: #348b55;
+  --evergreen-600: #1f7442;
+  --evergreen-700: #166534;
+  --evergreen-800: #14512c;
+  --evergreen-900: #114325;
+  --evergreen-950: #082613;
+
+  /* Surfaces — warm off-white canvas, white cards */
+  --canvas: #faf9f6;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --inset: #f1efe9;
+  --overlay: #ffffff;
+
+  /* Ink — navy-charcoal. ink-4 is decorative only, never running text. */
+  --ink: #161c25; /* 15.6:1 on canvas */
+  --ink-2: #3b4453; /*  9.6:1 */
+  --ink-3: #5f6b7a; /*  5.3:1 — AA at all sizes */
+  --ink-4: #98a2b0;
+
+  /* Lines */
+  --border: #e6e2da;
+  --border-strong: #cfc9bf;
+  --input: #d9d4cb;
+  --ring: #166534;
+
+  /* Primary — Evergreen */
+  --primary: #166534; /* 7.6:1 on white */
+  --primary-hover: #14512c;
+  --primary-foreground: #ffffff;
+  --primary-tint: #e8f3eb;
+  --primary-border: #a9d4b6;
+
+  /* shadcn semantic aliases */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--overlay);
+  --popover-foreground: var(--ink);
+  --secondary: var(--inset);
+  --secondary-foreground: var(--ink);
+  --muted: var(--inset);
+  --muted-foreground: var(--ink-3);
+  --accent: #ecebe5;
+  --accent-foreground: var(--ink);
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+
+  /* THE THREE DATA CLASSES */
+  --source: #0f766e; /* teal, 5.5:1 on white */
+  --source-tint: #e0f2f0;
+  --source-border: #99d5cd;
+  --ai: #6d28d9; /* violet, 7.1:1 — outside the brand palette on purpose */
+  --ai-tint: #efe9fd;
+  --ai-border: #cdb8f7;
+  --yours: #166534; /* brand green */
+  --yours-tint: #e8f3eb;
+  --yours-border: #a9d4b6;
+
+  /* Status */
+  --success: #15803d;
+  --success-tint: #e6f5ea;
+  --warning: #a16207;
+  --warning-tint: #fdf3dc;
+  --danger: #b91c1c;
+  --danger-tint: #fde8e8;
+
+  /* Product-shell sidebar (tonal, one step off the canvas) */
+  --sidebar: #f3f1eb;
+  --sidebar-foreground: var(--ink-2);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8e5dc;
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: #e2ded5;
+  --sidebar-ring: var(--primary);
+
+  /* Chart series — brand-first, distinct in greyscale, labels always */
+  --chart-1: #166534;
+  --chart-2: #0f766e;
+  --chart-3: #a16207;
+  --chart-4: #1d4ed8;
+  --chart-5: #b91c1c;
+  --chart-6: #6d28d9;
+
+  /* Effects */
+  --scrim: rgba(22, 28, 37, 0.4);
+  --elev-sm: 0 1px 2px rgba(22, 28, 37, 0.06);
+  --elev-card: 0 1px 3px rgba(22, 28, 37, 0.06), 0 1px 2px rgba(22, 28, 37, 0.04);
+  --elev-lift: 0 6px 16px -6px rgba(22, 28, 37, 0.16), 0 2px 6px -2px rgba(22, 28, 37, 0.08);
+  --elev-overlay: 0 16px 40px -10px rgba(22, 28, 37, 0.22), 0 2px 8px -2px rgba(22, 28, 37, 0.1);
+  --focus-ring: 0 0 0 3px rgba(22, 101, 52, 0.3);
+  --selection: #cfe8d7;
+  --topbar: rgba(250, 249, 246, 0.86);
+
+  /* Motion */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --canvas: #0f141a;
+  --surface: #151b23;
+  --surface-raised: #1a222c;
+  --inset: #1b232d;
+  --overlay: #1c252f;
+
+  --ink: #eef1f5;
+  --ink-2: #c3cad4;
+  --ink-3: #8f9aa8;
+  --ink-4: #5b6675;
+
+  --border: #263040;
+  --border-strong: #35414f;
+  --input: #2d3847;
+  --ring: #4cb06f;
+
+  --primary: #4cb06f; /* evergreen lifted for dark contrast */
+  --primary-hover: #6cc48a;
+  --primary-foreground: #06130b;
+  --primary-tint: rgba(76, 176, 111, 0.14);
+  --primary-border: rgba(76, 176, 111, 0.36);
+
+  --accent: #212b36;
+  --destructive: #d14a44;
+  --destructive-foreground: #ffffff;
+
+  --source: #4fc7bf;
+  --source-tint: rgba(79, 199, 191, 0.13);
+  --source-border: rgba(79, 199, 191, 0.36);
+  --ai: #c084fc;
+  --ai-tint: rgba(192, 132, 252, 0.13);
+  --ai-border: rgba(192, 132, 252, 0.36);
+  --yours: #4cb06f;
+  --yours-tint: rgba(76, 176, 111, 0.14);
+  --yours-border: rgba(76, 176, 111, 0.36);
+
+  --success: #4cb06f;
+  --success-tint: rgba(76, 176, 111, 0.14);
+  --warning: #f2b84b;
+  --warning-tint: rgba(242, 184, 75, 0.14);
+  --danger: #f47c74;
+  --danger-tint: rgba(244, 124, 116, 0.14);
+
+  --sidebar: #0b1015;
+  --sidebar-foreground: var(--ink-2);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: #06130b;
+  --sidebar-accent: #1a222c;
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: #1f2833;
+  --sidebar-ring: var(--primary);
+
+  --chart-1: #4cb06f;
+  --chart-2: #4fc7bf;
+  --chart-3: #f2b84b;
+  --chart-4: #6aa6f8;
+  --chart-5: #f47c74;
+  --chart-6: #c084fc;
+
+  --scrim: rgba(3, 6, 10, 0.65);
+  --elev-sm: none;
+  --elev-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --elev-lift: 0 6px 18px -6px rgba(0, 0, 0, 0.55);
+  --elev-overlay: 0 18px 44px -10px rgba(0, 0, 0, 0.6), 0 2px 8px -2px rgba(0, 0, 0, 0.45);
+  --focus-ring: 0 0 0 3px rgba(76, 176, 111, 0.4);
+  --selection: rgba(76, 176, 111, 0.28);
+  --topbar: rgba(15, 20, 26, 0.86);
+}
+
+/* ----------------------------------------------------------------------------
+   @theme — the ONLY colours Tailwind knows about are our tokens. The default
+   palette is removed so `text-red-500` is a build-time no-op, not a leak.
+---------------------------------------------------------------------------- */
+@theme {
+  --color-*: initial;
 }
 
 @theme inline {
+  --color-white: #ffffff;
+  --color-black: #000000;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-tint: var(--primary-tint);
+  --color-primary-border: var(--primary-border);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-inset: var(--inset);
+  --color-overlay: var(--overlay);
+  --color-scrim: var(--scrim);
+  --color-topbar: var(--topbar);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+
+  --color-evergreen-50: var(--evergreen-50);
+  --color-evergreen-100: var(--evergreen-100);
+  --color-evergreen-200: var(--evergreen-200);
+  --color-evergreen-300: var(--evergreen-300);
+  --color-evergreen-400: var(--evergreen-400);
+  --color-evergreen-500: var(--evergreen-500);
+  --color-evergreen-600: var(--evergreen-600);
+  --color-evergreen-700: var(--evergreen-700);
+  --color-evergreen-800: var(--evergreen-800);
+  --color-evergreen-900: var(--evergreen-900);
+  --color-evergreen-950: var(--evergreen-950);
+
+  --color-source: var(--source);
+  --color-source-tint: var(--source-tint);
+  --color-source-border: var(--source-border);
+  --color-ai: var(--ai);
+  --color-ai-tint: var(--ai-tint);
+  --color-ai-border: var(--ai-border);
+  --color-yours: var(--yours);
+  --color-yours-tint: var(--yours-tint);
+  --color-yours-border: var(--yours-border);
+
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
+  /* Type: Inter for UI, Fraunces for marketing display, JetBrains Mono for
+     numbers / EINs / SQL. The --font-* vars are set by next/font in layout. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Radii: 6 badges · 8 controls · 10 cards · 12 modals */
+  --radius-badge: 6px;
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-modal: 12px;
+  --radius-sm: var(--radius-badge);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-card);
+  --radius-xl: var(--radius-modal);
+
+  /* Elevation */
+  --shadow-xs: var(--elev-sm);
+  --shadow-sm: var(--elev-sm);
+  --shadow-md: var(--elev-card);
+  --shadow-lg: var(--elev-lift);
+  --shadow-xl: var(--elev-overlay);
+  --shadow-card: var(--elev-card);
+  --shadow-lift: var(--elev-lift);
+  --shadow-overlay: var(--elev-overlay);
+
+  /* Motion */
+  --ease-standard: var(--motion-ease-standard);
+  --ease-enter: var(--motion-ease-enter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ----------------------------------------------------------------------------
+   Base
+---------------------------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    min-height: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  /* Numeric discipline: tabular numerals wherever data can sit. */
+  td,
+  th,
+  time {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  code,
+  kbd,
+  samp {
+    @apply font-mono;
+    font-feature-settings: "calt" 0, "tnum" 1;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ----------------------------------------------------------------------------
+   Utilities
+---------------------------------------------------------------------------- */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Mono-caps eyebrow / table-header voice. Pair with a text-* colour. */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* ----------------------------------------------------------------------------
+   The three data classes — colour plus a non-colour signal, always.
+---------------------------------------------------------------------------- */
+@layer components {
+  /* SOURCE: verified from filings. Dotted underline; provenance on interaction. */
+  .data-source {
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: var(--source);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  /* AI: machine-suggested. Dashed violet border, tint, and a sparkle glyph.
+     Anything AI-derived renders inside this or carries an <AiBadge />. */
+  .data-ai {
+    position: relative;
+    border: 1.5px dashed var(--ai-border);
+    background: var(--ai-tint);
+    border-radius: var(--radius-card);
+  }
+  .data-ai::before {
+    content: "✦" / "";
+    position: absolute;
+    top: 0.4rem;
+    right: 0.6rem;
+    color: var(--ai);
+    font-size: 0.75rem;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  /* YOURS: the workspace's own data. Solid brand-green left rule. */
+  .data-yours {
+    border-left: 3px solid var(--yours);
+    background: var(--yours-tint);
+    border-radius: 0 var(--radius-badge) var(--radius-badge) 0;
+  }
+
+  kbd {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--inset);
+    border: 1px solid var(--border-strong);
+    color: var(--ink-3);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Reduced motion: global kill switch.
+---------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -310,9 +310,10 @@ SQL_INLINE = [
     },
     {
         "id": "F6", "series": "F",
-        # Topfer as the known-good profile, and the falsifiable form of
-        # "never publish a named individual's address": its Part XV email is
-        # ALAN_TOPFER@CASTLETOP.ORG and it must never reach the public view.
+        # The reference foundation as the known-good profile, and the
+        # falsifiable form of "never publish a named individual's address":
+        # its Part XV email is a named person's address at the foundation's
+        # own domain (castletop.org) and it must never reach the public view.
         "sql": """select
                     (select application_posture from internal.mv_org_application_posture
                      where org_id = '4f205ebb-9c46-4304-8594-814b32cbd29f'),
@@ -525,7 +526,7 @@ def e14(rows):  # scientific philanthropies
         + (f": {', '.join(h[:28] for h in hits[:4])}" if hits else ""))
 
 
-def e15(rows):  # Morton Labs fusion, filtered to open-to-apply
+def e15(rows):  # fusion-domain query, filtered to open-to-apply
     ok, msg = _no_row_violates(rows, 12, lambda p: p == "open", "app_posture=open")
     bad = [r for r in rows[:10]
            if MEDICAL_FUSION.search(str(r[11] or "") + " " + str(r[4] or ""))]

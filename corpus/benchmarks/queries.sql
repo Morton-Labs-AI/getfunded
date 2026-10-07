@@ -3,7 +3,7 @@
 -- Run against internal.* (canonical). Queries marked PENDING need a source
 -- that lands at a later gate; they must pass before Phase 1 closes.
 
--- B1. Federal non-dilutive discovery (Morton Labs need #1) ------------------
+-- B1. Federal non-dilutive discovery (reference need #1) --------------------
 -- Expect: DOE SBIR/STTR, INFUSE, ARPA-E, FES Milestone program.
 select fp.name, agency.name as agency, fp.program_type, fp.funds_lab_not_company, fp.url
 from internal.funding_programs fp

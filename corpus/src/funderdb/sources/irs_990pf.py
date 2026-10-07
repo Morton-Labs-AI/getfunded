@@ -35,6 +35,7 @@ import csv
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 
 from lxml import etree
@@ -59,13 +60,24 @@ class PfFiling:
     batch_id: str
 
 
-def stage_index(year: int) -> staging.StagedFile:
+# The IRS appends to the CURRENT year's index as filings are processed and
+# occasionally corrects past years, so index CSVs are mutable feeds. A current-
+# year copy is re-checked weekly; past years quarterly.
+INDEX_MAX_AGE_CURRENT = timedelta(days=7)
+INDEX_MAX_AGE_PAST = timedelta(days=90)
+
+
+def stage_index(year: int, refresh: bool = False) -> staging.StagedFile:
+    current = year >= date.today().year
     return staging.stage_download(
-        DATASET, INDEX_URL.format(year=year), filename=f"index_{year}.csv", timeout=300.0
+        DATASET, INDEX_URL.format(year=year), filename=f"index_{year}.csv", timeout=300.0,
+        mutable=True, refresh=refresh,
+        max_age=INDEX_MAX_AGE_CURRENT if current else INDEX_MAX_AGE_PAST,
     )
 
 
-def load_index(year: int, return_type: str = "990PF") -> list[PfFiling]:
+def load_index(year: int, return_type: str = "990PF",
+               refresh: bool = False) -> list[PfFiling]:
     """Index rows for one RETURN_TYPE. The Schedule I loader shares this with
     return_type='990'; PfFiling is return-type-agnostic.
 
@@ -73,7 +85,7 @@ def load_index(year: int, return_type: str = "990PF") -> list[PfFiling]:
     get batch_id='' and callers discover the batch zips via probe_batches()
     (the zips exist under the same naming pattern; processing is
     membership-driven anyway, so the label only enumerates downloads)."""
-    staged = stage_index(year)
+    staged = stage_index(year, refresh=refresh)
     out: list[PfFiling] = []
     with staged.path.open(encoding="utf-8", errors="replace") as fh:
         for row in csv.DictReader(fh):
@@ -93,11 +105,8 @@ def load_index(year: int, return_type: str = "990PF") -> list[PfFiling]:
     return out
 
 
-def load_pf_index(year: int) -> list[PfFiling]:
-    return load_index(year, return_type="990PF")
-
-
-_PROBE_UA = "Mozilla/5.0 (Macintosh) MortonLabs-funderdb (zach@mortonlabs.ai)"
+def load_pf_index(year: int, refresh: bool = False) -> list[PfFiling]:
+    return load_index(year, return_type="990PF", refresh=refresh)
 
 
 def probe_batches(year: int) -> list[str]:
@@ -108,7 +117,7 @@ def probe_batches(year: int) -> list[str]:
     import httpx
 
     found: list[str] = []
-    with httpx.Client(headers={"User-Agent": _PROBE_UA}, timeout=30.0,
+    with httpx.Client(headers={"User-Agent": get_settings().http_user_agent}, timeout=30.0,
                       follow_redirects=False) as client:
         for i in range(1, 31):
             first = f"{year}_TEOS_XML_{i:02d}A"
@@ -197,7 +206,7 @@ def _checked(el, name) -> bool:
 # ---------------------------------------------------------------------------
 # Financial-statement map: filing_financials column -> (group, element).
 # Group None = direct child of IRS990PF. Element names verified against real
-# filings (Topfer 202532979349100628, 2024v5.2, all 12 acceptance values +
+# filings (a published 2024v5.2 return, object 202532979349100628, all 12 acceptance values +
 # batch sweeps). The classic trap, preserved here so nobody "fixes" it:
 # line-3 interest INCOME is InterestOnSavRevAndExpnssAmt;
 # InterestRevAndExpnssAmt is line-17 interest EXPENSE.
@@ -816,7 +825,8 @@ def _load_batch(conn, raw_file_id: int, filings: list[PfFiling], parsed: list[Pa
                                     purpose, amt, fy, address, zipc, country,
                                     fstatus, rel))
 
-        cur.execute("analyze _pf_orgs"); cur.execute("analyze _pf_people")
+        cur.execute("analyze _pf_orgs")
+        cur.execute("analyze _pf_people")
         cur.execute("analyze _pf_grants")
 
         # Foundations present in filings but missing from BMF (new/terminated).
@@ -1003,11 +1013,22 @@ def _extract_via_7zz(path: Path, present: dict[str, tuple[PfFiling, str]], total
                 totals["member_errors"] += 1
 
 
-def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
+def ingest(years: tuple[int, ...] = (2026, 2025), limit: int | None = None,
+           refresh: bool = False) -> dict:
+    """Officers + grants for every indexed 990-PF whose XML a batch zip carries.
+
+    ``limit`` caps the number of filings processed in THIS run (across years
+    and batches) — the knob `funderdb bootstrap --profile small` uses to get
+    a laptop-sized sample. Idempotency markers are per filing, so a later
+    unlimited run simply continues where the limited one stopped.
+    """
     totals: dict[str, int] = defaultdict(int)
+    stop = False
     with connect() as conn:
         for year in years:
-            filings = load_pf_index(year)
+            if stop:
+                break
+            filings = load_pf_index(year, refresh=refresh)
             with conn.cursor() as cur:
                 cur.execute("select object_id from internal.filings "
                             "where grants_processed_at is not null")
@@ -1020,6 +1041,11 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
             batch_ids = batch_ids_for(year, filings)
 
             for batch_id in batch_ids:
+                if limit is not None and totals["filings_processed"] >= limit:
+                    print(f"--limit {limit} reached; stopping after "
+                          f"{totals['filings_processed']:,} filings", flush=True)
+                    stop = True
+                    break
                 todo = list(remaining.values())
                 if not todo:
                     totals["batches_skipped"] += 1
@@ -1049,6 +1075,9 @@ def ingest(years: tuple[int, ...] = (2026, 2025)) -> dict:
                             found.append(f)
                         except etree.XMLSyntaxError:
                             totals["xml_errors"] += 1
+                        if (limit is not None
+                                and totals["filings_processed"] + len(found) >= limit):
+                            break
                     # Load in slices — one transaction per ~5k filings keeps
                     # WAL spikes small (a 39k-filing single transaction filled
                     # the disk faster than Supabase autoscaling could grow it).

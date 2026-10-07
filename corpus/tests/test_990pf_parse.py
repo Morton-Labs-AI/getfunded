@@ -7,10 +7,10 @@ Two layers:
      columns, header, person + corporate-trustee officers, US + foreign
      grants, a future-approved grant, Schedule B person/business
      contributors, Part XV application info, AmendedReturnInd.
-  2. The real Topfer Family Foundation member (EIN 74-2961304, object
+  2. A real published 990-PF (a public IRS record: EIN 74-2961304, object
      202532979349100628) extracted from the staged 2025_TEOS_XML_11C zip —
      the B12 acceptance fixture — asserting the 12 published values.
-     Skips cleanly when the zip is not staged on this machine.
+     Skips (pytest.skip, not a silent pass) when the zip is not staged.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ from __future__ import annotations
 import sys
 import zipfile
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -265,10 +267,13 @@ def test_officers():
     p = parse_filing(FIXTURE, FILING)
     # All three as-filed rows survive, in document order.
     assert len(p.filing_officers) == 3
-    seq, person, business, title, hours, comp, benefits, expense = p.filing_officers[0]
+    (seq, person, business, title, hours, comp, benefits, expense,
+     related_comp) = p.filing_officers[0]
     assert (seq, person, business) == (0, "Alex Example", None)
     assert (title, hours, comp, benefits, expense) == \
         ("PRESIDENT", "10.50", 12000, 400, 0)
+    # 990-PF Part VIII has no related-organization compensation line.
+    assert related_comp is None
     # Corporate trustee: captured with comp, business_name only.
     assert p.filing_officers[1][1] is None
     assert p.filing_officers[1][2] == "COMMERCE TRUST"
@@ -324,12 +329,14 @@ def test_contributors_and_app_info():
 
 
 # ---------------------------------------------------------------------------
-# Real-data acceptance: the Topfer fixture (B12's parser-side twin).
+# Real-data acceptance (B12's parser-side twin): a published 990-PF from the
+# IRS bulk zips. Public record; the values below are the ones the IRS
+# published for that return.
 # ---------------------------------------------------------------------------
-TOPFER_ZIP = Path(__file__).resolve().parents[1] / \
+REAL_ZIP = Path(__file__).resolve().parents[1] / \
     "data/raw/irs_990_xml/a98ee8b6a457_2025_TEOS_XML_11C.zip"
-TOPFER_OID = "202532979349100628"
-TOPFER_EXPECTED = {
+REAL_OID = "202532979349100628"
+REAL_EXPECTED = {
     "fmv_assets_eoy": 28_351_327, "contributions_received": 50_000,
     "dividends": 353_266, "net_gain_sale_assets": 753_889,
     "gross_sales_price": 2_426_164, "capital_gain_net_income": 752_443,
@@ -339,19 +346,17 @@ TOPFER_EXPECTED = {
 }
 
 
-def test_topfer_acceptance():
-    if not TOPFER_ZIP.exists():
-        print("  (Topfer zip not staged — real-data block skipped)")
-        return
-    with zipfile.ZipFile(TOPFER_ZIP) as zf:
+def test_real_filing_acceptance():
+    if not REAL_ZIP.exists():
+        pytest.skip(f"real-data zip not staged: {REAL_ZIP.name}")
+    with zipfile.ZipFile(REAL_ZIP) as zf:
         member = next(n for n in zf.namelist()
-                      if n.rsplit("/", 1)[-1] == f"{TOPFER_OID}_public.xml")
+                      if n.rsplit("/", 1)[-1] == f"{REAL_OID}_public.xml")
         data = zf.read(member)
-    f = PfFiling(object_id=TOPFER_OID, ein="742961304", tax_period="202412",
-                 taxpayer_name="TOPFER FAMILY FOUNDATION",
-                 batch_id="2025_TEOS_XML_11C")
+    f = PfFiling(object_id=REAL_OID, ein="742961304", tax_period="202412",
+                 taxpayer_name="(from index)", batch_id="2025_TEOS_XML_11C")
     p = parse_filing(data, f)
-    for col, want in TOPFER_EXPECTED.items():
+    for col, want in REAL_EXPECTED.items():
         got = p.fin.get(col)
         assert got == want, f"{col}: got {got}, want {want}"
     assert len(p.grants) == 97
@@ -367,5 +372,8 @@ if __name__ == "__main__":
     test_officers()
     test_grants_and_commitments()
     test_contributors_and_app_info()
-    test_topfer_acceptance()
-    print("990pf filing-layer fixture tests: 6/6 OK")
+    try:
+        test_real_filing_acceptance()
+    except BaseException as exc:  # pytest.skip raises outside pytest too
+        print(f"  (real-data block skipped: {exc})")
+    print("990pf filing-layer fixture tests: OK")

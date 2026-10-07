@@ -42,7 +42,7 @@ def _load_b_blocks() -> dict[int, str]:
         end = headers[i + 1].start() if i + 1 < len(headers) else \
             text.find("-- ======", m.start())
         body = text[m.start():end if end != -1 else len(text)]
-        sql = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("--"))
+        sql = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("--"))
         sql = sql.strip().rstrip(";").strip()
         if sql:
             blocks[int(m.group(1))] = sql
@@ -215,8 +215,10 @@ def parity(n: int = 50) -> int:
 
     agree = mismatch = missing = ahead = 0
     fields = (("totrevenue", 2), ("totexpns", 3), ("totassetsend", 4))
+    from .config import get_settings
+
     with httpx.Client(timeout=30.0, headers={
-            "User-Agent": "MortonLabs-funderdb parity check (zach@mortonlabs.ai)"}) as client:
+            "User-Agent": get_settings().http_user_agent}) as client:
         for ein, tax_period, *ours in sample:
             time.sleep(0.4)  # be polite to a free public API
             try:
@@ -274,11 +276,11 @@ def run(series: str) -> int:
             _run_er(res, conn)
         conn.rollback()  # read-only suite; never leave a transaction open
 
-    n_pass = sum(1 for l in res.lines if l[2] == "PASS")
-    print(f"\n{n_pass} PASS · {res.failed} FAIL · "
-          f"{sum(1 for l in res.lines if l[2] in ('REPORT', 'SKIP'))} report/skip")
-    print(f"\n-- paste-ready block for benchmarks/queries.sql "
-          f"(append via a reviewed commit, never rewrite):")
+    n_pass = sum(1 for ln in res.lines if ln[2] == "PASS")
+    n_report = sum(1 for ln in res.lines if ln[2] in ("REPORT", "SKIP"))
+    print(f"\n{n_pass} PASS · {res.failed} FAIL · {n_report} report/skip")
+    print("\n-- paste-ready block for benchmarks/queries.sql "
+          "(append via a reviewed commit, never rewrite):")
     print(f"-- {date.today().isoformat()} `funderdb eval {series}` results:")
     for check_id, s, status, summary in res.lines:
         print(f"--   {check_id:>5} [{s}] {status}: {summary}")

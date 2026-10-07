@@ -1,14 +1,21 @@
 -- 0022: roles — make the schema applicable to a database that is not ours.
 --
 -- THE BUG THIS FIXES. Six migrations grant to funder_ro, the first at 0008.
--- No migration has ever created it. 0008 also does
+-- No migration had created it. 0008 also does
 -- `create extension vector with schema extensions` against a schema no
 -- migration creates (Supabase provisions it out of band). So a fresh Postgres
--- fails at migration 8 of 21, twice:
+-- failed at migration 8 of 21, twice:
 --     ERROR: schema "extensions" does not exist
 --     ERROR: role "funder_ro" does not exist
 -- Until now this repo has been readable source, not runnable source: nobody
 -- could fork the database and stand it up, whatever the export contained.
+--
+-- ORDERING NOTE. Creating the roles HERE was still too late for a linear
+-- replay (0008 runs first). 0000_roles_bootstrap.sql now creates all three
+-- roles ahead of every grant; the CREATE ROLE block below is kept, byte for
+-- byte in effect, so that a database which already applied 0022 by hand and
+-- never ran 0000 still converges. Every statement in this file is a no-op
+-- when its object already exists — that is what makes both orders safe.
 --
 -- Idempotent by construction — against the live project every statement here
 -- is a no-op, so applying it changes nothing and proves the gap is closed.

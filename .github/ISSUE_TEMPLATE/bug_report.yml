@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in the app or the pipeline does not work as it should.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If the problem is wrong data about a funder, please use the **Data correction** template instead.
+        If it is a security problem, do not post it here. See SECURITY.md.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web app (apps/web)
+        - Corpus pipeline (corpus)
+        - Hosted service (getfunded.ai)
+        - Self-install
+        - Docs
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Say what you did, what you expected, and what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Page URL or command
+      description: The page you were on, or the command you ran.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste any error text. Remove secrets first.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag or commit, if you know it. Hosted users can skip this.

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- GetFunded favicon: evergreen tile, one-colour leaf mark. Brand asset; literal colours are allowed here. -->
+  <rect width="32" height="32" rx="7" fill="#166534"/>
+  <g transform="translate(16 16) scale(0.72) translate(-16 -16)">
+    <path d="M28 4A20 20 0 0 1 8 24A20 20 0 0 1 28 4Z" fill="#ffffff"/>
+    <path d="M8 24 4 28" stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

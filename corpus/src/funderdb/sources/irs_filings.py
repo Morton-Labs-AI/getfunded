@@ -83,9 +83,9 @@ from up
 """
 
 
-def load_spine_rows(year: int) -> tuple[staging.StagedFile, list[tuple]]:
+def load_spine_rows(year: int, refresh: bool = False) -> tuple[staging.StagedFile, list[tuple]]:
     """Index rows for both return types in one CSV pass, deduped on object_id."""
-    staged = stage_index(year)
+    staged = stage_index(year, refresh=refresh)
     rows: dict[str, tuple] = {}
     with staged.path.open(encoding="utf-8", errors="replace") as fh:
         for row in csv.DictReader(fh):
@@ -107,11 +107,12 @@ def load_spine_rows(year: int) -> tuple[staging.StagedFile, list[tuple]]:
     return staged, list(rows.values())
 
 
-def ingest(years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026)) -> dict:
+def ingest(years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026),
+           refresh: bool = False) -> dict:
     totals: dict[str, int] = defaultdict(int)
     with connect() as conn:
         for year in years:
-            staged, rows = load_spine_rows(year)
+            staged, rows = load_spine_rows(year, refresh=refresh)
             totals[f"indexed_{year}"] = len(rows)
             raw_file_id = staging.register_raw_file(
                 conn, staged, license_code="us_public_domain",

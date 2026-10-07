@@ -27,7 +27,7 @@ FIXTURE = b"""<?xml version="1.0" encoding="utf-8"?>
       <USAddress><CityNm>Princeton</CityNm><StateAbbreviationCd>NJ</StateAbbreviationCd></USAddress>
       <CashGrantAmt>100000</CashGrantAmt>
       <NonCashAssistanceAmt>25000</NonCashAssistanceAmt>
-      <PurposeOfGrantTxt>fusion research</PurposeOfGrantTxt>
+      <PurposeOfGrantTxt>basic research</PurposeOfGrantTxt>
     </RecipientTable>
     <RecipientTable>
       <RecipientBusinessName><BusinessNameLine1>Old Vintage Charity</BusinessNameLine1></RecipientBusinessName>
@@ -60,7 +60,7 @@ def test_parse_basic():
     assert recipient == "Stellar Test University"
     assert r_ein == "123456789"
     assert (city, state) == ("Princeton", "NJ")
-    assert purpose == "fusion research"
+    assert purpose == "basic research"
     assert amount == 125000  # cash + non-cash
     assert fy == 2024
     # Fallback name element (older vintages) + no EIN.

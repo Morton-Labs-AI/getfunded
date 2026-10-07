@@ -15,9 +15,8 @@ REVENUE_AMT (which the prior importer dropped).
 from __future__ import annotations
 
 import csv
-import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Iterator, TextIO
 
 from .. import ledger, staging
@@ -27,6 +26,10 @@ from ..normalize import normalize_ein, normalize_name, parse_amount, parse_rulin
 REGION_FILES = ("eo1.csv", "eo2.csv", "eo3.csv", "eo4.csv")
 BASE_URL = "https://www.irs.gov/pub/irs-soi/"
 DATASET = "irs_eo_bmf"
+# The IRS republishes eo{1..4}.csv under the SAME name roughly monthly, so the
+# URL is a mutable feed: a staged copy is reused for this long, then checked
+# upstream (conditional request) before being reused again.
+MAX_AGE = timedelta(days=30)
 FOUNDATION_CODES = frozenset({"02", "03", "04"})
 
 # Header aliases seen across BMF vintages (from the April importer, extended).
@@ -167,7 +170,7 @@ set name = s.name,
     raw_file_id = %(rfid)s,
     source_record_locator = 'row:EIN=' || s.ein,
     raw_source = s.raw,
-    last_verified_at = now()
+    last_verified_at = %(verified_at)s
 from _bmf_stage s
 join internal.org_identifiers oi on oi.id_type = 'ein' and oi.id_value = s.ein
 where o.id = oi.org_id
@@ -188,7 +191,7 @@ with new_rows as (
   select name, name_norm, org_type, street, city, state, zip,
          ntee, subsection, foundation, ruling_date,
          asset_amt, income_amt, revenue_amt,
-         %(rfid)s, 'row:EIN=' || ein, raw, now()
+         %(rfid)s, 'row:EIN=' || ein, raw, %(verified_at)s
   from new_rows
   returning id, source_record_locator
 )
@@ -204,12 +207,14 @@ _STAGE_COLUMNS = (
 )
 
 
-def stage_files(files: tuple[str, ...] = REGION_FILES) -> list[staging.StagedFile]:
-    return [stage_one(name) for name in files]
+def stage_files(files: tuple[str, ...] = REGION_FILES,
+                refresh: bool = False) -> list[staging.StagedFile]:
+    return [stage_one(name, refresh=refresh) for name in files]
 
 
-def stage_one(name: str) -> staging.StagedFile:
-    return staging.stage_download(DATASET, BASE_URL + name)
+def stage_one(name: str, refresh: bool = False) -> staging.StagedFile:
+    return staging.stage_download(DATASET, BASE_URL + name, mutable=True,
+                                  refresh=refresh, max_age=MAX_AGE)
 
 
 def dry_run(files: tuple[str, ...] = REGION_FILES, limit: int | None = None) -> dict[str, int]:
@@ -231,16 +236,23 @@ def ingest(
     files: tuple[str, ...] = REGION_FILES,
     as_of: date | None = None,
     all_orgs: bool = False,
+    refresh: bool = False,
 ) -> dict[str, dict]:
-    """Stage, register, and load each region file (one transaction per file)."""
+    """Stage, register, and load each region file (one transaction per file).
+
+    ``last_verified_at`` is stamped with the staged file's vintage (server
+    Last-Modified, else our fetch time) — never with now(), so re-ingesting
+    an old snapshot cannot make rows look freshly verified.
+    """
     results: dict[str, dict] = {}
     with connect() as conn:
         for fname in files:
-            staged = stage_one(fname)
+            staged = stage_one(fname, refresh=refresh)
             raw_file_id = staging.register_raw_file(
                 conn, staged, license_code="us_public_domain",
-                as_of_date=as_of, content_type="text/csv",
+                as_of_date=as_of or staged.vintage_date, content_type="text/csv",
             )
+            verified_at = staging.verified_at(staged)
             conn.commit()
             run_id = ledger.start_run(conn, raw_file_id, DATASET)
             try:
@@ -270,16 +282,21 @@ def ingest(
                                     rec.asset_amt, rec.income_amt, rec.revenue_amt,
                                     None,
                                 ))
-                    cur.execute(_UPDATE_SQL, {"rfid": raw_file_id})
+                    params = {"rfid": raw_file_id, "verified_at": verified_at}
+                    cur.execute(_UPDATE_SQL, params)
                     updated = cur.rowcount
-                    cur.execute(_INSERT_SQL, {"rfid": raw_file_id})
+                    cur.execute(_INSERT_SQL, params)
                     inserted = cur.rowcount
                 conn.commit()
                 ledger.complete_run(
                     conn, run_id, inserted=inserted, updated=updated, skipped=skipped,
-                    notes=f"{fname}: {len(seen)} foundation rows parsed",
+                    notes=f"{fname}: {len(seen)} foundation rows parsed "
+                          f"(vintage {staged.vintage_date}, "
+                          f"{'cached' if staged.from_cache else 'fetched'})",
                 )
-                results[fname] = {"inserted": inserted, "updated": updated, "skipped": skipped}
+                results[fname] = {"inserted": inserted, "updated": updated, "skipped": skipped,
+                                  "vintage": str(staged.vintage_date),
+                                  "from_cache": staged.from_cache}
             except Exception as exc:
                 # The connection may already be dead; never let cleanup mask
                 # the original error.

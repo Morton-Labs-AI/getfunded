@@ -50,7 +50,7 @@ as $$
 $$;
 
 -- Is this a ROLE inbox (grants@, info@) rather than a named individual's
--- address (alan_topfer@)? Only role inboxes are ever published; the default is
+-- address (firstname_lastname@)? Only role inboxes are ever published; the default is
 -- false, matching the publishability DEFAULT 'internal_only' doctrine at
 -- 0002:230 — publishing is an affirmative act.
 --

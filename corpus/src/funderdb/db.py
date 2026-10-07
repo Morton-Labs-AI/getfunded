@@ -6,12 +6,12 @@ from .config import get_settings
 
 
 def connect() -> psycopg.Connection:
-    """Open a direct Postgres connection (session pooler — COPY needs session mode)."""
+    """Open a direct Postgres connection (COPY needs session mode, not a transaction pooler)."""
     settings = get_settings()
     if not settings.database_url:
         raise RuntimeError(
-            "DATABASE_URL is not set. Copy the session-pooler connection string from the "
-            "Supabase dashboard (project open-funder-db -> Connect -> Session pooler) into .env."
+            "DATABASE_URL is not set. Put a Postgres connection string in .env "
+            "(see .env.example and docs/SELF-INSTALL.md), then run `funderdb doctor`."
         )
     # TCP keepalives: interactive sessions (labeling) can sit idle long
     # enough for NAT/pooler timeouts to silently kill the socket — the

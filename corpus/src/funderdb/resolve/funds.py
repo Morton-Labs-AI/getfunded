@@ -28,15 +28,15 @@ from .. import ledger, staging
 from ..config import get_settings
 from ..db import connect
 
-AUTO_THRESHOLD = 0.99   # provisional until `resolve eval funds` certifies
-REVIEW_FLOOR = 0.20     # wide pending band; the labeling pass locates the cliff
-CLUSTER_CAP = 4
-
 # Token-sorted person-name key + entity-GP filter live in common.py (shared
 # with the people dedupe job); aliased here so the frame SQL reads unchanged.
 from .common import ENTITY_NAME_RE as _ENTITY_NAME_RE
 from .common import PERSON_KEY_SQL as _PERSON_KEY
 from .common import union_find_clusters, wilson_low
+
+AUTO_THRESHOLD = 0.99   # provisional until `resolve eval funds` certifies
+REVIEW_FLOOR = 0.20     # wide pending band; the labeling pass locates the cliff
+CLUSTER_CAP = 4
 
 _ADV_FRAME_SQL = f"""
 select f.id::text as unique_id,

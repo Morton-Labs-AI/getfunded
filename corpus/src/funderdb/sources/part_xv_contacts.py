@@ -3,7 +3,7 @@
 These are the addresses and phone numbers a foundation printed on its own
 public return *so that applicants would use them*. That makes them materially
 different from, say, an SBIR PI's personal email — but only when the address
-is a role inbox. `grants@foundation.org` is a desk; `alan_topfer@castletop.org`
+is a role inbox. `grants@foundation.org` is a desk; `jane_doe@foundation.org`
 is a person who happens to run one.
 
 So the tiering is:

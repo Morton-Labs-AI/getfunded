@@ -23,6 +23,7 @@ from __future__ import annotations
 import csv
 import hashlib
 from collections import defaultdict
+from datetime import timedelta
 
 from .. import ledger, staging
 from ..db import connect
@@ -31,6 +32,8 @@ from ..normalize import normalize_name, parse_amount
 DATASET = "sbir_awards"
 URL = ("https://data.www.sbir.gov/mod_awarddatapublic_no_abstract/"
        "award_data_no_abstract.csv")
+# Same URL, new bytes on an irregular cadence: a mutable feed.
+MAX_AGE = timedelta(days=30)
 
 # CSV "Agency" string -> normalized name of the seeded agency org.
 AGENCY_MAP = {
@@ -104,8 +107,9 @@ def _get(row: dict, *names: str) -> str | None:
     return None
 
 
-def ingest(chunk_rows: int = 60000) -> dict:
-    staged = staging.stage_download(DATASET, URL, timeout=900.0)
+def ingest(chunk_rows: int = 60000, refresh: bool = False) -> dict:
+    staged = staging.stage_download(DATASET, URL, timeout=900.0, mutable=True,
+                                    refresh=refresh, max_age=MAX_AGE)
     totals: dict[str, int] = defaultdict(int)
 
     with connect() as conn:
@@ -207,7 +211,8 @@ def _load_chunk(conn, raw_file_id: int, awards: list[tuple], people: list[tuple]
         ) as copy:
             for t in people:
                 copy.write_row(t)
-        cur.execute("analyze _sb_awards"); cur.execute("analyze _sb_people")
+        cur.execute("analyze _sb_awards")
+        cur.execute("analyze _sb_people")
 
         # Agencies: create any not already present (matched on normalized name).
         cur.execute("""

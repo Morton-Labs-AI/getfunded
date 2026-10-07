@@ -1,8 +1,9 @@
 """Hand-curated federal agencies + funding programs seed.
 
 Input: data/seed/federal_agencies.csv and data/seed/federal_programs.csv —
-Morton-Labs-curated (license cc_by, our original compilation). Staged as raw
-files like every other source; no row exists without a hashed artifact.
+curated by the project maintainers (license cc_by, an original compilation).
+Staged as raw files like every other source; no row exists without a hashed
+artifact.
 
 Idempotency: agencies upsert on (org_type='gov_agency', name_normalized);
 programs upsert on source_record_key = 'seed:<slug>'.
@@ -42,7 +43,7 @@ def ingest() -> dict[str, int]:
         staged_a = staging.stage_local(DATASET_AGENCIES, AGENCIES_CSV)
         rfid_a = staging.register_raw_file(
             conn, staged_a, license_code="cc_by", content_type="text/csv",
-            meta={"curated_by": "Morton Labs"},
+            meta={"curated_by": "open-funder-db maintainers"},
         )
         conn.commit()
         run_a = ledger.start_run(conn, rfid_a, DATASET_AGENCIES)
@@ -111,7 +112,7 @@ def ingest() -> dict[str, int]:
         staged_p = staging.stage_local(DATASET_PROGRAMS, PROGRAMS_CSV)
         rfid_p = staging.register_raw_file(
             conn, staged_p, license_code="cc_by", content_type="text/csv",
-            meta={"curated_by": "Morton Labs"},
+            meta={"curated_by": "open-funder-db maintainers"},
         )
         conn.commit()
         run_p = ledger.start_run(conn, rfid_p, DATASET_PROGRAMS)

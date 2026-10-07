@@ -108,7 +108,7 @@ create temp table _fd_people (
 
 def ingest(start: str = "2024q1") -> dict:
     settings = get_settings()
-    headers = {"User-Agent": settings.sec_user_agent}
+    headers = {"User-Agent": settings.require_sec_user_agent()}
     totals: dict[str, int] = defaultdict(int)
 
     with connect() as conn:
@@ -214,7 +214,8 @@ def ingest(start: str = "2024q1") -> dict:
                     ) as copy:
                         for t in people.values():
                             copy.write_row(t)
-                    cur.execute("analyze _fd_issuers"); cur.execute("analyze _fd_offerings")
+                    cur.execute("analyze _fd_issuers")
+                    cur.execute("analyze _fd_offerings")
                     cur.execute("analyze _fd_people")
 
                     # Issuer orgs: update-then-insert via cik crosswalk (latest

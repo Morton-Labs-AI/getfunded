@@ -19,6 +19,29 @@ Hash stability depends on all four of these, and each has bitten someone:
   * NULL '' pinned in the COPY options
   * gzip mtime=0 (the default stamps the current time into the header, so no
     two runs would ever match)
+
+Publication layout (versioned, atomic):
+
+    data/export/<vintage>/            one immutable directory per run
+    data/export/LATEST                text file naming the newest <vintage>
+
+Files are written into ``data/export/.tmp-<vintage>/``; ``manifest.json`` is
+written LAST; then the directory is renamed into place in one step. A reader
+that sees a ``<vintage>/`` directory therefore always sees a complete export,
+and an interrupted run leaves only a ``.tmp-*`` directory that the next run
+can delete.
+
+Record counts are CSV RECORDS, not newline bytes: ``purpose_text`` and the
+Part XV free-text columns contain quoted newlines, and the earlier byte count
+over-reported them (audit P2). :func:`count_csv_records` is a streaming
+state machine over the COPY output that is exact for Postgres CSV.
+
+Licensing is labelled PER SOURCE DATASET, not as one blanket string. Every
+exported view carries ``source_dataset``; the manifest maps each dataset to
+its licence from ``internal.licensing_map`` and lists, per file, the datasets
+its rows derive from. The compilation (normalisation, entity resolution,
+derived columns, curated seeds) is CC BY 4.0; accepting an upstream CC-BY or
+ODbL source never relicenses that source.
 """
 
 from __future__ import annotations
@@ -26,7 +49,9 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,11 +59,14 @@ from . import ledger, staging
 from .config import get_settings
 from .db import connect
 
-LICENSE = {
+COMPILATION_LICENSE = {
     "code": "cc_by",
     "name": "Creative Commons Attribution 4.0 International",
     "url": "https://creativecommons.org/licenses/by/4.0/",
-    "attribution": "Open Funder Database (Morton Labs)",
+    "attribution": "Open Funder Database contributors",
+    "scope": ("the compilation: normalisation, crosswalks, entity resolution, derived "
+              "columns and the curated seed files. Source records keep their own "
+              "licence — see `licensing.sources`."),
 }
 
 # view -> (filename stem, total ORDER BY). The ORDER BY must be unique or the
@@ -125,11 +153,40 @@ def _assert_boundary(cur) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# CSV record counting
+# ---------------------------------------------------------------------------
+def count_csv_records(chunk: bytes, in_quotes: bool = False) -> tuple[int, bool]:
+    """Count CSV record terminators in ``chunk`` that are OUTSIDE quoted fields.
+
+    Postgres CSV output quotes with ``"`` and escapes an embedded quote as
+    ``""``, so quote state simply toggles on every ``"`` byte (the escape
+    toggles twice and nets out). ``\\n`` inside quotes is field content;
+    outside quotes it ends a record. Returns ``(records_ended, in_quotes)`` so
+    the caller can carry state across chunk boundaries that fall mid-field.
+
+    Implemented with C-level ``split``/``count`` rather than a per-byte loop:
+    a chunk with no quote character at all costs one ``count``.
+    """
+    if not chunk:
+        return 0, in_quotes
+    if b'"' not in chunk:
+        return (0 if in_quotes else chunk.count(b"\n")), in_quotes
+    n = 0
+    state = in_quotes
+    for part in chunk.split(b'"'):
+        if not state:
+            n += part.count(b"\n")
+        state = not state
+    # split yields len(quotes)+1 parts; the final toggle above is one too many.
+    return n, not state
+
+
 def _write_csv_gz(cur, query: str, dest: Path) -> dict:
     """COPY a query to a deterministic .csv.gz. Returns file metadata."""
     raw = hashlib.sha256()
-    gz = hashlib.sha256()
-    rows = 0
+    records = 0
+    in_quotes = False
     dest.parent.mkdir(parents=True, exist_ok=True)
     with dest.open("wb") as fh:
         # mtime=0: gzip stamps the current time into the header by default,
@@ -148,12 +205,22 @@ def _write_csv_gz(cur, query: str, dest: Path) -> dict:
                 for chunk in copy:
                     b = bytes(chunk)
                     raw.update(b)
-                    rows += b.count(b"\n")
+                    n, in_quotes = count_csv_records(b, in_quotes)
+                    records += n
                     z.write(b)
+    if in_quotes:
+        raise RuntimeError(f"{dest.name}: COPY stream ended inside a quoted field")
+    rows = max(0, records - 1)  # minus the header record
+    # psycopg >= 3.1 exposes the server's "COPY n" tag as rowcount; when it is
+    # present it must agree with the CSV count or something is badly wrong.
+    server_rows = getattr(cur, "rowcount", -1)
+    if isinstance(server_rows, int) and server_rows >= 0 and server_rows != rows:
+        raise RuntimeError(
+            f"{dest.name}: CSV record count {rows} != server COPY count {server_rows}")
     return {
         "name": dest.name,
         "bytes": dest.stat().st_size,
-        "rows": max(0, rows - 1),  # minus the header line
+        "rows": rows,
         "sha256": hashlib.sha256(dest.read_bytes()).hexdigest(),
         "sha256_uncompressed": raw.hexdigest(),
     }
@@ -169,10 +236,106 @@ def _git_commit() -> str | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Versioned, atomic publication
+# ---------------------------------------------------------------------------
+def vintage_label(generated: datetime) -> str:
+    """``20260807T153000Z`` — sorts lexically as chronologically, no colons
+    (Windows-safe), explicit UTC."""
+    return generated.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def publish(tmp_dir: Path, final_dir: Path, manifest: dict) -> Path:
+    """Write ``manifest.json`` LAST into ``tmp_dir``, then rename it into place
+    and point ``LATEST`` at it. The rename is the publish: no reader can
+    observe a ``<vintage>/`` directory without its manifest.
+    """
+    if final_dir.exists():
+        raise RuntimeError(f"export vintage already exists: {final_dir}")
+    (tmp_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    tmp_dir.rename(final_dir)
+    latest = final_dir.parent / "LATEST"
+    latest_tmp = final_dir.parent / ".LATEST.tmp"
+    latest_tmp.write_text(final_dir.name + "\n")
+    os.replace(latest_tmp, latest)
+    return final_dir
+
+
+def _clean_stale_tmp(root: Path, echo=print) -> None:
+    import shutil
+
+    for p in root.glob(".tmp-*"):
+        if p.is_dir():
+            echo(f"  removing interrupted export {p.name}")
+            shutil.rmtree(p, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# Licensing per source
+# ---------------------------------------------------------------------------
+def _licensing_map(cur) -> dict[str, dict]:
+    cur.execute("""select license_code, license_name, republishable,
+                          attribution_required, license_url, notes
+                   from internal.licensing_map order by license_code""")
+    return {
+        r[0]: {"license_code": r[0], "license_name": r[1], "republishable": bool(r[2]),
+               "attribution_required": bool(r[3]), "license_url": r[4], "notes": r[5]}
+        for r in cur.fetchall()
+    }
+
+
+def _dataset_licenses(cur) -> dict[str, list[str]]:
+    """dataset_name -> licence codes seen on its registered raw files."""
+    cur.execute("""select dataset_name, array_agg(distinct license_code order by license_code)
+                   from internal.raw_files group by dataset_name order by dataset_name""")
+    return {r[0]: list(r[1]) for r in cur.fetchall()}
+
+
+def _view_sources(cur, view: str) -> list[str]:
+    cur.execute(f"select distinct source_dataset from {view} order by 1")
+    return [r[0] for r in cur.fetchall() if r[0]]
+
+
+def build_licensing(licensing_map: dict[str, dict], dataset_licenses: dict[str, list[str]],
+                    file_sources: dict[str, list[str]]) -> dict:
+    """The manifest's ``licensing`` block, from pure inputs (unit-testable).
+
+    ``file_sources`` maps a file name to the datasets its rows derive from.
+    """
+    used = sorted({ds for sources in file_sources.values() for ds in sources})
+    sources = {}
+    for ds in used:
+        codes = dataset_licenses.get(ds, [])
+        sources[ds] = {
+            "license_codes": codes,
+            "licenses": [licensing_map[c] for c in codes if c in licensing_map],
+        }
+    non_republishable = sorted(
+        ds for ds, info in sources.items()
+        if any(not lic["republishable"] for lic in info["licenses"]))
+    return {
+        "compilation": COMPILATION_LICENSE,
+        "sources": sources,
+        "non_republishable_sources_present": non_republishable,
+        "note": ("A row's licence is the licence of its source dataset (`source_dataset` "
+                 "column, mapped here). The compilation licence covers only the "
+                 "project's own contribution. Accepting an attribution licence (cc_by, "
+                 "odbl) upstream does not relicense that source under the compilation "
+                 "licence; attribution_required sources must be credited by name."),
+    }
+
+
+# ---------------------------------------------------------------------------
+# The run
+# ---------------------------------------------------------------------------
 def run(out_dir: Path | None = None, verify_only: bool = False) -> dict:
     settings = get_settings()
-    out = out_dir or (settings.data_root / "export" / "public")
-    generated = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    root = out_dir or (settings.data_root / "export")
+    generated_dt = datetime.now(timezone.utc).replace(microsecond=0)
+    generated = generated_dt.isoformat()
+    vintage = vintage_label(generated_dt)
+    tmp_out = root / f".tmp-{vintage}"
+    final_out = root / vintage
 
     # One connection PER STREAM, not one for the run. The 2026-08-12 re-run
     # died twice with "SSL SYSCALL error: Operation timed out" mid-COPY — the
@@ -213,15 +376,23 @@ def run(out_dir: Path | None = None, verify_only: bool = False) -> dict:
         print("\nverify-only: boundary clean, 0 files written.")
         return {"assertions": assertions, "files": []}
 
+    root.mkdir(parents=True, exist_ok=True)
+    _clean_stale_tmp(root)
+    tmp_out.mkdir()
+    print(f"  writing {tmp_out} (published as {final_out.name} on success)", flush=True)
+
     files: list[dict] = []
+    file_sources: dict[str, list[str]] = {}
     for view, stem, order in TABLES:
         with connect() as conn:
             with _pinned(conn) as cur:
                 meta = _write_csv_gz(
                     cur, f"select * from {view} order by {order}",
-                    out / f"{stem}.csv.gz")
+                    tmp_out / f"{stem}.csv.gz")
+                sources = _view_sources(cur, view)
             conn.rollback()
-        meta.update({"view": view, "order_by": order})
+        meta.update({"view": view, "order_by": order, "sources": sources})
+        file_sources[meta["name"]] = sources
         files.append(meta)
         print(f"  {meta['rows']:>10,}  {meta['name']}", flush=True)
 
@@ -230,6 +401,7 @@ def run(out_dir: Path | None = None, verify_only: bool = False) -> dict:
             cur.execute(f"""select distinct fiscal_year from {EVENTS_VIEW}
                             order by fiscal_year nulls last""")
             years = [r[0] for r in cur.fetchall()]
+            events_sources = _view_sources(cur, EVENTS_VIEW)
         conn.rollback()
     for fy in years:
         where = ("fiscal_year is null" if fy is None
@@ -240,99 +412,127 @@ def run(out_dir: Path | None = None, verify_only: bool = False) -> dict:
                 meta = _write_csv_gz(
                     cur,
                     f"select * from {EVENTS_VIEW} where {where} order by id",
-                    out / "funding_events" / f"fy={label}.csv.gz")
+                    tmp_out / "funding_events" / f"fy={label}.csv.gz")
             conn.rollback()
-        meta.update({"view": EVENTS_VIEW, "order_by": "id",
-                     "name": f"funding_events/fy={label}.csv.gz"})
+        name = f"funding_events/fy={label}.csv.gz"
+        meta.update({"view": EVENTS_VIEW, "order_by": "id", "name": name,
+                     "sources": events_sources})
+        file_sources[name] = events_sources
         files.append(meta)
-        print(f"  {meta['rows']:>10,}  funding_events/fy={label}.csv.gz", flush=True)
+        print(f"  {meta['rows']:>10,}  {name}", flush=True)
 
     with connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("""select license_code, license_name, republishable,
-                                  attribution_required, license_url
-                           from internal.licensing_map
-                           where republishable order by license_code""")
-            upstream = [
-                {"license_code": r[0], "license_name": r[1], "republishable": r[2],
-                 "attribution_required": r[3], "license_url": r[4]}
-                for r in cur.fetchall()
-            ]
-            # supabase_migrations.schema_migrations is created by the Supabase
-            # CLI, not by any migration in this repo — so a fork on vanilla
-            # Postgres has no such table and could not produce its own export.
-            # Degrade to an unknown version rather than crashing: a fork that
-            # cannot re-export cannot verify our hashes against its own build.
-            cur.execute("select to_regclass('supabase_migrations.schema_migrations')")
-            if cur.fetchone()[0] is None:
-                schema_version = None
-            else:
-                cur.execute(
-                    "select max(version) from supabase_migrations.schema_migrations")
-                schema_version = cur.fetchone()[0]
+            licensing_map = _licensing_map(cur)
+            dataset_licenses = _dataset_licenses(cur)
+            schema_version = _schema_version(cur)
         conn.rollback()
 
+    licensing = build_licensing(licensing_map, dataset_licenses, file_sources)
     manifest = {
         "dataset": "open-funder-db",
+        "vintage": vintage,
         "generated_at": generated,
         "generator": {"tool": "funderdb export public",
                       "git_commit": _git_commit(),
                       "schema_migration": schema_version},
-        "license": LICENSE,
-        "upstream_licenses": upstream,
+        "license": {**COMPILATION_LICENSE,
+                    "applies_to": "compilation only — see `licensing` for per-source terms"},
+        "licensing": licensing,
         "excluded": EXCLUDED,
         "boundary_assertions": assertions,
         "files": files,
         "row_count_total": sum(f["rows"] for f in files),
+        "row_count_method": "csv records (quoted newlines are field content), header excluded",
     }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    (out / "LICENSE").write_text(_license_text())
-    (out / "README.md").write_text(_readme(manifest))
+    (tmp_out / "LICENSE").write_text(_license_text(licensing))
+    (tmp_out / "README.md").write_text(_readme(manifest))
+    publish(tmp_out, final_out, manifest)
+    print(f"  published {final_out}", flush=True)
 
     # Register the run like every other pipeline artifact, so exports show up
     # in `funderdb status` with a hash and a ledger entry.
     with connect() as conn:
-        staged = staging.stage_local("export_public", out / "manifest.json")
+        staged = staging.stage_local("export_public", final_out / "manifest.json")
         rfid = staging.register_raw_file(
             conn, staged, license_code="cc_by", content_type="application/json")
         conn.commit()
         run_id = ledger.start_run(conn, rfid, "export_public")
         ledger.complete_run(
             conn, run_id, inserted=manifest["row_count_total"],
-            notes=f"public export: {len(files)} files, "
+            notes=f"public export {vintage}: {len(files)} files, "
                   f"{manifest['row_count_total']:,} rows, all boundary assertions PASS")
     return manifest
 
 
-def _license_text() -> str:
-    return (
-        "Open Funder Database — public dataset export\n"
-        f"Copyright (c) Morton Labs\n\n"
-        "This dataset is licensed under the Creative Commons Attribution 4.0\n"
-        "International License (CC BY 4.0).\n\n"
-        f"    {LICENSE['url']}\n\n"
-        "You are free to share and adapt the material for any purpose, including\n"
-        "commercially, provided you give appropriate credit:\n\n"
-        f"    {LICENSE['attribution']}\n\n"
-        "The underlying source records are U.S. Government works (IRS Form 990\n"
-        "series, SEC EDGAR/Form ADV/Form D, SBIR/STTR) and are in the public\n"
-        "domain. The compilation, normalization, entity resolution and derived\n"
-        "columns are the licensed contribution.\n"
-    )
+def _schema_version(cur) -> str | None:
+    """Newest applied migration: our own ledger first (funderdb migrate), then
+    the Supabase CLI table for databases built before the runner existed.
+    None when neither exists — a fork that cannot name its schema version
+    still gets an export, just an honestly unlabelled one."""
+    cur.execute("select to_regclass('internal.schema_migrations')")
+    if cur.fetchone()[0] is not None:
+        cur.execute("select max(filename) from internal.schema_migrations")
+        v = cur.fetchone()[0]
+        if v:
+            return str(v)
+    cur.execute("select to_regclass('supabase_migrations.schema_migrations')")
+    if cur.fetchone()[0] is None:
+        return None
+    cur.execute("select max(version) from supabase_migrations.schema_migrations")
+    v = cur.fetchone()[0]
+    return str(v) if v else None
+
+
+def _license_text(licensing: dict) -> str:
+    comp = licensing["compilation"]
+    lines = [
+        "Open Funder Database — public dataset export",
+        "",
+        "COMPILATION LICENCE",
+        f"The compilation ({comp['scope']})",
+        f"is licensed under {comp['name']}:",
+        "",
+        f"    {comp['url']}",
+        "",
+        "You are free to share and adapt it for any purpose, including commercially,",
+        "provided you give appropriate credit:",
+        "",
+        f"    {comp['attribution']}",
+        "",
+        "SOURCE LICENCES (per dataset; see manifest.json -> licensing.sources)",
+    ]
+    for ds, info in licensing["sources"].items():
+        for lic in info["licenses"]:
+            flag = "" if lic["republishable"] else "  [NOT republishable — must not appear here]"
+            attr = "attribution required" if lic["attribution_required"] else "no attribution required"
+            lines.append(f"    {ds:<28} {lic['license_name']} ({lic['license_code']}; {attr})"
+                         f"{flag}")
+    lines += [
+        "",
+        "A record's licence is the licence of its source dataset (the `source_dataset`",
+        "column). U.S. Government works (IRS Form 990 series, SEC EDGAR/Form ADV/Form D,",
+        "SBIR/STTR) are in the public domain. Accepting an attribution-licensed source",
+        "upstream does not relicense it under the compilation licence.",
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def _readme(m: dict) -> str:
     contacts = next((f for f in m["files"] if f["name"] == "contact_channels.csv.gz"), None)
     posture = next((f for f in m["files"] if f["name"] == "org_application_posture.csv.gz"), None)
-    return f"""# Open Funder Database — public export
+    return f"""# Open Funder Database — public export {m['vintage']}
 
 Generated {m['generated_at']} · schema migration {m['generator']['schema_migration']}
-· {m['row_count_total']:,} rows across {len(m['files'])} files · CC BY 4.0.
+· {m['row_count_total']:,} rows across {len(m['files'])} files · compilation CC BY 4.0,
+sources licensed individually (see `LICENSE` and `manifest.json` → `licensing`).
 
 Every file is produced by `COPY` from a `public.*` view with a total
 `ORDER BY`, gzipped with `mtime=0`, so **re-running the export byte-for-byte
 reproduces these files**. `manifest.json` records both the compressed and the
-uncompressed sha256 of each file.
+uncompressed sha256 of each file, the CSV record count (quoted newlines are
+field content, not records), and the source datasets each file derives from.
 
 ## The provenance contract
 
@@ -382,3 +582,7 @@ Corrections are welcome and are held to the same standard as the pipeline: a
 claim needs a source document. Open an issue citing the filing (its IRS
 OBJECT_ID) or the public record that supports the change.
 """
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(0 if run(verify_only="--verify-only" in sys.argv) else 1)

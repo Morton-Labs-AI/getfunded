@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/Morton-Labs-AI/getfunded/discussions
+    about: Ask a question or share an idea in GitHub Discussions.
+  - name: Report a security problem
+    url: https://github.com/Morton-Labs-AI/getfunded/blob/main/SECURITY.md
+    about: Do not open a public issue. Read SECURITY.md and report privately.

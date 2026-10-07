@@ -1,26 +1,193 @@
 from __future__ import annotations
 
+import sys
+import time as _time
+from datetime import date
+
 import click
 
+_REFRESH_HELP = ("Re-check the upstream feed even if a cached copy is younger than its "
+                 "max-age (conditional request; a new vintage is staged only if the bytes changed).")
 
-@click.group()
+
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
 def main() -> None:
-    """Open Funder Database ingestion pipeline."""
+    """Open Funder Database ingestion pipeline.
+
+    Start with `funderdb doctor`, then `funderdb bootstrap --profile small`.
+    Every `ingest` command stages its raw files under data/raw/<dataset>/
+    with a sha256 prefix before loading, and records the run in the ledger.
+    """
 
 
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
+@main.command()
+def doctor() -> None:
+    """Check Python, uv, extensions, DATABASE_URL reachability and disk space."""
+    from .config import get_settings
+    from .doctor import format_checks, run_checks
+
+    checks = run_checks(get_settings())
+    click.echo(format_checks(checks))
+    failed = [c for c in checks if c.failed]
+    if failed:
+        click.echo(f"\n{len(failed)} check(s) FAILED — see docs/SELF-INSTALL.md")
+        raise SystemExit(1)
+    click.echo("\nall required checks passed")
+
+
+@main.command()
+@click.option("--dry-run", is_flag=True, help="Print the plan; apply nothing.")
+@click.option("--to", "to", default=None, metavar="NNNN",
+              help="Stop after this migration number (inclusive).")
+@click.option("--force", is_flag=True,
+              help="Re-run files whose sha256 changed since they were applied, and re-record them.")
+@click.option("--baseline", default=None, metavar="NNNN",
+              help="Record files <= NNNN as applied WITHOUT running them (for a database "
+                   "whose schema was built by hand before the runner existed).")
+def migrate(dry_run: bool, to: str | None, force: bool, baseline: str | None) -> None:
+    """Apply migrations/*.sql in order, recording each in internal.schema_migrations."""
+    from . import migrate as mig
+    from .config import get_settings
+    from .db import connect
+
+    settings = get_settings()
+    try:
+        with connect() as conn:
+            if baseline:
+                n = mig.baseline(conn, mig.discover(settings.migrations_dir), baseline,
+                                 echo=click.echo)
+                click.echo(f"baselined {n} migration(s) through {baseline}")
+            mig.run(conn, settings.migrations_dir, to=to, force=force, dry_run=dry_run,
+                    echo=click.echo)
+    except (mig.MigrationError, RuntimeError) as exc:
+        click.echo(f"\nerror: {exc}", err=True)
+        raise SystemExit(1)
+
+
+@main.command()
+@click.option("--profile", type=click.Choice(["small", "full"]), default="small",
+              show_default=True,
+              help="small: BMF foundations + seed + one 990-PF index year with --limit filings "
+                   "(laptop, < 1 hour). full: every source, every year (days, ~250 GB).")
+@click.option("--limit", type=int, default=2000, show_default=True,
+              help="Small profile: maximum 990-PF filings to parse.")
+@click.option("--year", type=int, default=None,
+              help="Small profile: 990-PF index year (default: newest published).")
+@click.option("--skip-migrate", is_flag=True, help="Assume the schema is already current.")
+@click.option("--refresh", is_flag=True, help=_REFRESH_HELP)
+@click.pass_context
+def bootstrap(ctx: click.Context, profile: str, limit: int, year: int | None,
+              skip_migrate: bool, refresh: bool) -> None:
+    """One-command self-install: check env, migrate, run a sized ingest, print status."""
+    from .config import get_settings
+    from .doctor import check_database, check_voyage, format_checks
+
+    settings = get_settings()
+    if not settings.database_url:
+        click.echo("DATABASE_URL is not set. Copy .env.example to .env and fill it in "
+                   "(docs/SELF-INSTALL.md walks through it).", err=True)
+        raise SystemExit(1)
+    env_checks = check_database(settings) + [check_voyage(settings)]
+    click.echo(format_checks(env_checks))
+    if any(c.failed for c in env_checks):
+        raise SystemExit(1)
+    if profile == "full":
+        try:
+            settings.require_sec_user_agent()
+        except RuntimeError as exc:
+            click.echo(f"\n{exc}", err=True)
+            raise SystemExit(1)
+
+    steps: list[tuple[str, callable]] = []
+    if not skip_migrate:
+        steps.append(("migrate", lambda: ctx.invoke(migrate)))
+    steps.append(("ingest seed", lambda: ctx.invoke(ingest_seed)))
+
+    if profile == "small":
+        from .sources import irs_990pf
+
+        pf_year = year or _newest_index_year(irs_990pf, refresh=refresh)
+        steps += [
+            ("ingest bmf (private foundations)",
+             lambda: ctx.invoke(ingest_bmf, refresh=refresh)),
+            (f"ingest filings --year {pf_year}",
+             lambda: ctx.invoke(ingest_filings, years=(pf_year,), refresh=refresh)),
+            (f"ingest 990pf --year {pf_year} --limit {limit}",
+             lambda: ctx.invoke(ingest_990pf, years=(pf_year,), limit=limit, refresh=refresh)),
+        ]
+    else:
+        steps += [
+            ("ingest bmf --all-orgs", lambda: ctx.invoke(ingest_bmf, all_orgs=True, refresh=refresh)),
+            ("ingest filings", lambda: ctx.invoke(ingest_filings, refresh=refresh)),
+            ("ingest 990pf", lambda: ctx.invoke(ingest_990pf, refresh=refresh)),
+            ("ingest 990pf-detail", lambda: ctx.invoke(ingest_990pf_detail)),
+            ("ingest 990", lambda: ctx.invoke(ingest_990)),
+            ("ingest 990-detail", lambda: ctx.invoke(ingest_990_detail)),
+            ("ingest websites", lambda: ctx.invoke(ingest_websites)),
+            ("ingest adv", lambda: ctx.invoke(ingest_adv, refresh=refresh)),
+            ("ingest formd", lambda: ctx.invoke(ingest_formd)),
+            ("ingest sbir", lambda: ctx.invoke(ingest_sbir, refresh=refresh)),
+            ("contacts sync-part-xv", lambda: ctx.invoke(contacts_sync_part_xv)),
+        ]
+    steps.append(("status", lambda: ctx.invoke(status)))
+
+    total = len(steps)
+    t_start = _time.monotonic()
+    for i, (label, fn) in enumerate(steps, 1):
+        click.echo(f"\n[{i}/{total}] {label}", err=False)
+        t0 = _time.monotonic()
+        fn()
+        click.echo(f"[{i}/{total}] done in {_fmt_secs(_time.monotonic() - t0)}")
+    click.echo(f"\nbootstrap ({profile}) complete in {_fmt_secs(_time.monotonic() - t_start)}")
+
+
+def _fmt_secs(s: float) -> str:
+    m, sec = divmod(int(s), 60)
+    h, m = divmod(m, 60)
+    return f"{h}h{m:02d}m{sec:02d}s" if h else f"{m}m{sec:02d}s"
+
+
+def _newest_index_year(irs_990pf, refresh: bool) -> int:
+    """The newest 990 index year the IRS has published (current year, else the
+    previous one in early January before the new index exists)."""
+    import httpx
+
+    y = date.today().year
+    for candidate in (y, y - 1):
+        try:
+            irs_990pf.stage_index(candidate, refresh=refresh)
+            return candidate
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+    raise click.ClickException(f"no 990 index CSV published for {y} or {y - 1}")
+
+
+# ---------------------------------------------------------------------------
+# Staging (no database)
+# ---------------------------------------------------------------------------
 @main.group()
 def stage() -> None:
     """Download and hash-stage raw files (no database required)."""
 
 
 @stage.command("bmf")
-def stage_bmf() -> None:
+@click.option("--refresh", is_flag=True, help=_REFRESH_HELP)
+def stage_bmf(refresh: bool) -> None:
+    """Download the four IRS EO BMF region CSVs (eo1-eo4) into data/raw."""
     from .sources import irs_bmf
 
-    for staged in irs_bmf.stage_files():
-        click.echo(f"{staged.path.name}  {staged.byte_size:,} bytes  sha256={staged.sha256[:12]}")
+    for staged in irs_bmf.stage_files(refresh=refresh):
+        click.echo(f"{staged.path.name}  {staged.byte_size:,} bytes  sha256={staged.sha256[:12]}"
+                   f"  vintage={staged.vintage_date}  {'cached' if staged.from_cache else 'fetched'}")
 
 
+# ---------------------------------------------------------------------------
+# Ingest
+# ---------------------------------------------------------------------------
 @main.group()
 def ingest() -> None:
     """Parse staged files and load them into the database."""
@@ -31,7 +198,9 @@ def ingest() -> None:
 @click.option("--limit", type=int, default=None, help="Dry-run: stop after N rows per file.")
 @click.option("--all-orgs", is_flag=True,
               help="Full exempt-org spine: every BMF org, not just private foundations.")
-def ingest_bmf(dry_run: bool, limit: int | None, all_orgs: bool) -> None:
+@click.option("--refresh", is_flag=True, help=_REFRESH_HELP)
+def ingest_bmf(dry_run: bool, limit: int | None, all_orgs: bool, refresh: bool) -> None:
+    """IRS Exempt Organizations Business Master File: the organization spine."""
     from .sources import irs_bmf
 
     if dry_run:
@@ -41,28 +210,45 @@ def ingest_bmf(dry_run: bool, limit: int | None, all_orgs: bool) -> None:
             click.echo(f"{fname}: {n:,} private-foundation rows")
         click.echo(f"TOTAL: {total:,}")
         return
-    results = irs_bmf.ingest(all_orgs=all_orgs)
+    results = irs_bmf.ingest(all_orgs=all_orgs, refresh=refresh)
     for fname, r in results.items():
         click.echo(
             f"{fname}: inserted={r['inserted']:,} updated={r['updated']:,} "
-            f"skipped={r['skipped']:,}"
+            f"skipped={r['skipped']:,}  vintage={r['vintage']}"
+            f"{' (cached)' if r['from_cache'] else ''}"
         )
 
 
 @ingest.command("adv")
-def ingest_adv() -> None:
+@click.option("--feed-date", type=click.DateTime(formats=["%Y-%m-%d"]), default=None,
+              help="Stage and load this day's IA_FIRM_SEC_Feed (default: newest).")
+@click.option("--refresh", is_flag=True,
+              help="Fetch the newest available feed even if a recent one is staged.")
+@click.option("--max-age-days", type=int, default=7, show_default=True,
+              help="Reuse a staged feed this many days old before fetching a newer one.")
+def ingest_adv(feed_date, refresh: bool, max_age_days: int) -> None:
+    """SEC Form ADV daily firm feed: registered + exempt-reporting advisers."""
+    from datetime import timedelta
+
     from .sources import sec_adv
 
-    r = sec_adv.ingest()
-    click.echo(f"parsed={r['parsed']:,} inserted={r['inserted']:,} updated={r['updated']:,}")
+    r = sec_adv.ingest(feed_date.date() if feed_date else None, refresh=refresh,
+                       max_age=timedelta(days=max_age_days))
+    click.echo(f"feed_date={r['feed_date']} parsed={r['parsed']:,} inserted={r['inserted']:,} "
+               f"updated={r['updated']:,}{' (cached)' if r['from_cache'] else ''}")
 
 
 @ingest.command("990pf")
-@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025))
-def ingest_990pf(years: tuple[int, ...]) -> None:
+@click.option("--year", "years", type=int, multiple=True, default=(2026, 2025),
+              show_default=True)
+@click.option("--limit", type=int, default=None,
+              help="Stop after N filings this run (resumable; used by bootstrap --profile small).")
+@click.option("--refresh", is_flag=True, help=_REFRESH_HELP + " Applies to the index CSV.")
+def ingest_990pf(years: tuple[int, ...], limit: int | None, refresh: bool) -> None:
+    """990-PF officers + grants from the IRS bulk XML zips (index-driven)."""
     from .sources import irs_990pf
 
-    totals = irs_990pf.ingest(years=years)
+    totals = irs_990pf.ingest(years=years, limit=limit, refresh=refresh)
     for k, v in sorted(totals.items()):
         click.echo(f"{k}: {v:,}")
 
@@ -108,7 +294,7 @@ def ingest_990(years: tuple[int, ...], dry_run: bool, limit: int | None) -> None
 @ingest.command("990-detail")
 @click.option("--year", "years", type=int, multiple=True, default=(2026, 2025, 2024))
 def ingest_990_detail(years: tuple[int, ...]) -> None:
-    """Form 990 CORE-FORM financials for public charities, from staged zips.
+    """Form 990 core-form financials for public charities, from staged zips.
 
     Revenue, expenses, balance sheet, the Part IX program-vs-admin expense
     split, and Part VII officer compensation. Newest-first, resumable, never
@@ -146,18 +332,21 @@ def ingest_websites(years: tuple[int, ...], dry_run: bool, limit: int | None) ->
 @ingest.command("filings")
 @click.option("--year", "years", type=int, multiple=True,
               default=(2021, 2022, 2023, 2024, 2025, 2026))
-def ingest_filings(years: tuple[int, ...]) -> None:
+@click.option("--refresh", is_flag=True, help=_REFRESH_HELP + " Applies to the index CSVs.")
+def ingest_filings(years: tuple[int, ...], refresh: bool) -> None:
     """Filings spine from the annual index CSVs (no zips) + supersession sweep."""
     from .sources import irs_filings
 
-    totals = irs_filings.ingest(years=years)
+    totals = irs_filings.ingest(years=years, refresh=refresh)
     for k, v in sorted(totals.items()):
         click.echo(f"{k}: {v:,}")
 
 
 @ingest.command("formd")
-@click.option("--start", default="2024q1", help="First quarter to ingest (e.g. 2024q1).")
+@click.option("--start", default="2024q1", show_default=True,
+              help="First quarter to ingest (e.g. 2024q1).")
 def ingest_formd(start: str) -> None:
+    """SEC Form D quarterly data sets: Reg D offerings, issuers, related persons."""
     from .sources import sec_formd
 
     totals = sec_formd.ingest(start=start)
@@ -167,6 +356,7 @@ def ingest_formd(start: str) -> None:
 
 @ingest.command("adv-schedules")
 def ingest_adv_schedules() -> None:
+    """SEC Form ADV monthly filing zips: Schedule A/B owners + 7.B.1 private funds."""
     from .sources import sec_adv_schedules
 
     counts = sec_adv_schedules.ingest()
@@ -175,16 +365,19 @@ def ingest_adv_schedules() -> None:
 
 
 @ingest.command("sbir")
-def ingest_sbir() -> None:
+@click.option("--refresh", is_flag=True, help=_REFRESH_HELP)
+def ingest_sbir(refresh: bool) -> None:
+    """SBIR/STTR award data: federal non-dilutive awards to small businesses."""
     from .sources import sbir
 
-    totals = sbir.ingest()
+    totals = sbir.ingest(refresh=refresh)
     for k, v in sorted(totals.items()):
         click.echo(f"{k}: {v:,}")
 
 
 @ingest.command("seed")
 def ingest_seed() -> None:
+    """Curated federal agencies + funding programs from data/seed/*.csv."""
     from .sources import seed
 
     counts = seed.ingest()
@@ -194,6 +387,9 @@ def ingest_seed() -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Contacts
+# ---------------------------------------------------------------------------
 @main.group()
 def contacts() -> None:
     """Contact channels: tiered load + publication audit.
@@ -243,17 +439,20 @@ def contacts_audit() -> None:
 
     failed = 0
     for label, n in part_xv_contacts.audit():
-        status = "OK  " if n == 0 else "FAIL"
+        status_ = "OK  " if n == 0 else "FAIL"
         if n:
             failed += 1
-        click.echo(f"{status} {n:>8,}  {label}")
+        click.echo(f"{status_} {n:>8,}  {label}")
     if failed:
         raise SystemExit(1)
 
 
+# ---------------------------------------------------------------------------
+# Embeddings
+# ---------------------------------------------------------------------------
 @main.group()
 def embed() -> None:
-    """Semantic-search corpus: build docs + embed via Voyage."""
+    """Semantic-search corpus: build docs + embed via Voyage (needs VOYAGE_API_KEY)."""
 
 
 @embed.command("sync")
@@ -265,6 +464,7 @@ def embed() -> None:
               help="Embed but defer the HNSW build (tight disk; run again later to build it).")
 def embed_sync(dry_run: bool, kinds: tuple[str, ...], rebuild: bool,
                skip_index: bool) -> None:
+    """Rebuild aggregate documents and embed the ones whose hash changed."""
     from . import embed as embed_mod
 
     result = embed_mod.sync(list(kinds) or None, dry_run=dry_run, rebuild=rebuild,
@@ -279,6 +479,9 @@ def embed_sync(dry_run: bool, kinds: tuple[str, ...], rebuild: bool,
         click.echo(f"hnsw created: {result['hnsw_created']}")
 
 
+# ---------------------------------------------------------------------------
+# Entity resolution
+# ---------------------------------------------------------------------------
 @main.group()
 def resolve() -> None:
     """Entity resolution: funds -> people -> recipients."""
@@ -290,6 +493,7 @@ def resolve() -> None:
 @click.option("--threshold", type=float, default=0.20, show_default=True)
 @click.option("--force", is_flag=True, help="Apply without the label gate (provisional).")
 def resolve_funds(do_predict: bool, do_apply: bool, threshold: float, force: bool) -> None:
+    """Link ADV private-fund records to Form D issuers (Splink)."""
     from .resolve import funds
 
     if not (do_predict or do_apply):
@@ -328,6 +532,7 @@ def resolve_backfill_overlap() -> None:
               help="On --predict: run without the funds canonical map (recall-only "
                    "degradation). On --apply: skip the label gate (provisional).")
 def resolve_people(do_predict: bool, do_apply: bool, threshold: float, force: bool) -> None:
+    """Dedupe people across sources (org-evidence-gated auto-merge)."""
     from .resolve import people
 
     if not (do_predict or do_apply):
@@ -346,6 +551,7 @@ def resolve_people(do_predict: bool, do_apply: bool, threshold: float, force: bo
 @click.option("--stratum", default=None,
               help="Sampling stratum (job-specific; defaults to the gate stratum).")
 def resolve_label(job: str, n: int, stratum: str | None) -> None:
+    """Interactively label a fixed-n sample of candidate pairs for a job."""
     from .resolve import labeling
 
     labeling.label(job, n, stratum)
@@ -356,6 +562,7 @@ def resolve_label(job: str, n: int, stratum: str | None) -> None:
 @click.option("--threshold", type=float, default=None,
               help="Classification threshold (defaults to the job's apply threshold).")
 def resolve_eval(job: str, threshold: float | None) -> None:
+    """Precision gate for a job from its human labels (Wilson lower bound)."""
     from .resolve import labeling
 
     labeling.eval_job(job, threshold)
@@ -382,6 +589,7 @@ def resolve_status() -> None:
 @click.option("--no-apply", is_flag=True, help="Compute matches without touching funding_events.")
 @click.option("--max-tier", type=int, default=3, show_default=True)
 def resolve_recipients(no_apply: bool, max_tier: int) -> None:
+    """Resolve grant recipients to organizations by EIN / name+state tiers."""
     from .resolve import recipients
 
     counts = recipients.run(apply=not no_apply, max_tier=max_tier)
@@ -389,21 +597,27 @@ def resolve_recipients(no_apply: bool, max_tier: int) -> None:
         click.echo(f"{k}: {v:,}")
 
 
+# ---------------------------------------------------------------------------
+# Export
+# ---------------------------------------------------------------------------
 @main.group()
 def export() -> None:
-    """Public dataset export (CC BY 4.0)."""
+    """Public dataset export (compilation CC BY 4.0; sources licensed per dataset)."""
 
 
 @export.command("public")
 @click.option("--out", "out_dir", type=click.Path(), default=None,
-              help="Output directory (default data/export/public).")
+              help="Export ROOT; each run publishes data/export/<vintage>/ under it "
+                   "(default data/export).")
 @click.option("--verify-only", is_flag=True,
               help="Run the boundary assertions and write nothing.")
 def export_public(out_dir: str | None, verify_only: bool) -> None:
-    """Export the public.* views as a hash-stable CC-BY dataset.
+    """Export the public.* views as a hash-stable, versioned CSV dataset.
 
     The seven publishability assertions run FIRST; a single failure aborts
-    with a nonzero exit and writes no files.
+    with a nonzero exit and writes no files. Files land in a temporary
+    directory, manifest.json is written last, and the directory is renamed
+    into place (atomic publish). `LATEST` names the newest vintage.
     """
     from pathlib import Path
 
@@ -411,9 +625,13 @@ def export_public(out_dir: str | None, verify_only: bool) -> None:
 
     m = export_mod.run(Path(out_dir) if out_dir else None, verify_only=verify_only)
     if not verify_only:
-        click.echo(f"\n{m['row_count_total']:,} rows across {len(m['files'])} files")
+        click.echo(f"\n{m['row_count_total']:,} rows across {len(m['files'])} files"
+                   f" -> vintage {m['vintage']}")
 
 
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
 @main.group("eval")
 def eval_group() -> None:
     """Benchmark suite v2: B-series SQL, E-series semantic, ER precision."""
@@ -421,6 +639,7 @@ def eval_group() -> None:
 
 @eval_group.command("sql")
 def eval_sql() -> None:
+    """Run the B-series SQL benchmarks from benchmarks/queries.sql."""
     from . import evalsuite
 
     evalsuite.main("sql")
@@ -428,6 +647,7 @@ def eval_sql() -> None:
 
 @eval_group.command("semantic")
 def eval_semantic() -> None:
+    """Run the E-series semantic/hybrid-search benchmarks (needs embeddings)."""
     from . import evalsuite
 
     evalsuite.main("semantic")
@@ -435,6 +655,7 @@ def eval_semantic() -> None:
 
 @eval_group.command("er")
 def eval_er() -> None:
+    """Run the entity-resolution precision floors."""
     from . import evalsuite
 
     evalsuite.main("er")
@@ -442,6 +663,7 @@ def eval_er() -> None:
 
 @eval_group.command("all")
 def eval_all() -> None:
+    """Run every benchmark series."""
     from . import evalsuite
 
     evalsuite.main("all")
@@ -451,16 +673,17 @@ def eval_all() -> None:
 @click.option("--n", type=int, default=50, show_default=True)
 def eval_parity(n: int) -> None:
     """ProPublica API spot-validation of filing financials (REPORT-only, network)."""
-    import sys
-
     from . import evalsuite
 
     sys.exit(evalsuite.parity(n=n))
 
 
+# ---------------------------------------------------------------------------
+# Status
+# ---------------------------------------------------------------------------
 @main.command()
 def status() -> None:
-    """Ledger runs + row counts."""
+    """Recent ledger runs + row counts + database size."""
     from .db import connect
 
     with connect() as conn, conn.cursor() as cur:
@@ -484,6 +707,7 @@ def status() -> None:
               (select count(*) from internal.funding_programs) as programs,
               (select count(*) from internal.funding_events)  as events,
               (select count(*) from internal.people)          as people,
+              (select count(*) from internal.filings)         as filings,
               pg_size_pretty(pg_database_size(current_database())) as db_size
             """
         )
@@ -491,7 +715,7 @@ def status() -> None:
         assert c is not None
         click.echo(
             f"orgs={c[0]:,} identifiers={c[1]:,} programs={c[2]:,} "
-            f"events={c[3]:,} people={c[4]:,} db={c[5]}"
+            f"events={c[3]:,} people={c[4]:,} filings={c[5]:,} db={c[6]}"
         )
 
 
