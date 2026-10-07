@@ -57,6 +57,12 @@ import { PeopleGroups } from "@/components/org/people-groups";
 import { PersonChipEl } from "@/components/org/person-chip";
 import { GrantsPager } from "@/components/org/grants-pager";
 import { SourceGlyph } from "@/components/source-glyph";
+import { SaveButton } from "@/components/community/save-button";
+import { FollowButton } from "@/components/community/follow-button";
+import { MemberNotes } from "@/components/community/member-notes";
+import { orgCommunity } from "@/lib/queries/community/org";
+import { getViewer } from "@/lib/auth/viewer";
+import { communityLive } from "@/lib/community/posture";
 import { TrichotomyBadge, CategoryRule } from "@/components/trichotomy-badge";
 import { YearBars } from "@/components/year-bars";
 import {
@@ -163,6 +169,15 @@ export default async function OrgPage({
     orgFilingWebsite(memberIds),
   ]);
   const grantCounts = await filingGrantCounts(filings.map((f) => f.object_id));
+
+  // ONE round trip, added as its own line rather than as a field in any of the
+  // three Promise.all blocks above — 20 queries becomes 21, not 25. It
+  // soft-fails to EMPTY_ORG_COMMUNITY exactly like orgWebFacts, so with the
+  // community layer off this page renders byte-identically to before it existed.
+  const viewer = communityLive ? await getViewer() : null;
+  const community = communityLive
+    ? await orgCommunity(memberIds, viewer?.memberId ?? null)
+    : null;
   const liveFilings = filings.filter(
     (f) => f.superseded_by_object_id === null && f.has_financials
   );
@@ -225,6 +240,12 @@ export default async function OrgPage({
                 {webFacts ? "update website info" : "add website info"}
               </Link>
             )}
+            {community && viewer?.status === "active" ? (
+              <>
+                <SaveButton orgId={org.id} collections={community.viewerCollections} />
+                <FollowButton orgId={org.id} following={community.viewerFollows} />
+              </>
+            ) : null}
             <Link
               href={`/?q=${encodeURIComponent(`Tell me about ${org.name} (org id ${org.id})`)}`}
               className="rounded-[8px] border border-accent-border px-3 py-1.5 text-[12.5px] font-medium text-accent transition-colors duration-[90ms] hover:bg-accent-tint"
@@ -307,6 +328,15 @@ export default async function OrgPage({
             <span className="text-[12.5px] text-ink-4">
               {contactCount} contact channels on file (internal)
             </span>
+          )}
+          {community && community.followersN > 0 && (
+            <Link
+              href={`/members?funder=${org.id}`}
+              className="text-[12.5px] text-ink-4 hover:text-ink-2"
+            >
+              {community.followersN}{" "}
+              {community.followersN === 1 ? "member follows" : "members follow"} this funder
+            </Link>
           )}
         </div>
         <div className="mt-5">
@@ -419,6 +449,25 @@ export default async function OrgPage({
       {posture && (
         <Section title="Applying">
           <ApplicationPosture posture={posture} contacts={contactRows} />
+        </Section>
+      )}
+
+      {/* What members know — placed immediately after Applying and before
+          Financials, and that position is argued from the page's own logic: the
+          comment above says Applying comes first because for a grantseeker it is
+          the most decision-relevant fact on the page. A member who applied here
+          last year and reported what happened is the SAME KIND of fact, and it
+          belongs next to the Part XV claim it may contradict. */}
+      {community && (community.notes.length > 0 || viewer?.status === "active") && (
+        <Section
+          title="What members know"
+          aside={
+            <span className="mono-label">
+              member-attested · not filing-derived
+            </span>
+          }
+        >
+          <MemberNotes notes={community.notes} signedIn={viewer?.status === "active"} />
         </Section>
       )}
 

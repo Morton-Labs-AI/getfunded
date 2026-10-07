@@ -3,6 +3,8 @@ import { OpenRing } from "./open-ring";
 import { ThemeToggle } from "./theme-toggle";
 import { Omnibox } from "./omnibox";
 import { CommandPalette } from "./command-palette";
+import { AccountSlot } from "./community/account-slot";
+import { PostureBadge } from "./community/posture-badge";
 
 const links = [
   { href: "/browse", label: "Browse" },
@@ -10,7 +12,12 @@ const links = [
   { href: "/data", label: "Data" },
 ];
 
-export function Nav() {
+/**
+ * async because <AccountSlot> reads the session. With COMMUNITY_MODE unset the
+ * slot returns null and the badge returns today's copy, so the header renders
+ * byte-identically to before the community layer existed.
+ */
+export async function Nav() {
   return (
     <header
       className="sticky top-0 z-40 border-b border-border-1 backdrop-blur-[12px]"
@@ -39,10 +46,9 @@ export function Nav() {
               {l.label}
             </Link>
           ))}
-          <span className="mono-label hidden rounded-[5px] border border-border-1 px-2 py-1 lg:inline">
-            read-only · local
-          </span>
+          <PostureBadge />
           <ThemeToggle />
+          <AccountSlot />
         </nav>
       </div>
       <CommandPalette />
