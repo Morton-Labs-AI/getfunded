@@ -205,6 +205,14 @@ export const WEBSITE_FROM_FILING = (fy: number | null, returnType: string) =>
 
 export const WEBSITE_FROM_REGISTRY = "From a registry source";
 
+/**
+ * Beside the location when the organization is not in the IRS master file and
+ * its address was taken from the header of one of its own returns.
+ */
+export const ADDRESS_FROM_RETURN = (fy: number | null) =>
+  fy ? `Address as stated on its FY${fy} return` : "Address as stated on one of its returns";
+export const ADDRESS_FROM_RETURN_FILING_ID = (objectId: string) => `IRS filing id ${objectId}`;
+
 export const NOT_FOUND_TITLE = "We could not find that funder";
 export const NOT_FOUND_HINT =
   "The link may be old, or the record may have been merged into another. Try searching by name or EIN.";

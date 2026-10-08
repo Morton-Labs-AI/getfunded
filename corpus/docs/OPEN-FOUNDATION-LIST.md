@@ -221,6 +221,7 @@ lists the columns that are not there.
 |---|---|---|---|
 | `irs_standing`, `irs_revocation_date`, `irs_on_pub78` | `foundations.csv.gz` | the view `public.org_irs_standing` (migration 0028), and the right to read it | The three columns are not in the file. |
 | `link_basis` | the grants files | a column `recipient_link_basis` on `public.funding_events` | The column is not in the files. |
+| `address_basis` | `foundations.csv.gz` | a column `address_basis` on `public.organizations` (migration 0030) | The column is not in the file. |
 
 `link_basis` is not available today. The database knows how each recipient
 was linked (the EIN on a Schedule I row, a name match, or the agreement of
@@ -280,6 +281,20 @@ The values of `irs_standing`:
 - `revoked`: On the Automatic Revocation of Exemption List with no reinstatement, and in neither the IRS master file nor Publication 78.
 - `revoked_then_relisted`: Was on the revocation list and is in the IRS master file or Publication 78 again. A reinstatement or a later ruling date explains it.
 - `lists_disagree`: On the revocation list with nothing that explains it, and also in the IRS master file or Publication 78. Check with the IRS.
+
+Only when `public.organizations` has an `address_basis` column. It is the
+last column of the file:
+
+| Column | Read from | Meaning |
+|---|---|---|
+| `address_basis` | `public.organizations` | Where city, state and zip come from: `irs_master_file` (the IRS master file) or `latest_return` (the address the foundation wrote on its latest parsed return; used when the foundation is not in the master file). Empty when there is no address. |
+
+A foundation that is not in the IRS master file has no address there. For
+these foundations `funderdb derive org-address --apply` copies the address
+from the header of the foundation's newest parsed return (see
+"Derived: address from the latest return" in `DATA-SOURCES.md`). Run it
+before the export. The export writes `latest_return` only for those rows,
+and `irs_master_file` only for an address on a master-file row.
 
 ## Columns of `foundation_years.csv.gz`
 
@@ -352,7 +367,7 @@ Only when `public.funding_events` has a `recipient_link_basis` column:
 | `generator.snapshot` | The note that all files were read in one transaction. |
 | `license` | CC BY 4.0 for the compilation, the credit line, and the note that the IRS records are public domain. |
 | `source_views` | The views that were read. |
-| `optional_columns` | For each group of optional columns: if it is in the files and why. For the IRS columns also the dates of the two IRS lists and the count of each `irs_standing` value. |
+| `optional_columns` | For each group of optional columns: if it is in the files and why. For the IRS columns also the dates of the two IRS lists and the count of each `irs_standing` value. For `address_basis` also the count of each value. |
 | `source_datasets` | The datasets the rows come from, for example `irs_eo_bmf` and `irs_990_xml`. |
 | `index_years_covered` | The IRS index years of the returns in `foundation_years.csv.gz`. |
 | `fiscal_years` | The first and last fiscal year in `foundation_years.csv.gz`. |
@@ -381,6 +396,10 @@ The compilation is CC BY 4.0. The IRS records are in the public domain.
   `grants_paid_basis` says so.
 - Name, address, NTEE code and ruling year come from the IRS master file,
   which can be up to two years behind.
+- A foundation that is not in the master file has the address from its
+  latest parsed return, when `address_basis` is in the build. That address
+  is as old as that return. Without that step its city, state and zip are
+  empty.
 - A foundation that has no return on file still has a row. Its filing
   columns are empty and its posture is `not_stated`.
 - When a foundation has more than one public email or phone, the file shows

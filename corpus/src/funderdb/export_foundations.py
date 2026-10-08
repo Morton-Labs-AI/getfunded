@@ -47,6 +47,10 @@ manifest under ``optional_columns``:
 
 * ``irs_standing``, ``irs_revocation_date``, ``irs_on_pub78`` in
   ``foundations.csv.gz`` need the view ``public.org_irs_standing``;
+* ``address_basis`` in ``foundations.csv.gz`` needs an ``address_basis``
+  column on ``public.organizations`` (migration 0030). It says whether city,
+  state and zip come from the IRS master file or from the foundation's own
+  latest return;
 * ``link_basis`` in the grants files needs a ``recipient_link_basis`` column
   on ``public.funding_events``. No public view says how a recipient was
   linked today, so the column is left out rather than guessed.
@@ -112,6 +116,16 @@ ORGS_VIEW = "public.organizations"
 # LINK_BASIS_VALUES (or empty); any other value stops the export.
 LINK_BASIS_SOURCE_COLUMN = "recipient_link_basis"
 LINK_BASIS_VALUES = ("ein_on_return", "name_and_state_match", "filer_consensus")
+
+# `address_basis` appears in foundations.csv.gz only when public.organizations
+# has this column (migration 0030). The view's value 'filing_header' is
+# written as `latest_return`; an address that came with a master-file row is
+# written as `irs_master_file`; a row with no address has an empty cell. Any
+# other value in the file stops the export.
+ADDRESS_BASIS_SOURCE_COLUMN = "address_basis"
+ADDRESS_BASIS_FILING = "filing_header"
+ADDRESS_BASIS_VALUES = ("irs_master_file", "latest_return")
+MASTER_FILE_DATASET = "irs_eo_bmf"
 
 # With --limit, each grants file holds at most this many rows, so a sample
 # stays inside the 20 second limit of the read-only role even when one of the
@@ -304,8 +318,18 @@ LINK_BASIS_COLUMN: Column = (
     "name and state with one EIN).")
 
 
-def foundation_columns(irs_standing: bool = False) -> list[Column]:
-    return FOUNDATION_COLUMNS + (IRS_STANDING_COLUMNS if irs_standing else [])
+# Optional: appended to foundations.csv.gz (after the IRS standing columns)
+# only when public.organizations has the ADDRESS_BASIS_SOURCE_COLUMN column.
+ADDRESS_BASIS_COLUMN: Column = (
+    "address_basis", ("public.organizations",),
+    "Where city, state and zip come from: `irs_master_file` (the IRS master file) or "
+    "`latest_return` (the address the foundation wrote on its latest parsed return; used "
+    "when the foundation is not in the master file). Empty when there is no address.")
+
+
+def foundation_columns(irs_standing: bool = False, address_basis: bool = False) -> list[Column]:
+    return (FOUNDATION_COLUMNS + (IRS_STANDING_COLUMNS if irs_standing else [])
+            + ([ADDRESS_BASIS_COLUMN] if address_basis else []))
 
 
 def grant_columns(link_basis: bool = False) -> list[Column]:
@@ -351,8 +375,17 @@ _GRANTS_BASIS = ("case when {a}.qualifying_distributions is not null "
                  "then 'charitable_disbursements' end")
 
 
-def foundations_sql(limit: int | None = None, irs_standing: bool = False) -> str:
+def foundations_sql(limit: int | None = None, irs_standing: bool = False,
+                    address_basis: bool = False) -> str:
     junk = ", ".join(f"'{j}'" for j in _NO_INSTRUCTIONS)
+    # `latest_return` only where the view says the address is a return's.
+    # `irs_master_file` only for an address on a master-file row: an address
+    # from any other source gets an empty cell, never a guessed label.
+    basis_select = f""",
+  case when o.{ADDRESS_BASIS_SOURCE_COLUMN} = '{ADDRESS_BASIS_FILING}' then 'latest_return'
+       when coalesce(o.city, o.state, o.zip) is not null
+            and o.source_dataset = '{MASTER_FILE_DATASET}' then 'irs_master_file'
+  end as address_basis"""
     # The view has one row per organization EIN; pf holds one EIN per
     # foundation, so the join on both keeps one row per foundation.
     irs_cte = f""",
@@ -439,7 +472,7 @@ select
            array[o.source_dataset, latest_filing.source_dataset, p.source_dataset]
            || coalesce(grants.datasets, '{{}}') || coalesce(contact.datasets, '{{}}')) as d) x
    where d is not null) as source_dataset,
-  '{PROFILE_URL}' || o.id::text as profile_url{irs_select if irs_standing else ''}
+  '{PROFILE_URL}' || o.id::text as profile_url{irs_select if irs_standing else ''}{basis_select if address_basis else ''}
 from pf
 join public.organizations o on o.id = pf.org_id
 left join span on span.org_id = pf.org_id
@@ -705,7 +738,8 @@ def static_checks(queries: dict[str, str], columns: dict[str, list[Column]],
     return out
 
 
-def view_columns_used(irs_standing: bool = False, link_basis: bool = False) -> dict:
+def view_columns_used(irs_standing: bool = False, link_basis: bool = False,
+                      address_basis: bool = False) -> dict:
     """The columns the queries read on each view (checked against the catalog)."""
     used = {
         "public.organizations": ("id", "name", "city", "state", "zip", "ntee_code",
@@ -732,6 +766,8 @@ def view_columns_used(irs_standing: bool = False, link_basis: bool = False) -> d
                                    "revocation_list_as_of", "pub78_as_of")
     if link_basis:
         used[EVENTS_VIEW] = (*used[EVENTS_VIEW], LINK_BASIS_SOURCE_COLUMN)
+    if address_basis:
+        used[ORGS_VIEW] = (*used[ORGS_VIEW], ADDRESS_BASIS_SOURCE_COLUMN)
     return used
 
 
@@ -793,7 +829,22 @@ def detect_optional(cur) -> list[dict]:
                    f"no public view says how a recipient was linked ({EVENTS_VIEW} has no "
                    f"{LINK_BASIS_SOURCE_COLUMN} column), so the column is left out, not guessed"),
     }
-    return [irs, basis]
+    cur.execute(
+        "select exists (select 1 from information_schema.columns "
+        "where table_schema = 'public' and table_name = 'organizations' "
+        "and column_name = %s)", (ADDRESS_BASIS_SOURCE_COLUMN,))
+    has_address_basis = bool(cur.fetchone()[0])
+    address = {
+        "id": "address_basis",
+        "file": "foundations.csv.gz",
+        "columns": [ADDRESS_BASIS_COLUMN[0]],
+        "source": f"{ORGS_VIEW}.{ADDRESS_BASIS_SOURCE_COLUMN}",
+        "present": has_address_basis,
+        "reason": ("the column is in this database" if has_address_basis else
+                   f"{ORGS_VIEW} has no {ADDRESS_BASIS_SOURCE_COLUMN} column (migration 0030 "
+                   "is not applied), so the column is left out"),
+    }
+    return [irs, basis, address]
 
 
 # ---------------------------------------------------------------------------
@@ -968,7 +1019,15 @@ years in a row). It does not hold other kinds of revocation. An empty
 `irs_standing` means that the lists are not available for the foundation.
 """
     grants_dictionary = _dictionary(grant_columns(optional["link_basis"]["present"]))
-    foundations_dictionary = _dictionary(foundation_columns(optional["irs_standing"]["present"]))
+    has_address_basis = optional.get("address_basis", {}).get("present", False)
+    foundations_dictionary = _dictionary(
+        foundation_columns(optional["irs_standing"]["present"], has_address_basis))
+    address_limit = ""
+    if has_address_basis:
+        address_limit = (
+            "\n- A foundation that is not in the IRS master file has the address it wrote on "
+            "its\n  latest parsed return. `address_basis` says which source a row has. An "
+            "address\n  from a return is as old as that return.")
     return f"""# Open Foundation List — {m['vintage']}
 {sample}
 A list of U.S. private foundations, built only from public IRS records.
@@ -1083,7 +1142,7 @@ See `LICENSE.txt`.
 - Years on file depend on which IRS index years this database has loaded:
   {', '.join(str(y) for y in m['index_years_covered']) or 'none'}.
 - Name, address, NTEE code and ruling year come from the IRS master file. It
-  can be up to two years behind.
+  can be up to two years behind.{address_limit}
 - A grants file can hold a grant row of a fiscal year that has no row in
   `foundation_years.csv.gz`. This happens when the grant table of a return is
   loaded and its financial data is not.
@@ -1202,12 +1261,13 @@ def run(out_dir: Path, *, limit: int | None = None, no_ledger: bool = False,
             use = {o["id"]: o["present"] for o in optional}
             allowed = ALLOWED_VIEWS + ((IRS_STANDING_VIEW,) if use["irs_standing"] else ())
             columns = {
-                "foundations": foundation_columns(use["irs_standing"]),
+                "foundations": foundation_columns(use["irs_standing"], use["address_basis"]),
                 "foundation_years": YEAR_COLUMNS,
                 GRANTS_KIND: grant_columns(use["link_basis"]),
             }
             queries = {
-                "foundations": foundations_sql(limit, use["irs_standing"]),
+                "foundations": foundations_sql(limit, use["irs_standing"],
+                                               use["address_basis"]),
                 "foundation_years": years_sql(limit),
                 "grant_coverage": grant_coverage_sql(limit),
                 # The template of the per-year statements (year 0).
@@ -1217,7 +1277,8 @@ def run(out_dir: Path, *, limit: int | None = None, no_ledger: bool = False,
                 queries["irs_lists_as_of"] = irs_lists_as_of_sql()
             checks = static_checks(queries, columns, allowed)
             checks += database_checks(
-                cur, allowed, view_columns_used(use["irs_standing"], use["link_basis"]))
+                cur, allowed, view_columns_used(use["irs_standing"], use["link_basis"],
+                                                use["address_basis"]))
             checks.sort(key=lambda c: c["id"])
             for c in checks:
                 echo(f"  {c['result']} {c['id']}  {c['statement']}"
@@ -1287,6 +1348,7 @@ def run(out_dir: Path, *, limit: int | None = None, no_ledger: bool = False,
     posture = {"accepts_applications": 0, "preselected_only": 0, "not_stated": 0}
     seen_ids: set[str] = set()
     standing_counts: dict[str, int] = {}
+    address_counts: dict[str, int] = {}
     for i, r in enumerate(_iter_rows(tmp / "foundations.csv.gz")):
         if i == 0 and list(r.keys()) != by_kind["foundations"]["columns"]:
             raise RuntimeError(
@@ -1300,8 +1362,17 @@ def run(out_dir: Path, *, limit: int | None = None, no_ledger: bool = False,
         if "irs_standing" in r:
             key = r["irs_standing"] or "not_available"
             standing_counts[key] = standing_counts.get(key, 0) + 1
+        if "address_basis" in r:
+            if r["address_basis"] and r["address_basis"] not in ADDRESS_BASIS_VALUES:
+                raise RuntimeError(
+                    f"foundations.csv.gz row {i + 1}: address_basis {r['address_basis']!r} is "
+                    f"not one of {', '.join(ADDRESS_BASIS_VALUES)}")
+            key = r["address_basis"] or "no_address"
+            address_counts[key] = address_counts.get(key, 0) + 1
     if standing_counts:
         option["irs_standing"]["irs_standing_counts"] = dict(sorted(standing_counts.items()))
+    if address_counts:
+        option["address_basis"]["address_basis_counts"] = dict(sorted(address_counts.items()))
     fy_set: set[int] = set()
     oid_year_set: set[int] = set()
     linked_in_years: dict[int, int] = {}

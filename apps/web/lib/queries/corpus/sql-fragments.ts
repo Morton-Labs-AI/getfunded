@@ -15,6 +15,13 @@ import "server-only";
  *     only once migration getfunded_0010 is applied, so the grant is probed
  *     once per process and the column is left null (and the seal leaves the
  *     fingerprint out) until then. Deploy order therefore does not matter.
+ *
+ *   - `addressBasis()`: where an organization's address came from. Corpus
+ *     migration 0030 adds internal.organizations.address_basis and
+ *     address_object_id; `funderdb derive org-address` fills them when it
+ *     copies the address from the header of the organization's latest return.
+ *     The columns are probed, so a deploy before the migration reads NULL and
+ *     the page shows no note.
  */
 import type postgres from "postgres";
 
@@ -68,5 +75,51 @@ export function rawFileHash(sql: Sql, readable: boolean, rawFileIdColumn: string
   return {
     join: readable ? sql`left join internal.raw_files ${sql(rf)} on ${sql(rf)}.id = ${sql(alias)}.${sql(column)}` : sql``,
     column: readable ? sql`${sql(rf)}.sha256` : sql`null::text`,
+  };
+}
+
+let addressBasisReadable = false;
+
+/**
+ * Whether internal.organizations has the address_basis column (corpus
+ * migration 0030) and this process may read it. A "yes" is remembered for the
+ * life of the process. A "no" is asked again on the next call (one catalog
+ * lookup), so the note appears as soon as the migration lands, without a
+ * redeploy. The probe reads the catalog only and cannot raise inside the
+ * caller's transaction.
+ */
+export async function canReadAddressBasis(sql: Sql): Promise<boolean> {
+  if (addressBasisReadable) return true;
+  try {
+    const rows = await sql<{ ok: boolean | null }[]>`
+      select exists (
+        select 1 from pg_attribute a
+        where a.attrelid = to_regclass('internal.organizations')
+          and a.attname = 'address_basis' and a.attnum > 0 and not a.attisdropped
+          and has_column_privilege(a.attrelid, a.attnum, 'select')) as ok`;
+    addressBasisReadable = rows[0]?.ok === true;
+  } catch {
+    addressBasisReadable = false;
+  }
+  return addressBasisReadable;
+}
+
+/** Test seam: forget the probe result. */
+export function resetAddressBasisProbeForTests(): void {
+  addressBasisReadable = false;
+}
+
+/**
+ * The two halves of the address-basis lookup for a query whose organization
+ * row is aliased `o`: the columns, and a join to the return the address was
+ * taken from (public.filings, so only a republishable return gives a year).
+ * Use both or neither. Before the migration both columns are NULL.
+ */
+export function addressBasis(sql: Sql, readable: boolean) {
+  return {
+    join: readable ? sql`left join public.filings adf on adf.object_id = o.address_object_id` : sql``,
+    columns: readable
+      ? sql`o.address_basis, o.address_object_id, adf.tax_period as address_tax_period`
+      : sql`null::text as address_basis, null::text as address_object_id, null::text as address_tax_period`,
   };
 }

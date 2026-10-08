@@ -596,3 +596,47 @@ its fiscal sponsor), so a link means "filers wrote this name with this
 organization's EIN", not "this is the same legal entity". An alias that
 already has links is not changed by a later `--build`; run `--unapply` first
 when you want it counted again.
+
+## Derived: address from the latest return
+
+| | |
+|---|---|
+| Publisher | this project: a copy of values that are already in the database |
+| Inputs | the filer address in the header of each parsed return (`internal.filings.filer_*`) |
+| Cadence | by hand, after a load of new returns |
+| Licence | CC BY 4.0 (`cc_by`) for the rule manifest. The address values are U.S. public domain |
+| Command | `funderdb derive org-address --dry-run`, `--apply`, `--report`, `--unapply` |
+| Dataset name | `derive_org_address` (the raw file is the rule manifest) |
+| Columns | `internal.organizations.address_basis`, `address_object_id` (migration 0030), also on `public.organizations` |
+
+Not a download. An organization that is made from an e-filed return and is
+not in the IRS master file has no address on its row. `--apply` gives it the
+address its own newest parsed, non-superseded return states: street, city (in
+upper case), state and ZIP code. It sets `address_basis` to `filing_header`
+and `address_object_id` to the IRS OBJECT_ID of that return. An empty
+`address_basis` means what it always meant: the address came with the row's
+own source record.
+
+Rules that the command obeys:
+
+- It fills a row only when state, city, street and ZIP code are all empty. It
+  never changes an address that is already there.
+- It uses the newest return only. When that return gives a foreign address,
+  or a state that is not a U.S. state or territory code, it writes nothing.
+  It does not go back to an older return.
+- A ZIP code is written as `12345` or `12345-6789`. A value that does not
+  have 5 or 9 digits is left empty.
+- The organization row keeps its own source file. The address has the source
+  file of the return named in `address_object_id`.
+- `--unapply` empties the four address columns and the two new columns on
+  exactly the rows that `--apply` filled. No row is deleted.
+- When another loader later writes a different address on such a row (the
+  master file starts to list the organization), a trigger empties the two
+  columns, so the label is never left on an address it does not describe.
+
+Known limits: the address is the one on the return that was the newest when
+`--apply` ran. `--report` counts the rows whose return is not the newest one
+any more; run `--unapply` and then `--apply` to bring them up to date. After
+an `--apply`, refresh `internal.mv_org_state_counts` and run `funderdb embed
+sync`, or the state counts and the search documents do not show the new
+states.

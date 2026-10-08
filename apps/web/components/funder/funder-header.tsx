@@ -6,7 +6,14 @@ import { Missing } from "@/components/data/missing";
 import { Posture } from "@/components/data/posture";
 import { SourceChip } from "@/components/data/source-chip";
 import { Badge } from "@/components/ui/badge";
-import { IRS_MASTER_FILE_FULL_NAME, IRS_MASTER_FILE_LABEL, WEBSITE_FROM_FILING, WEBSITE_FROM_REGISTRY } from "@/lib/content/copy";
+import {
+  ADDRESS_FROM_RETURN,
+  ADDRESS_FROM_RETURN_FILING_ID,
+  IRS_MASTER_FILE_FULL_NAME,
+  IRS_MASTER_FILE_LABEL,
+  WEBSITE_FROM_FILING,
+  WEBSITE_FROM_REGISTRY,
+} from "@/lib/content/copy";
 import { filingSourceLabel } from "@/lib/content/labels";
 import { formatEin, formatMoneyCompact, formatNumber } from "@/lib/format";
 import type { IrsStanding } from "@/lib/queries/corpus/standing-types";
@@ -41,9 +48,20 @@ export function FunderHeader({
           {funder.legalName ? <p className="mt-0.5 text-sm text-ink-3">{funder.legalName}</p> : null}
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-3">
             {location ? (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="size-3.5" aria-hidden />
-                {location}
+              <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="size-3.5" aria-hidden />
+                  {location}
+                </span>
+                {/* Not in the IRS master file: the address is the one the funder wrote on a return. */}
+                {funder.addressFrom ? (
+                  <span data-slot="address-basis" className="text-xs" title={ADDRESS_FROM_RETURN_FILING_ID(funder.addressFrom.objectId)}>
+                    <span aria-hidden className="text-ink-4">
+                      ·{" "}
+                    </span>
+                    {ADDRESS_FROM_RETURN(funder.addressFrom.fy)}
+                  </span>
+                ) : null}
               </span>
             ) : null}
             <span className="tnum inline-flex items-center gap-1">

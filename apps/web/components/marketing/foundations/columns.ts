@@ -9,8 +9,9 @@ import { POSTURE_LABELS } from "@/components/data/posture";
  * and nowhere else. Order is the order of the columns in the file.
  *
  * The export is `corpus/src/funderdb/export_foundations.py`. Its column
- * lists (FOUNDATION_COLUMNS, IRS_STANDING_SOURCE, YEAR_COLUMNS,
- * GRANT_COLUMNS) are the source of truth for names, order and values.
+ * lists (FOUNDATION_COLUMNS, IRS_STANDING_SOURCE, ADDRESS_BASIS_COLUMN,
+ * YEAR_COLUMNS, GRANT_COLUMNS) are the source of truth for names, order and
+ * values.
  *
  * Meanings are written for nonprofit staff: one line, plain words, no
  * database terms.
@@ -120,6 +121,25 @@ export const IRS_STANDING_LIST_COLUMNS: ListColumn[] = [
 ];
 
 /**
+ * The `address_basis` column of `foundations.csv.gz`, the last column of the
+ * file. A release has it only when the database had the column when the
+ * export ran (`optional_columns` in the release's manifest.json says so).
+ */
+export const ADDRESS_BASIS_LIST_COLUMN: ListColumn = {
+  name: "address_basis",
+  meaning: `Where the city, state and ZIP code come from. Empty when we hold no address. ${NOT_IN_EVERY_RELEASE}`,
+  values: [
+    { value: "irs_master_file", meaning: "The IRS master file, the IRS’s list of every tax-exempt organization." },
+    {
+      value: "latest_return",
+      meaning:
+        "The address the foundation wrote on its latest return. It is used when the foundation is not in the IRS master file, and it is as old as that return.",
+    },
+  ],
+  optional: true,
+};
+
+/**
  * The `link_basis` column of the grants files. It is NOT in
  * FOUNDATION_LIST_FILES, because no release has it yet: the database does
  * not show on a public view how a recipient was matched. Add it to the end
@@ -210,6 +230,7 @@ export const FOUNDATION_LIST_FILES: ListFile[] = [
       },
       { name: "profile_url", meaning: "The link to the foundation’s page on GetFunded." },
       ...IRS_STANDING_LIST_COLUMNS,
+      ADDRESS_BASIS_LIST_COLUMN,
     ],
   },
   {

@@ -15,6 +15,9 @@ import "server-only";
  *   - a grant row whose link rests on other filers' returns says so: the
  *     grants query reads the alias link through recipient-aliases.ts, and a
  *     row with no such link carries no explanation
+ *   - an address that the corpus copied from a return header says so
+ *     (address_basis 'filing_header', sql-fragments.ts addressBasis); an
+ *     address from the organization's own record carries no note
  *
  * The app role has SELECT on the named internal relations and every public
  * view, plus (migration 0010) the id and sha256 columns of internal.raw_files,
@@ -33,7 +36,7 @@ import { publishableContactName } from "./privacy";
 import { aliasMatchFragment, aliasMatchFromRow, canReadAliasLinks, type AliasMatchColumns } from "./recipient-aliases";
 import { isUuid, toInt } from "./safe";
 import { postureFromDb } from "./search";
-import { canReadRawFileHash, liveGrantEvents, rawFileHash } from "./sql-fragments";
+import { addressBasis, canReadAddressBasis, canReadRawFileHash, liveGrantEvents, rawFileHash } from "./sql-fragments";
 import type {
   ApplicationInfo,
   ContactChannel,
@@ -84,6 +87,9 @@ type FunderRow = {
   city: string | null;
   state: string | null;
   zip: string | null;
+  address_basis: string | null;
+  address_object_id: string | null;
+  address_tax_period: string | null;
   registry_website: string | null;
   ntee_code: string | null;
   ruling_date: string | null;
@@ -203,6 +209,10 @@ function toRecord(r: FunderRow): FunderRecord {
     city: r.city,
     state: r.state,
     zip: r.zip,
+    addressFrom:
+      r.address_basis === "filing_header" && r.address_object_id
+        ? { basis: "filing_header", objectId: r.address_object_id, fy: fyOf(r.address_tax_period) }
+        : null,
     website,
     websiteSource: r.filing_website ? "filing" : r.registry_website ? "registry" : null,
     websiteFy: r.filing_website ? fyOf(r.filing_website_period) : null,
@@ -253,9 +263,10 @@ export const getFunder = cache(async (orgId: string): Promise<FunderRecord | nul
     const sha = await canReadRawFileHash(sql);
     const orgHash = rawFileHash(sql, sha, "o.raw_file_id", "orf");
     const postureHash = rawFileHash(sql, sha, "ap.raw_file_id", "aprf");
+    const address = addressBasis(sql, await canReadAddressBasis(sql));
     return sql<FunderRow[]>`
       select o.id::text as id, o.canonical_org_id::text as canonical_org_id, o.name, o.legal_name, o.org_type,
-             o.street, o.city, o.state, o.zip, o.website as registry_website,
+             o.street, o.city, o.state, o.zip, ${address.columns}, o.website as registry_website,
              o.ntee_code, o.ruling_date::text as ruling_date, o.focus_areas,
              o.asset_amount::text as bmf_assets, o.income_amount::text as bmf_income, o.revenue_amount::text as bmf_revenue,
              o.last_verified_at::text as last_verified_at,
@@ -282,6 +293,7 @@ export const getFunder = cache(async (orgId: string): Promise<FunderRecord | nul
       from internal.organizations o
       left join public.organizations po on po.id = o.id
       ${orgHash.join}
+      ${address.join}
       left join lateral (
         select w.website, w.tax_period, w.return_type
         from internal.org_website w

@@ -1094,5 +1094,55 @@ def derive_turnover(fys: tuple[int, ...], slices: tuple[int, ...], dry_run: bool
         click.echo(f"{k}: {v:,}")
 
 
+@derive.command("org-address")
+@click.option("--dry-run", is_flag=True,
+              help="Read and print what --apply (or --unapply) would change. Writes nothing. "
+                   "For --apply it also works before migration 0030 is applied.")
+@click.option("--apply", "do_apply", is_flag=True,
+              help="Write street, city, state and zip from the newest parsed, non-superseded "
+                   "return, only where the organization has no address at all.")
+@click.option("--unapply", "do_unapply", is_flag=True,
+              help="Set street, city, state and zip back to empty exactly where "
+                   "address_basis is 'filing_header', and clear the two columns.")
+@click.option("--report", "do_report", is_flag=True,
+              help="Print dated counts: organizations with no state, how many have a usable "
+                   "return address, and the rows an --apply has written. Read only.")
+@click.option("--slice", "slices", type=click.IntRange(0, 255), multiple=True, metavar="N",
+              help="Work on slice N of 256 only (organizations whose id starts with byte N); "
+                   "repeat for several.")
+def derive_org_address(dry_run: bool, do_apply: bool, do_unapply: bool, do_report: bool,
+                       slices: tuple[int, ...]) -> None:
+    """Address as stated on the latest return, for organizations that have none.
+
+    An organization created from an e-filed return and not in the IRS master
+    file has no city or state, so it cannot be found by state. Every return
+    carries the filer's own address. --apply copies it from the newest parsed,
+    non-superseded return when that address is in the United States, and marks
+    the row (address_basis 'filing_header', address_object_id). A row that has
+    any part of an address is never changed. A second --apply changes 0 rows.
+    Order: --dry-run, --apply, --report.
+    """
+    from .derive import org_address
+
+    if do_apply and do_unapply:
+        raise click.UsageError("--apply and --unapply cannot run together.")
+    if not (dry_run or do_apply or do_unapply or do_report):
+        raise click.UsageError("Pass --dry-run, --apply, --unapply or --report.")
+    try:
+        if dry_run or do_apply or do_unapply:
+            counts = org_address.run(action="unapply" if do_unapply else "apply",
+                                     slices=slices or None, dry_run=dry_run,
+                                     echo=click.echo)
+            for k, v in counts.items():
+                click.echo(f"{k}: {v:,}")
+        if do_report:
+            if dry_run or do_apply or do_unapply:
+                click.echo("")
+            org_address.report(echo=click.echo)
+    except RuntimeError as exc:
+        click.echo(f"\nerror: {exc}", err=True)
+        raise SystemExit(1)
+
+
 if __name__ == "__main__":
     main()

@@ -159,6 +159,12 @@ export type FunderRecord = {
   city: string | null;
   state: string | null;
   zip: string | null;
+  /**
+   * Set when street, city, state and zip are the filer's own address on one of
+   * its returns (the organization is not in the IRS master file). Null when
+   * the address came with the organization's own source record.
+   */
+  addressFrom: { basis: "filing_header"; objectId: string; fy: number | null } | null;
   website: string | null;
   websiteSource: "filing" | "registry" | null;
   websiteFy: number | null;

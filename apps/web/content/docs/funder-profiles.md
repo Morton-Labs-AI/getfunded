@@ -11,7 +11,7 @@ A funder profile is a structured reading of the funder's own public filings. It 
 
 ## The header
 
-- **Name, city, state** from the IRS master file (the IRS Exempt Organizations Business Master File, the IRS's list of every tax-exempt organization).
+- **Name, city, state** from the IRS master file (the IRS Exempt Organizations Business Master File, the IRS's list of every tax-exempt organization). When an organization is not in the master file, the city and state are the ones it wrote on its latest return, and the header says so: "Address as stated on its FY2024 return".
 - **EIN**, the funder's tax id, shown as 12-3456789.
 - **Type**: private foundation, public charity, company, adviser, fund or agency.
 - **Website**, when the funder wrote one on its filing.
