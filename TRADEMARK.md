@@ -22,4 +22,4 @@ does not grant trademark rights (section 6).
 If you fork and host it, give your service its own name. Say "based on
 GetFunded" if you like.
 
-Questions: zach@mortonlabs.ai
+Questions: support@getfunded.ai

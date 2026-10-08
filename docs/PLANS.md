@@ -13,7 +13,7 @@ This file is the single source of truth for plan limits. The web app reads these
 | Free | $0 | 1 | 25 | 50 | 1 | 100 rows CSV | Drafts only (uses credits) |
 | Starter | $10 / month | 1 | 150 | 500 | 3 | Full CSV | Drafts only |
 | Pro | $20 / month | 3 | 500 | Unlimited | Unlimited | Full CSV + reports | Drafts + send through your own Gmail, each message approved by you |
-| Team | $100 / month | 10 | 3,000 (pooled) | Unlimited | Unlimited | Full CSV + reports + API | Everything in Pro + shared knowledge base + sequences |
+| Team | $100 / month | 10 | 3,000 (pooled) | Unlimited | Unlimited | Full CSV + reports + API | Everything in Pro + shared knowledge base + follow-ups that stop when a funder replies |
 | Enterprise | $1,500 / month | Unlimited | 25,000 (pooled) | Unlimited | Unlimited | Everything | Dedicated outreach: managed campaigns, sender domains and warm-up, deliverability monitoring, onboarding, SLA |
 
 Every plan includes funder search, funder profiles with provenance, and application posture.
@@ -52,7 +52,7 @@ without a schema change.
 ## Billing
 
 - Stripe Checkout for subscriptions, Stripe Customer Portal for changes and cancellation.
-- Plan changes take effect at once; credits are prorated by period fraction on upgrade.
+- Plan changes take effect at once. The new plan's monthly allowance applies from the next request; unused credits do not carry over between plans.
 - Webhooks update `getfunded.subscriptions`; the app never trusts the browser for plan state.
 - Self-installs have no billing. The `SELF_HOSTED=true` setting puts every workspace on an
   "Unlimited" internal plan with the host's own API key and no meter stop (usage is still recorded).

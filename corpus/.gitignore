@@ -16,3 +16,8 @@ data/logs/
 
 # Public dataset exports (regenerated each run; provenance lives in raw_files + ledger)
 data/export/
+
+# Entity-resolution research artifacts (parquet, models) are run outputs, not source
+data/er/*.parquet
+data/er/models/
+data/er/*.json

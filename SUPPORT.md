@@ -20,7 +20,7 @@
 | Support | Email support for account holders | Community support in Discussions |
 | Cost | See getfunded.ai for plans | Free (your own hosting costs apply) |
 
-Hosted-service questions: zach@mortonlabs.ai.
+Hosted-service questions: support@getfunded.ai.
 
 ## No SLA
 
