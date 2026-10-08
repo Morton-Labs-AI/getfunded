@@ -217,6 +217,12 @@ function compareDocs(a: DocMeta, b: DocMeta): number {
 }
 
 /** Every guide in `content/docs`, sorted by group, then order, then title. */
+/** The index fields of a guide, without its body. */
+function docMeta(doc: Doc): DocMeta {
+  const { slug, title, description, group, order } = doc;
+  return { slug, title, description, group, order };
+}
+
 export function listDocs(): DocMeta[] {
   let entries: string[];
   try {
@@ -231,8 +237,7 @@ export function listDocs(): DocMeta[] {
     if (!docSlugSchema.safeParse(slug).success) continue;
     const doc = readDocFile(slug);
     if (!doc) continue;
-    const { body: _body, headings: _headings, ...meta } = doc;
-    docs.push(meta);
+    docs.push(docMeta(doc));
   }
   return docs.sort(compareDocs);
 }

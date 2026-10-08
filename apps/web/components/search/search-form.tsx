@@ -23,11 +23,14 @@ export function SearchForm({ current, base }: { current: SearchParams; base: str
   const [text, setText] = React.useState(current.q ?? "");
   const [mode, setMode] = React.useState<SearchMode>(current.mode);
   const [pending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
+  // Fresh URL state (back button, a shared link, a server redirect): adopt it.
+  // React's "storing information from previous renders" pattern; no effect.
+  const [seen, setSeen] = React.useState({ q: current.q ?? "", mode: current.mode });
+  if (seen.q !== (current.q ?? "") || seen.mode !== current.mode) {
+    setSeen({ q: current.q ?? "", mode: current.mode });
     setText(current.q ?? "");
     setMode(current.mode);
-  }, [current.q, current.mode]);
+  }
 
   const ein = detectEin(text);
 

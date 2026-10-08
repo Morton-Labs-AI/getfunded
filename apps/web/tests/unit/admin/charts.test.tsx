@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { BarChart, Delta, Donut, FunnelBars, Sparkline, StackedBars } from "@/components/admin/charts";
-import { BannerBar } from "@/components/admin/site-banner";
+import { BannerBar } from "@/components/admin/banner-bar";
 
 describe("admin charts", () => {
   it("BarChart carries every value in its aria-label and draws a stub for zero", () => {
@@ -75,7 +75,7 @@ describe("BannerBar", () => {
   it("opens an external link in a new tab and renders no link without a href", () => {
     render(<BannerBar banner={{ text: "See the status page", href: "https://status.example.org", tone: "info" }} />);
     expect(screen.getByRole("link", { name: "Learn more" })).toHaveAttribute("target", "_blank");
-    const { container } = render(<BannerBar banner={{ text: "Plain notice", tone: "info" }} />);
+    const { container } = render(<BannerBar banner={{ text: "Plain notice", href: undefined, tone: "info" }} />);
     expect(container.querySelector("a")).toBeNull();
   });
 });

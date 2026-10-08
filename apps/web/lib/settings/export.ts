@@ -276,7 +276,7 @@ export function exportEntries(data: WorkspaceExport): ZipEntry[] {
   ];
 }
 
-export function exportZip(data: WorkspaceExport): Uint8Array {
+export function exportZip(data: WorkspaceExport): Uint8Array<ArrayBuffer> {
   return createZip(exportEntries(data), new Date(data.exported_at));
 }
 

@@ -67,7 +67,7 @@ const METHOD_DEFLATE = 8;
 const METHOD_STORE = 0;
 
 /** Build a ZIP archive. Entries are DEFLATEd unless storing is smaller. */
-export function createZip(entries: ZipEntry[], now: Date = new Date()): Uint8Array {
+export function createZip(entries: ZipEntry[], now: Date = new Date()): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
   const localParts: Uint8Array[] = [];
   const centralParts: Uint8Array[] = [];

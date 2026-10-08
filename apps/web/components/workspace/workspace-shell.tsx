@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BookOpen, Search, Upload } from "lucide-react";
+import { BookOpen, Search, Sparkles, Upload } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/shell/app-shell";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 export const WORKSPACE_NAV: NavItem[] = [
   { label: "Dashboard", href: "/app", icon: "dashboard", exact: true },
   { label: "Search", href: "/app/search", icon: "search" },
+  { label: "Ask the analyst", href: "/app/ask", icon: Sparkles },
   { label: "Saved funders", href: "/app/saved", icon: "saved" },
   { label: "Pipeline", href: "/app/pipeline", icon: "pipeline" },
   { label: "Tasks", href: "/app/tasks", icon: "tasks" },

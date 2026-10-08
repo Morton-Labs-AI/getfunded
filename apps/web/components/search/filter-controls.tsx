@@ -46,8 +46,13 @@ export function FilterControls({ current, base }: { current: SearchParams; base:
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [givingTo, setGivingTo] = React.useState(current.givingTo ?? "");
-
-  React.useEffect(() => setGivingTo(current.givingTo ?? ""), [current.givingTo]);
+  // Fresh URL state (back button, a shared link): adopt it. React's "storing
+  // information from previous renders" pattern; no effect, no ref.
+  const [seenGivingTo, setSeenGivingTo] = React.useState(current.givingTo ?? "");
+  if (seenGivingTo !== (current.givingTo ?? "")) {
+    setSeenGivingTo(current.givingTo ?? "");
+    setGivingTo(current.givingTo ?? "");
+  }
 
   function set(patch: Partial<SearchParams>) {
     startTransition(() => router.push(searchHref(base, withParams(current, patch))));

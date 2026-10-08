@@ -23,6 +23,8 @@ export type ComposerContact = { id: string; fullName: string; title: string | nu
 export type ComposerTemplate = Pick<Template, "key" | "name" | "when" | "subject" | "body" | "builtIn">;
 
 type Claim = { text: string; evidenceId: string };
+/** What is in the subject and body boxes, where it came from, and the model's claims when it came from the model. */
+type Draft = { subject: string; body: string; source: "template" | "ai"; claims: Claim[] };
 
 const NONE = "__none__";
 
@@ -60,19 +62,21 @@ export function MessageComposer({
   const [programArea, setProgramArea] = React.useState("");
   const [askAmount, setAskAmount] = React.useState("");
   const [senderTitle, setSenderTitle] = React.useState("");
-  const [subject, setSubject] = React.useState("");
-  const [body, setBody] = React.useState("");
-  const [source, setSource] = React.useState<"template" | "ai">("template");
-  const [claims, setClaims] = React.useState<Claim[]>([]);
+  // null = the draft still follows the template and the fields; set once the
+  // person edits the text by hand or the model polishes it.
+  const [edited, setEdited] = React.useState<Draft | null>(null);
   const [busy, setBusy] = React.useState<"polish" | "save" | null>(null);
-  const [touched, setTouched] = React.useState(false);
   const baseId = React.useId();
   const id = (name: string) => `${baseId}-${name}`;
 
-  // When the funder changes (URL), reset the contact choice to that funder's first contact.
-  React.useEffect(() => {
-    setContactId((current) => (contacts.some((c) => c.id === current) ? current : (contacts[0]?.id ?? NONE)));
-  }, [contacts]);
+  // When the funder changes (URL), the contact list changes with it: keep the
+  // choice while it is still valid, else fall back to that funder's first
+  // contact. React's "storing information from previous renders" pattern.
+  const [seenContacts, setSeenContacts] = React.useState(contacts);
+  if (seenContacts !== contacts) {
+    setSeenContacts(contacts);
+    if (!contacts.some((c) => c.id === contactId)) setContactId(contacts[0]?.id ?? NONE);
+  }
 
   const contact = contacts.find((c) => c.id === contactId) ?? null;
   const template = templates.find((t) => t.key === templateKey) ?? templates[0] ?? null;
@@ -99,13 +103,12 @@ export function MessageComposer({
   const rendered = React.useMemo(() => (template ? renderTemplate(template, values) : null), [template, values]);
 
   // Until the person edits the text by hand, the draft follows the template and the fields.
-  React.useEffect(() => {
-    if (touched || !rendered) return;
-    setSubject(rendered.subject);
-    setBody(rendered.body);
-    setSource("template");
-    setClaims([]);
-  }, [rendered, touched]);
+  const fromTemplate = React.useMemo<Draft>(
+    () => ({ subject: rendered?.subject ?? "", body: rendered?.body ?? "", source: "template", claims: [] }),
+    [rendered],
+  );
+  const draft = edited ?? fromTemplate;
+  const { subject, body, source, claims } = draft;
 
   const placeholders = findPlaceholders(`${subject}\n${body}`);
 
@@ -115,14 +118,13 @@ export function MessageComposer({
     router.replace(`/app/outreach/new?${params.toString()}`);
   }
 
+  /** A hand edit: freeze whatever is on screen, then apply the change. */
+  function edit(patch: Partial<Pick<Draft, "subject" | "body">>) {
+    setEdited({ ...draft, ...patch });
+  }
+
   function refill() {
-    setTouched(false);
-    if (rendered) {
-      setSubject(rendered.subject);
-      setBody(rendered.body);
-      setSource("template");
-      setClaims([]);
-    }
+    setEdited(null);
   }
 
   async function polish() {
@@ -134,11 +136,7 @@ export function MessageComposer({
         toast.error("Could not polish", { description: result.error });
         return;
       }
-      setTouched(true);
-      setSubject(result.subject);
-      setBody(result.body);
-      setSource("ai");
-      setClaims(result.claims);
+      setEdited({ subject: result.subject, body: result.body, source: "ai", claims: result.claims });
       toast.success(result.mock ? "Polished (mock model)" : "Polished", { description: "Read every line before you approve it." });
     } finally {
       setBusy(null);
@@ -291,10 +289,7 @@ export function MessageComposer({
                 id={id("subject")}
                 value={subject}
                 maxLength={300}
-                onChange={(e) => {
-                  setTouched(true);
-                  setSubject(e.target.value);
-                }}
+                onChange={(e) => edit({ subject: e.target.value })}
               />
             </div>
           ) : null}
@@ -305,10 +300,7 @@ export function MessageComposer({
               value={body}
               rows={16}
               className="min-h-72 font-sans"
-              onChange={(e) => {
-                setTouched(true);
-                setBody(e.target.value);
-              }}
+              onChange={(e) => edit({ body: e.target.value })}
             />
           </div>
           {placeholders.length ? (

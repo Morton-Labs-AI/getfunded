@@ -73,7 +73,8 @@ describe("lib/plans.ts matches docs/PLANS.md", () => {
     expect(plan.features.reports).toBe(/reports|everything/i.test(exportCell));
     expect(plan.features.api).toBe(/\bAPI\b|everything/i.test(exportCell));
     expect(plan.features.send_gmail).toBe(/gmail|everything in pro|dedicated/i.test(outreach));
-    expect(plan.features.sequences).toBe(/sequences|dedicated/i.test(outreach));
+    // PLANS.md says "follow-ups that stop when a funder replies" for what the code calls sequences.
+    expect(plan.features.sequences).toBe(/sequences|follow-ups|dedicated/i.test(outreach));
     expect(plan.features.shared_knowledge).toBe(/shared knowledge|dedicated/i.test(outreach));
     expect(plan.features.dedicated_outreach).toBe(/dedicated outreach/i.test(outreach));
     // Drafting and the other model features are on every plan ("uses credits").

@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { saveFlags, type ActionState } from "@/lib/admin/actions";
 import { BANNER_TONES, SIGNUP_MODES, SIGNUP_MODE_LABELS, type Flags } from "@/lib/admin/flags";
 
-import { BannerBar } from "./site-banner";
+import { BannerBar } from "./banner-bar";
 
 const INITIAL: ActionState = { ok: false };
 

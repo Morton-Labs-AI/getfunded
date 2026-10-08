@@ -27,6 +27,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  // Resolves relative social-image URLs (opengraph-image, funder profiles) for
+  // every route group, not only the marketing site.
+  metadataBase: new URL(site.url),
   title: {
     default: site.name,
     template: `%s · ${site.name}`,

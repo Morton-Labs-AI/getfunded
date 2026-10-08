@@ -3,7 +3,7 @@ import { Check, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber } from "@/lib/format";
-import { PAID_PLAN_IDS, PLANS, formatPlanPrice, isPaidPlanId, type Plan, type PlanId } from "@/lib/plans";
+import { PLANS, formatPlanPrice, isPaidPlanId, type Plan, type PlanId } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 
 import { CheckoutButton } from "./billing-actions";
@@ -113,12 +113,10 @@ export function PlanComparison({
         {canBuy && hasSubscription ? (
           <p className="mt-3 text-xs text-ink-3">You already have a subscription. Change plans from the billing portal above.</p>
         ) : null}
-        {PAID_PLAN_IDS.length === 0 ? null : (
-          <p className="mt-3 text-xs text-ink-3">
-            Plan changes take effect at once; credits are prorated on upgrade. There is no silent overage: at the limit, the
-            AI refuses with a clear message.
-          </p>
-        )}
+        <p className="mt-3 text-xs text-ink-3">
+          Plan changes take effect at once; credits are prorated on upgrade. There is no silent overage: at the limit, the
+          AI refuses with a clear message.
+        </p>
       </CardContent>
     </Card>
   );

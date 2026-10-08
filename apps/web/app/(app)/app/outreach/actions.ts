@@ -317,11 +317,6 @@ export async function copyFilingContactAction(input: unknown): Promise<ActionRes
   }
 }
 
-/** Older name kept for components/outreach/contacts-panel.tsx; switch that import to copyFilingContactAction. */
-export async function useFilingContactAction(input: unknown): Promise<ActionResult<{ id: string }>> {
-  return copyFilingContactAction(input);
-}
-
 /* ----------------------------------------------------------------------------
    Settings: suppressions, daily cap, workspace templates
 ---------------------------------------------------------------------------- */

@@ -33,7 +33,10 @@ test("/pricing shows the five plans", async ({ page }) => {
   for (const name of ["Free", "Starter", "Pro", "Team", "Enterprise"]) {
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
   }
-  await expect(page.getByText("Unlimited", { exact: true })).toHaveCount(0);
+  // The internal Unlimited plan (self-install) is never offered for sale. Limit
+  // values such as "Members: Unlimited" on Team and Enterprise are fine.
+  await expect(page.locator("[data-plan='unlimited']")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Unlimited", exact: true })).toHaveCount(0);
 });
 
 test("/funder/<bad id> is a 404", async ({ page }) => {

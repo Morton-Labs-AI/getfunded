@@ -246,7 +246,7 @@ export const getFunder = cache(async (orgId: string): Promise<FunderRecord | nul
              ap.tax_period_end::text as ap_period_end, ap.has_part_xv, ap.only_preselected,
              ap.contact_name, ap.app_city, ap.app_state, ap.app_zip, ap.has_email, ap.has_phone,
              ap.form_and_info_txt, ap.submission_deadlines_txt, ap.restrictions_txt, ap.ein::text as ap_ein,
-             pap.source_dataset as ap_source_dataset, pap.source_url as ap_source_url, pap.license_name as ap_license,
+             apf.source_dataset as ap_source_dataset, apf.source_url as ap_source_url, apf.license_name as ap_license,
              fin.fy as fin_fy, fin.return_type as fin_return_type, fin.object_id as fin_object_id,
              fin.ein::text as fin_ein, fin.tax_period_end::text as fin_period_end,
              fin.total_revenue::text as total_revenue, fin.total_expenses::text as total_expenses,
@@ -265,7 +265,11 @@ export const getFunder = cache(async (orgId: string): Promise<FunderRecord | nul
         order by w.tax_period desc nulls last, w.object_id desc
         limit 1) ow on true
       left join internal.mv_org_application_posture ap on ap.org_id = o.id
-      left join public.org_application_posture pap on pap.org_id = o.id
+      -- Provenance of the posture filing from public.filings, not from
+      -- public.org_application_posture: the two carry the same dataset, url and
+      -- licence for that object_id, and public.filings is readable by every
+      -- corpus role (funder_ro is not granted the posture view on all installs).
+      left join public.filings apf on apf.object_id = ap.object_id
       left join internal.mv_org_latest_financials fin on fin.org_id = o.id
       left join internal.mv_funder_event_stats g on g.org_id = o.id and g.event_type = 'grant'
       where o.id = ${orgId}::uuid`,

@@ -175,3 +175,7 @@ export const WEBSITE_FROM_REGISTRY = "From a registry source";
 export const NOT_FOUND_TITLE = "We could not find that funder";
 export const NOT_FOUND_HINT =
   "The link may be old, or the record may have been merged into another. Try searching by name or EIN.";
+
+/** Any other missing page (app/not-found.tsx), including a /funder/<id> whose id cannot be a funder. */
+export const PAGE_NOT_FOUND_TITLE = "We could not find that page";
+export const PAGE_NOT_FOUND_HINT = "The link may be old or mistyped. Search for a funder, or start from the home page.";

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileCheck, Loader2, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
-import { createContactAction, deleteContactAction, updateContactAction, useFilingContactAction } from "@/app/(app)/app/outreach/actions";
+import { copyFilingContactAction, createContactAction, deleteContactAction, updateContactAction } from "@/app/(app)/app/outreach/actions";
 import { SourceChip } from "@/components/data/source-chip";
 import { YoursTag } from "@/components/data/yours-tag";
 import { Button } from "@/components/ui/button";
@@ -122,10 +122,10 @@ export function ContactsPanel({
     }
   }
 
-  async function useChannel(ch: FilingChannel) {
+  async function applyChannel(ch: FilingChannel) {
     setBusy(ch.id);
     try {
-      const result = await useFilingContactAction({ savedFunderId, channelId: ch.id });
+      const result = await copyFilingContactAction({ savedFunderId, channelId: ch.id });
       if (!result.ok) return void toast.error("Could not copy the contact", { description: result.error });
       toast.success("Contact added from the filing", { description: "It is now in your contacts for this funder." });
       router.refresh();
@@ -237,7 +237,7 @@ export function ContactsPanel({
                       </a>
                     ) : null}
                   </span>
-                  <Button size="sm" variant="outline" onClick={() => void useChannel(ch)} disabled={used || busy !== null}>
+                  <Button size="sm" variant="outline" onClick={() => void applyChannel(ch)} disabled={used || busy !== null}>
                     {busy === ch.id ? <Loader2 className="animate-spin" aria-hidden /> : null}
                     {used ? "Already in your contacts" : OUTREACH_COPY.contacts.useFiling}
                   </Button>

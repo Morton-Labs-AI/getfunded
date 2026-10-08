@@ -33,7 +33,7 @@ function friendlyAuthError(error: unknown): string {
   if (code === "otp_expired") return "That code has expired. Request a new email and use the new code.";
   if (code === "otp_disabled") return "Code sign-in is turned off on this server. Use the link in the email.";
   if (code === "email_address_invalid" || code === "validation_failed") return "Enter a valid email address.";
-  if (code === "signup_disabled") return "New accounts are closed right now. If you already have one, check your email address.";
+  if (code === "signup_disabled") return "New accounts are paused right now. If you already have one, check your email address.";
   if (typeof e.message === "string" && /not configured/i.test(e.message)) {
     return "Sign-in is not set up on this server yet.";
   }

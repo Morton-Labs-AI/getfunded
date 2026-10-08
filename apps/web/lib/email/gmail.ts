@@ -204,7 +204,6 @@ export async function gmailProfile(accessToken: string, fetchImpl: FetchLike = f
 
 /** RFC 2047 encoded-word for header values that carry non-ASCII; ASCII passes through unchanged. */
 export function encodeHeaderWord(value: string): string {
-  // eslint-disable-next-line no-control-regex
   if (!/[^\x00-\x7F]/.test(value)) return value;
   return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
 }
@@ -222,7 +221,6 @@ export function formatAddress(displayName: string | null | undefined, address: s
     .replace(/\s+/g, " ")
     .trim();
   if (!clean) return addr;
-  // eslint-disable-next-line no-control-regex
   if (/[^\x00-\x7F]/.test(clean)) return `${encodeHeaderWord(clean)} <${addr}>`;
   if (/[(),.:;@[\]]/.test(clean)) return `"${clean}" <${addr}>`;
   return `${clean} <${addr}>`;

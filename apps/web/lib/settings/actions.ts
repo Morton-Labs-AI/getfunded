@@ -189,7 +189,8 @@ export async function removeMemberAction(_prev: ActionState, formData: FormData)
   return { ok: true, message: "Removed from the workspace." };
 }
 
-export async function leaveWorkspaceAction(_prev: ActionState, _formData: FormData): Promise<ActionState> {
+/** useActionState form action; it needs neither the previous state nor the form data. */
+export async function leaveWorkspaceAction(): Promise<ActionState> {
   const { user, workspace } = await requireWorkspace();
   if (!canLeave(workspace.role)) {
     return { ok: false, error: "The owner cannot leave. Delete the workspace instead, or ask us to transfer ownership." };

@@ -4,15 +4,20 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * The Next.js 16 request proxy (the file formerly called middleware).
  *
- * Three jobs, no more:
- *  1. Refresh the Supabase session cookie before render. A Server Component
+ * Four jobs, no more:
+ *  1. Answer a real HTTP 404 for /funder/<id> when the id cannot be a funder.
+ *     With Cache Components the funder page streams its static shell before it
+ *     can read the id, so a notFound() inside it keeps the 200 the stream has
+ *     already sent (see the Next.js streaming guide, "The HTTP contract"). The
+ *     proxy runs before render and can still set the status.
+ *  2. Refresh the Supabase session cookie before render. A Server Component
  *     cannot write cookies, so without this pass every user would be signed out
  *     an hour after signing in, with no error anywhere.
- *  2. Send unauthenticated requests under /app, /admin and /welcome to
+ *  3. Send unauthenticated requests under /app, /admin and /welcome to
  *     /signin?next=<where they were>. This is a convenience, NOT the security
  *     boundary: every protected page calls requireUser() / requireWorkspace()
  *     itself, and every server action checks again.
- *  3. Add security headers to every response it touches.
+ *  4. Add security headers to every response it touches.
  *
  * No database import. A postgres.js import here would open a pool on every
  * matched request.
@@ -34,6 +39,20 @@ function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
+const FUNDER_PATH = /^\/funder\/([^/]+)\/?$/;
+/** Same shape as lib/queries/corpus/safe.ts#isUuid; inlined so the proxy imports nothing from lib. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * True for `/funder/<id>` when the id is not a UUID, so it can never name a
+ * funder. A well-formed id that does not exist is still decided by the page
+ * (it needs the database), and that answer streams with a 200 plus noindex.
+ */
+export function isMalformedFunderPath(pathname: string): boolean {
+  const match = FUNDER_PATH.exec(pathname);
+  return match !== null && !UUID.test(match[1]!);
+}
+
 function withSecurityHeaders<T extends Response>(response: T): T {
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value);
   return response;
@@ -41,6 +60,14 @@ function withSecurityHeaders<T extends Response>(response: T): T {
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  if (isMalformedFunderPath(pathname)) {
+    // The built-in not-found route renders app/not-found.tsx with a 404 status.
+    const url = request.nextUrl.clone();
+    url.pathname = "/_not-found";
+    url.search = "";
+    return withSecurityHeaders(NextResponse.rewrite(url));
+  }
 
   const forwardHeaders = () => {
     const headers = new Headers(request.headers);
