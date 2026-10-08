@@ -422,7 +422,6 @@ const HISTORY_SAME: ApplicationHistory = {
     latestObjectId: PLACEHOLDER_FILING,
     provenance: HISTORY_SEAL,
     other: null,
-    restrictivePhrase: null,
   },
   turnover: [
     {
@@ -436,13 +435,14 @@ const HISTORY_SAME: ApplicationHistory = {
       nUnnamedRows: 1,
       windowUnnamedRows: 0,
       objectId: PLACEHOLDER_FILING,
-      ruleVersion: "turnover-v1",
+      // The rule in force: RULE_VERSION in corpus/src/funderdb/derive/turnover.py.
+      ruleVersion: "turnover-v2",
       provenance: HISTORY_SEAL,
     },
   ],
 };
 
-/** The answers changed, and the newest instructions carry words that read like a limit. */
+/** The answers changed from one return to another. */
 const HISTORY_MIXED: ApplicationHistory = {
   history: {
     nReturns: 5,
@@ -456,7 +456,6 @@ const HISTORY_MIXED: ApplicationHistory = {
     latestObjectId: PLACEHOLDER_FILING,
     provenance: HISTORY_SEAL,
     other: { posture: "preselected", fy: 2022, objectId: PLACEHOLDER_EARLIER_FILING, provenance: EARLIER_SEAL },
-    restrictivePhrase: "by invitation",
   },
   turnover: [],
 };
@@ -475,7 +474,6 @@ const HISTORY_LATEST_SILENT: ApplicationHistory = {
     latestObjectId: PLACEHOLDER_FILING,
     provenance: HISTORY_SEAL,
     other: { posture: "open", fy: 2022, objectId: PLACEHOLDER_EARLIER_FILING, provenance: EARLIER_SEAL },
-    restrictivePhrase: null,
   },
   turnover: [],
 };
@@ -546,7 +544,7 @@ function SourcedBlocks() {
             <ApplicationHistoryBlock history={HISTORY_SAME} posture="preselected" applicationObjectId={PLACEHOLDER_FILING} />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Answers changed, and the instructions carry words that read like a limit</p>
+            <p className="text-xs text-muted-foreground">Answers changed from one return to another</p>
             <ApplicationHistoryBlock history={HISTORY_MIXED} posture="open" applicationObjectId={PLACEHOLDER_FILING} />
           </div>
           <div>

@@ -80,12 +80,42 @@ Known limits:
   examination is not in it.
 - An organization on the list can be recognized again. The file then
   carries a reinstatement date, or the organization is in the master file
-  or on Publication 78. `internal.org_irs_standing` calls an organization
-  `revoked` only when it has a revocation row with no valid reinstatement
-  and it is on neither of the other two lists.
+  or on Publication 78. `internal.org_irs_standing` (migrations 0028 and
+  0032) calls an organization `revoked` when it has a revocation row with
+  no valid reinstatement, Publication 78 does not list it, and one of these
+  is true:
+  - it is not in the master file; or
+  - it is in the master file, it has no ruling date after the (corrected)
+    revocation date, and the copy of the master file that its row came from
+    is older than the day the IRS posted the revocation (`posting_date` is
+    later than `bmf_as_of`). That copy could not know about the revocation,
+    so the newer list is followed (migration 0032). A reader tells this
+    case by `standing = 'revoked'` with `in_bmf = true`.
+- `lists_disagree` is kept for a real conflict: a revocation row with no
+  valid reinstatement and no later ruling date, and Publication 78 lists
+  the organization, or the master-file copy is as new as the posting date
+  or newer, or the posting date is not on record.
+- `revoked_then_relisted` means a revocation row, the master file or
+  Publication 78 lists the organization, and a valid reinstatement or a
+  ruling date after the revocation date explains it.
+- A revoked organization can still file returns. Migration 0032 adds two
+  columns that show it. `filed_after_revocation` is empty when there is no
+  revocation row. It is true when a return on file covers a tax year after
+  the (corrected) revocation date: the tax year ends more than 12 months
+  after that date and, where the begin date is on record, begins after it.
+  `latest_tax_period_end` is the end of the newest tax year a return is on
+  file for. Only returns that are not superseded and that may be
+  republished are read. The standing value does not change: an organization
+  that loses its exemption must still file, so a later return does not show
+  that the IRS reinstated it. The website's "Hide automatically revoked"
+  filter keeps these organizations in the results.
 - A reinstatement date counts only when it is on or after the revocation
-  date. 88 rows carry an earlier reinstatement date (a second revocation
-  after an earlier reinstatement).
+  date. 88 rows carry a reinstatement date that is earlier than the
+  revocation date. The list shows only that. It does not show a second
+  revocation after an earlier reinstatement: none of those EINs has an
+  earlier revocation row. (A comment in migration 0028 says otherwise; the
+  header of migration 0032 corrects it.) The rule is unchanged: such a date
+  does not count as a reinstatement.
 - The IRS says that a listed revocation date from 1 April 2020 to 14 July
   2020 is wrong and should read 15 July 2020 (31,685 rows). The table keeps
   the date as filed. The views add `effective_revocation_date` with the
@@ -587,7 +617,9 @@ republished. A grant row that is not in the view was not linked this way: its
 link came with the return (an EIN on Schedule I) or from the name matcher.
 Join `alias_id` to `public.recipient_aliases.id` to read the evidence.
 `public.funding_events` has no link-basis column of its own; the grants table
-is too large to rewrite for it.
+is too large to rewrite for it. The Open Foundation List writes this fact as
+the column `link_basis` of its grants files (`filer_consensus` or
+`name_match`; see `OPEN-FOUNDATION-LIST.md`).
 
 A later `--build` and an alias that already has links: the alias keeps its
 `org_id`, because the links were made to that organization and `--unapply`

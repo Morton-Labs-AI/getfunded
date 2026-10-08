@@ -66,16 +66,18 @@ The **IRS standing** filter has two choices.
 | Choice | What it does |
 |---|---|
 | **Any** | Hides nothing. This is the default. |
-| **Hide automatically revoked** | Leaves out organizations that the IRS automatically revoked. |
+| **Hide automatically revoked** | Leaves out organizations that the IRS automatically revoked. Revoked organizations that still file returns stay in the results. |
 
-An organization is left out only when all three of these are true:
+An organization is left out only when all four of these are true:
 
 1. It is on the IRS Automatic Revocation of Exemption List. The IRS puts an organization on that list when it files no annual return or notice for three years in a row. The list holds no other kind of revocation.
-2. The list shows no reinstatement after that revocation.
-3. It is on no other IRS list we hold (the IRS master file and IRS Publication 78 data).
+2. The list shows no reinstatement on or after the date of that revocation.
+3. No other IRS list we hold speaks for it. IRS Publication 78 data does not list it. It is also not in the IRS master file, or our copy of the master file is older than the day the IRS posted the revocation. An older copy still names the organization only because it is older, so we follow the newer IRS list.
+4. We hold no return that it filed for a tax year after the revocation date.
 
 The filter keeps these organizations in your results:
 
+- revoked organizations that still file returns. When we hold a return for a tax year after the revocation date, the organization stays in the results. It is still on the IRS list as revoked, and its chip says "returns on file for later years". An organization that loses its tax-exempt status must still file, so a later return does not show that the IRS reinstated it.
 - organizations where the IRS lists disagree. The profile shows both facts.
 - organizations that were revoked once and are recognized again.
 - organizations that are on none of the IRS lists. Being on no list is not a finding.

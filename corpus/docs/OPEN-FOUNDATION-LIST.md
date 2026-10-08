@@ -57,9 +57,12 @@ file is less than what the foundations gave. Use `grants_paid` in
 
 `manifest.json` and the `README.md` of a build show the link coverage for
 each fiscal year: grant rows on file, linked rows and rows that are not
-linked. Run the linking jobs (`funderdb resolve recipients`) before the
-export. A fiscal year whose rows were not through those jobs yet has a low
-share of linked rows.
+linked. Run the linking jobs before the export: `funderdb resolve
+recipients`, and `funderdb resolve aliases --apply` when the release shall
+have links by filer consensus. A fiscal year whose rows were not through
+those jobs yet has a low share of linked rows. When the build has the
+`link_basis` column, each row of a grants file says which of the two jobs
+linked it (see "Optional columns").
 
 ## What is left out on purpose
 
@@ -116,8 +119,9 @@ Why P2: `public.org_application_posture` is a stored result. It changes only
 when `funderdb refresh-views` runs. If it is behind, a foundation would show
 `not_stated` although its newest return states an answer.
 
-So the order of work is: backfill (with its sweeps), `resolve recipients`,
-`refresh-views`, `contacts sync-part-xv`, and then the export.
+So the order of work is: backfill (with its sweeps), `resolve recipients`
+(and `resolve aliases --apply` when it is used), `refresh-views`,
+`contacts sync-part-xv`, and then the export.
 
 `--sample-ignore-preflight` lets a `--limit` sample go on after a failed
 check. Use it only to test the command while a loader is running. The
@@ -296,8 +300,8 @@ The export reads only seven views:
 - `public.funding_events`
 - `public.contact_channels`
 
-It reads one more view, `public.org_irs_standing`, when the database has it
-(see "Optional columns").
+It reads two more views when the database has them (see "Optional
+columns"): `public.org_irs_standing` and `public.recipient_alias_links`.
 
 These views show only records from sources that may be republished. Before
 the export writes a file, it runs eight boundary checks. One failed check
@@ -333,16 +337,74 @@ lists the columns that are not there.
 | Columns | File | Needs | When it is missing |
 |---|---|---|---|
 | `irs_standing`, `irs_revocation_date`, `irs_on_pub78`, `irs_filed_after_revocation` | `foundations.csv.gz` | the view `public.org_irs_standing` (migrations 0028 and 0032), and the right to read it | The four columns are not in the file. With 0028 but not 0032, the export stops at check F6 and writes no files: run `funderdb migrate` first. |
-| `link_basis` | the grants files | a column `recipient_link_basis` on `public.funding_events` | The column is not in the files. |
+| `link_basis` | the grants files | the view `public.recipient_alias_links` (migration 0034), and the right to read it | The column is not in the files, and `manifest.json` says why. |
 | `address_basis` | `foundations.csv.gz` | a column `address_basis` on `public.organizations` (migration 0030) | The column is not in the file. |
 
-`link_basis` is not available today. The database knows how each recipient
-was linked (the EIN on a Schedule I row, a name match, or the agreement of
-other filers), but no public view shows it for a grant row. The export does
-not guess it. When `public.funding_events` gets a `recipient_link_basis`
-column with the values `ein_on_return`, `name_and_state_match` and
-`filer_consensus`, the column appears in the grants files with no change to
-this code. Any other value stops the run.
+### `link_basis`: how a recipient was linked
+
+`link_basis` is the last column of each grants file. It has two values:
+
+- `filer_consensus`: the id of the grant row is in
+  `public.recipient_alias_links`. Three or more grant-making charities wrote
+  this recipient name and state on their own returns (Form 990, Schedule I)
+  with this organization's EIN, and all of them wrote the same EIN. The city
+  on the foundation's grant row matched too. The job is `funderdb resolve
+  aliases --apply`.
+- `name_match`: the name-and-place matcher linked the row (`funderdb resolve
+  recipients`). The name that the foundation wrote matches exactly one
+  organization: the only one with that name in the same state, or the only
+  one with that name in the country. When the matcher ran with
+  `--max-tier 3`, an ending such as INC or LLC is not compared.
+
+The cell is empty for a grant row that comes from a Form 990 (Schedule I)
+and not from a Form 990-PF. A few organizations that the IRS lists as
+private foundations filed Form 990 for a year. The loader links such a row
+by the EIN that the filer wrote, and the matcher can link it by name later.
+No public view says which of the two it was, so the export does not guess.
+Measured read only on 2026-10-08: of the foundations with an EIN from 01 to
+06, 10 have such linked rows (46 rows).
+
+How the export knows the value:
+
+- A Form 990-PF grant row gives no recipient EIN. Only two jobs link such a
+  row: the matcher and the filer-consensus job. So a Form 990-PF row that is
+  not in the view was linked by the matcher.
+- The form is read from the row's own locator in `public.funding_events`
+  (`source_record_locator`, the path of the row inside the return).
+- A row is in the view only while it still points at the organization of
+  its alias, and only while the alias and the grant row may be republished.
+  If something changes the link of such a row after the job made it, the
+  row leaves the view and gets `name_match`.
+
+`manifest.json` counts the values for each grants file
+(`files[].link_basis_counts`) and for the whole build (`optional_columns`
+and `grants_coverage.link_basis_counts`). The key `not_available` counts the
+empty cells. Any other value in a written file stops the run.
+
+When the view is not in the database (migration 0034 is not applied), or
+the connection may not read it, the column is not in the files.
+`optional_columns` in `manifest.json` and the `README.md` of the build say
+so. To have the column and the links, apply migration 0034 and run
+`funderdb resolve aliases --build` and `--apply` before the export.
+
+How the grants query reads the view. For each linked grant row of the
+fiscal year, the query looks the row's id up in the view. That is one probe
+of the primary key of the link ledger, and a few more key probes for a row
+that is in it. It is not a join to the view. Three other forms were measured
+on a throwaway database on 2026-10-08 (1.2 million grant rows, 120,500
+linked rows in the fiscal year, a link ledger of up to 180,000 rows):
+
+| Form | Result |
+|---|---|
+| The look-up that the export uses | 1.2 to 1.6 seconds. The same query without the column: 0.6 seconds. |
+| A LEFT JOIN to the view | The planner expects the whole view to return 1 row, whatever it holds, because the view checks that the grant row still points at the alias's organization. With no parallel workers it chose a nested loop that reads the whole stored view again for every grant row: 46 seconds with 20,000 ledger rows (2.4 billion pairs compared), and 12 minutes 18 seconds with 180,000 (21.7 billion pairs). The live database gave the same plan shape with an empty ledger. The time grows with rows times links. |
+| A hash join (nested loops switched off) | 1.0 second on the test database. But it works out the whole view in each fiscal-year statement. On the live database that is one more read of the grants table (about 8 GB), or one key probe for each link of every year, for each grants file. Not measured on live. |
+| The same look-up with a plain `=` | The planner starts at the grants table and reaches the ledger through the alias. With one alias of 60,000 links it read every link of the alias for every grant row of that alias: 21 seconds. |
+
+The look-up is written as `al.event_id = any (array[e.id])`. With this form
+the only way into the view is the primary key of the ledger, whatever the
+statistics say. The full list was not run on live with this column: time it
+with `--timed-dry-run`, as for every other statement.
 
 ## Columns of `foundations.csv.gz`
 
@@ -411,11 +473,12 @@ last column of the file:
 | `address_basis` | `public.organizations` | Where city, state and zip come from: `irs_master_file` (the IRS master file) or `latest_return` (the address the foundation wrote on its latest parsed return; used when the foundation is not in the master file). Empty when there is no address. |
 
 A foundation that is not in the IRS master file has no address there. For
-these foundations `funderdb derive org-address --apply` copies the address
-from the header of the foundation's newest parsed return (see
-"Derived: address from the latest return" in `DATA-SOURCES.md`). Run it
-before the export. The export writes `latest_return` only for those rows,
-and `irs_master_file` only for an address on a master-file row.
+these foundations `funderdb derive org-address --apply` copies the city,
+the state and the ZIP code from the header of the foundation's newest
+parsed return. It does not copy the street (see "Derived: address from the
+latest return" in `DATA-SOURCES.md`). Run it before the export. The export
+writes `latest_return` only for those rows, and `irs_master_file` only for
+an address on a master-file row.
 
 ## Columns of `foundation_years.csv.gz`
 
@@ -470,11 +533,14 @@ in these files.
 | `fiscal_year` | `public.funding_events` | The year in which the foundation's fiscal year ended. |
 | `filing_object_id` | `public.funding_events` | IRS OBJECT_ID of the return the grant row comes from. |
 
-Only when `public.funding_events` has a `recipient_link_basis` column:
+Only when the database has the view `public.recipient_alias_links`
+(migration 0034). It is the last column of the file:
 
 | Column | Read from | Meaning |
 |---|---|---|
-| `link_basis` | `public.funding_events` | How the recipient was linked to the organization record: `ein_on_return` (the return gives the recipient's EIN), `name_and_state_match` (the name and state on the return match one organization) or `filer_consensus` (other filers wrote this name and state with one EIN). |
+| `link_basis` | `public.recipient_alias_links`, `public.funding_events` | How the recipient was linked to the organization record: `filer_consensus` (three or more grant-making charities wrote this recipient name and state on their own returns with this organization's EIN) or `name_match` (the name-and-place matcher of this project linked it: the name on the return matches exactly one organization). Empty for a grant row from a Form 990: the files do not say how that row was linked. |
+
+See "`link_basis`: how a recipient was linked" under "Optional columns".
 
 ## What `manifest.json` holds
 
@@ -488,16 +554,16 @@ Only when `public.funding_events` has a `recipient_link_basis` column:
 | `generator.statement_seconds`, `generator.total_seconds` | The seconds each statement took, and the time of the whole transaction. |
 | `license` | CC BY 4.0 for the compilation (the selection, the arrangement and the derived columns), the credit line, and the note that the facts come from public records that the licence does not restrict. |
 | `source_views` | The views that were read. |
-| `optional_columns` | For each group of optional columns: if it is in the files and why. For the IRS columns also the dates of the two IRS lists and of the copy of the IRS master file, and the count of each `irs_standing` value. For `address_basis` also the count of each value. |
+| `optional_columns` | For each group of optional columns: if it is in the files and why. For the IRS columns also the dates of the two IRS lists and of the copy of the IRS master file, and the count of each `irs_standing` value. For `address_basis` also the count of each value. For `link_basis` also its two values and, when the column is in the files, the count of each value in all grants files (`not_available` counts the empty cells). |
 | `source_datasets` | The datasets the rows come from, for example `irs_eo_bmf` and `irs_990_xml`. |
 | `index_years_covered` | The IRS index years of the returns in `foundation_years.csv.gz`. |
 | `fiscal_years` | The first and last fiscal year in `foundation_years.csv.gz`. |
 | `application_posture_counts` | How many foundations have each posture value. |
-| `grants_coverage` | For each fiscal year: grant rows on file, how many are linked, how many are not, the dollar sums, the grants file and its row count, and the linked rows whose recipient or funder name was cut. Also the totals, and the linked rows for each source dataset of the recipients' organization records. |
+| `grants_coverage` | For each fiscal year: grant rows on file, how many are linked, how many are not, the dollar sums, the grants file and its row count, and the linked rows whose recipient or funder name was cut. Also the totals, and the linked rows for each source dataset of the recipients' organization records. When the build has `link_basis`: `link_basis_counts` for all grants files and, for each fiscal year, `link_basis_counts_in_file`. |
 | `withheld` | What is left out on purpose: the note about the purpose of a grant, the number of deadline texts made empty, and the number of names cut before an "in care of" part. |
 | `boundary_checks` | The eight boundary checks (F1 to F8) and their results. |
 | `preflight_checks`, `preflight_ignored` | The two pre-flight checks (P1 and P2), their numbers and results. For P1 also `replaced_filings_left_out`: the filings whose grant rows the grants queries left out. It is empty in every build that passed the check. `preflight_ignored` is `true` only for a sample made with `--sample-ignore-preflight`. |
-| `files` | For each CSV: rows, bytes, sha256 of the gzip file, sha256 of the plain CSV, columns, source views, sort order. For a grants file also its fiscal year and the row cap. |
+| `files` | For each CSV: rows, bytes, sha256 of the gzip file, sha256 of the plain CSV, columns, source views, sort order. For a grants file also its fiscal year and the row cap, and `link_basis_counts` (the rows of the file for each `link_basis` value) when the build has that column. |
 
 Rows are counted as CSV records. A line break inside a quoted cell is part
 of the cell, not a new row.
@@ -532,7 +598,11 @@ deadline texts are the words of the organizations that filed the returns.
   the first one in alphabetical order.
 - A link between a grant row and an organization record can be wrong. A
   Form 990-PF grant row has no recipient EIN, so its link comes from the
-  recipient's name and state.
+  recipient's name and state. When the build has the `link_basis` column,
+  it says which job made the link. It does not say that the link is right.
+- `link_basis` is empty for a grant row from a Form 990 (Schedule I). The
+  files do not say if such a row was linked by the EIN on the return or by
+  the name.
 - The linked organization record can have no EIN (for example a company from
   an SEC filing). Then `recipient_ein` is empty.
 - A grant row with no fiscal year is in no grants file. `manifest.json`
@@ -551,7 +621,8 @@ deadline texts are the words of the organizations that filed the returns.
 `src/funderdb/export_foundations.py`. The column lists in this page and in
 the `README.md` of each build come from the lists at the top of that file
 (`FOUNDATION_COLUMNS`, `IRS_STANDING_SOURCE`, `ADDRESS_BASIS_COLUMN`,
-`YEAR_COLUMNS`, `GRANT_COLUMNS` and `LINK_BASIS_COLUMN`). The patterns for
+`YEAR_COLUMNS`, `GRANT_COLUMNS`, `LINK_BASIS_COLUMN` and
+`LINK_BASIS_MEANINGS`). The patterns for
 the deadline text and for the "in care of" part of a name are
 `DEADLINE_CONTACT_PATTERNS` and `NAME_CARE_OF_PATTERN` in the same file.
 Change a column there and then

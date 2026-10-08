@@ -294,8 +294,9 @@ export function Downloads({ release }: { release: DataRelease }) {
             ) : (
               <span className="font-medium text-foreground">{release.licence}</span>
             )}
-            . You may use it, share it and change it, as long as you credit the source. The IRS records underneath are public
-            domain and need no credit.
+            . You may use it, share it and change it, as long as you credit the source. The license covers our work on the
+            list: which records we chose, how we arranged them, and the columns we worked out from them. The facts come from
+            public records. Facts are not subject to copyright, and the license does not restrict them.
           </p>
           <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
             <span>Built from</span>

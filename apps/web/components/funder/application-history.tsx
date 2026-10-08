@@ -83,7 +83,7 @@ function HistoryText({ history, c }: { history: PostureHistory; c: Exclude<Postu
  * There was a third line that quoted words from the instructions that read
  * like a limit ("by invitation"). It is gone: the matched words often did
  * not mean a limit (see application-history-copy.ts), and the page must not
- * quote misleading words. `restrictivePhrase` is never shown.
+ * quote misleading words. The reader no longer carries those words.
  *
  * Both are sourced facts from public filings. No model is involved, so
  * nothing here carries an AI marking; there is no score and no advice. The

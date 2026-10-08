@@ -1157,11 +1157,13 @@ def derive_turnover(fys: tuple[int, ...], slices: tuple[int, ...], dry_run: bool
               help="Read and print what --apply (or --unapply) would change. Writes nothing. "
                    "For --apply it also works before migration 0030 is applied.")
 @click.option("--apply", "do_apply", is_flag=True,
-              help="Write street, city, state and zip from the newest parsed, non-superseded "
-                   "return, only where the organization has no address at all.")
+              help="Write city, state and zip from the newest parsed, non-superseded "
+                   "return, only where the organization has no address at all. The street "
+                   "is never written.")
 @click.option("--unapply", "do_unapply", is_flag=True,
-              help="Set street, city, state and zip back to empty exactly where "
-                   "address_basis is 'filing_header', and clear the two columns.")
+              help="Set city, state and zip back to empty exactly where "
+                   "address_basis is 'filing_header', and clear the two columns. The street "
+                   "column is not touched.")
 @click.option("--report", "do_report", is_flag=True,
               help="Print dated counts: organizations with no state, how many have a usable "
                    "return address, and the rows an --apply has written. Read only.")
@@ -1170,14 +1172,16 @@ def derive_turnover(fys: tuple[int, ...], slices: tuple[int, ...], dry_run: bool
                    "repeat for several.")
 def derive_org_address(dry_run: bool, do_apply: bool, do_unapply: bool, do_report: bool,
                        slices: tuple[int, ...]) -> None:
-    """Address as stated on the latest return, for organizations that have none.
+    """City, state and zip as stated on the latest return, for organizations that have none.
 
     An organization created from an e-filed return and not in the IRS master
     file has no city or state, so it cannot be found by state. Every return
-    carries the filer's own address. --apply copies it from the newest parsed,
-    non-superseded return when that address is in the United States, and marks
-    the row (address_basis 'filing_header', address_object_id). A row that has
-    any part of an address is never changed. A second --apply changes 0 rows.
+    carries the filer's own address. --apply copies the city, state and zip
+    of that address from the newest parsed, non-superseded return when the
+    address is in the United States, and marks the row (address_basis
+    'filing_header', address_object_id). It never copies the street: that
+    line can name a person. A row that has any part of an address is never
+    changed. A second --apply changes 0 rows.
     Order: --dry-run, --apply, --report.
     """
     from .derive import org_address

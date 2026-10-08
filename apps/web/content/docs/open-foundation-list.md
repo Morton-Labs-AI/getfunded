@@ -75,6 +75,15 @@ The grants files have three more rules.
 2. **Do not use a grants file as a total of giving.** The sum of a grants file is less than what the foundations gave. For the total, use `grants_paid` in `foundation_years.csv.gz`. In the same file, `grants_linked_on_file` and `grants_not_linked_on_file` show how many grants of each year are in the grants file and how many are not.
 3. **A match can be wrong.** The recipient name, city and state come from the organization record we matched. They are not the text on the return. Use `filing_object_id` to find the return before you rely on a row.
 
+Some releases have one more column in the grants files, `link_basis`. It says how we matched the recipient of each row. It has two values:
+
+| Value | What it means |
+|---|---|
+| `filer_consensus` | Three or more grantmaking charities wrote this recipient name and state on their own returns with this organization's EIN. A foundation's return gives no EIN for a recipient, so we use what those charities wrote. |
+| `name_match` | Our name-and-place matcher made the match. The name the foundation wrote fits exactly one organization: the only one with that name in the same state, or the only one with that name in the country. |
+
+The cell is empty for the few grants that come from a Form 990 and not from a Form 990-PF. For those, the files do not say how the match was made. The column says how a match was made. It does not say that the match is right. The table on [the list page](/foundations#columns) shows the column only when the release has it.
+
 If a row names a private person, tell us. Use the link in "Found a mistake?" below.
 
 ## What we leave out on purpose

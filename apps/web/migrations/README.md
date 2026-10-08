@@ -93,9 +93,14 @@ Rules:
 
 1. **Scopes `funder_ro`**, the login role behind "Ask the analyst"
    (`ANALYST_DATABASE_URL`), to exactly what `lib/ai/sql-guard.ts` allows: SELECT
-   on the 14 `public.*` views and the 11 `internal.mv_*` materialized views,
-   nothing else in `internal` (no `contact_channels`, `raw_files`,
-   `org_web_facts`, `filing_application_info`, ...). It also removes the default
+   on the 14 `public.*` views of the guard's allowlist and the 11
+   `internal.mv_*` materialized views, nothing else in `internal` (no
+   `contact_channels`, `raw_files`, `org_web_facts`,
+   `filing_application_info`, ...). The allowlist is 14 views; it is not the
+   number of public views in the database. Later corpus migrations added more
+   public views (`recipient_aliases`, `recipient_alias_links`,
+   `irs_revocations`, `irs_pub78`, `org_irs_standing`), and each of those
+   migrations gives the analyst role nothing on them. It also removes the default
    privilege that would grant the role every future `internal` table, and sets
    the role's `search_path` to `public` so a bare name can never resolve into
    `internal`. The guard refuses those names first; after 0010 the database

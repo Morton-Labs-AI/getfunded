@@ -202,9 +202,6 @@ export function toPostureHistory(r: PostureHistoryRow): PostureHistory | null {
             provenance: seal(r.other_sealed, r.other_fy, r.other_source_dataset, r.other_source_url, r.other_license, r.other_sha256),
           }
         : null,
-    // Never filled: the stored words often do not mean a limit (see the file
-    // comment). The field stays in the shape so nothing else has to change.
-    restrictivePhrase: null,
   };
 }
 

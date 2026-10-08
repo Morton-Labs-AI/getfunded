@@ -51,12 +51,6 @@ export type PostureHistory = {
     objectId: string;
     provenance: Provenance | null;
   } | null;
-  /**
-   * Words in the newest return's Part XV text that read like a limit on
-   * applications, exactly as filed (lower case). Only set when the newest
-   * answer is "open". A pointer to the text, not a judgement.
-   */
-  restrictivePhrase: string | null;
 };
 
 export type RecipientTurnover = {

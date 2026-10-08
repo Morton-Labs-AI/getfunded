@@ -10,8 +10,8 @@ import { POSTURE_LABELS } from "@/components/data/posture";
  *
  * The export is `corpus/src/funderdb/export_foundations.py`. Its column
  * lists (FOUNDATION_COLUMNS, IRS_STANDING_SOURCE, ADDRESS_BASIS_COLUMN,
- * YEAR_COLUMNS, GRANT_COLUMNS) are the source of truth for names, order and
- * values.
+ * YEAR_COLUMNS, GRANT_COLUMNS, LINK_BASIS_COLUMN) are the source of truth
+ * for names, order and values.
  *
  * Meanings are written for nonprofit staff: one line, plain words, no
  * database terms.
@@ -142,25 +142,34 @@ export const ADDRESS_BASIS_LIST_COLUMN: ListColumn = {
     {
       value: "latest_return",
       meaning:
-        "The address the foundation wrote on its latest return. It is used when the foundation is not in the IRS master file, and it is as old as that return.",
+        "The city, state and ZIP code the foundation wrote on its latest return. They are used when the foundation is not in the IRS master file, and they are as old as that return.",
     },
   ],
   optional: true,
 };
 
 /**
- * The `link_basis` column of the grants files. It is NOT in
- * FOUNDATION_LIST_FILES, because no release has it yet: the database does
- * not show on a public view how a recipient was matched. Add it to the end
- * of the grants columns when a release's manifest.json says it is present.
+ * The `link_basis` column of the grants files, the last column of each
+ * file. A release has it only when the database had the list of
+ * filer-consensus matches when the export ran (the view
+ * public.recipient_alias_links, corpus migration 0034; `optional_columns`
+ * in the release's manifest.json says so). It has two values. The cell is
+ * empty for a grant that comes from a Form 990 and not from a Form 990-PF.
  */
 export const GRANTS_LINK_BASIS_COLUMN: ListColumn = {
   name: "link_basis",
-  meaning: "How we matched the recipient to an organization record.",
+  meaning: `How we matched the recipient to an organization record. Empty for the few grants that come from a Form 990: the files do not say how those were matched. ${NOT_IN_EVERY_RELEASE}`,
   values: [
-    { value: "ein_on_return", meaning: "The return gives the recipient’s EIN." },
-    { value: "name_and_state_match", meaning: "The name and state on the return match one organization." },
-    { value: "filer_consensus", meaning: "Other filers wrote this name and state with one EIN." },
+    {
+      value: "filer_consensus",
+      meaning:
+        "Three or more grantmaking charities wrote this recipient name and state on their own returns with this organization’s EIN.",
+    },
+    {
+      value: "name_match",
+      meaning:
+        "Our name-and-place matcher made the match. The name the foundation wrote fits exactly one organization: the only one with that name in the same state, or the only one with that name in the country.",
+    },
   ],
   optional: true,
 };
@@ -335,6 +344,7 @@ export const FOUNDATION_LIST_FILES: ListFile[] = [
       { name: "amount", meaning: "The amount of the grant as the foundation reported it, in U.S. dollars." },
       { name: "fiscal_year", meaning: "The calendar year in which the foundation’s fiscal year ended." },
       { name: "filing_object_id", meaning: "The IRS id of the return the grant comes from, so you can find the exact filing." },
+      GRANTS_LINK_BASIS_COLUMN,
     ],
   },
 ];
@@ -356,9 +366,7 @@ export function listFile(name: string): ListFile | null {
  */
 export function columnsInRelease(file: ListFile, published?: readonly string[] | null): ListColumn[] {
   if (!published || published.length === 0) return file.columns;
-  const known = new Map<string, ListColumn>(
-    (file.pattern ? [...file.columns, GRANTS_LINK_BASIS_COLUMN] : file.columns).map((column) => [column.name, column]),
-  );
+  const known = new Map<string, ListColumn>(file.columns.map((column) => [column.name, column]));
   return published.flatMap((name) => {
     const column = known.get(name);
     return column ? [column] : [];
@@ -407,7 +415,7 @@ export const GRANTS_READING_RULES: Array<{ title: string; body: string }> = [
   },
   {
     title: "A match can be wrong.",
-    body: "The recipient name, city and state come from the organization record we matched, not from the text on the return. Check the return (filing_object_id) before you rely on a row.",
+    body: "The recipient name, city and state come from the organization record we matched, not from the text on the return. When a file has the link_basis column, it says how each match was made. It does not say that the match is right. Check the return (filing_object_id) before you rely on a row.",
   },
 ];
 

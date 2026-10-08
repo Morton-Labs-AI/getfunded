@@ -117,8 +117,11 @@ Two migrations change what roles can reach and need a word on deployment:
 
 - **0010, analyst role scope.** `funder_ro` (the role behind "Ask the analyst",
   `ANALYST_DATABASE_URL`) may SELECT exactly what `lib/ai/sql-guard.ts` allows: the
-  14 `public.*` views and the 11 `internal.mv_*` materialized views, nothing else in
-  `internal`, with `search_path = public`. The same migration grants `getfunded_app`
+  14 `public.*` views on the guard's allowlist and the 11 `internal.mv_*` materialized
+  views, nothing else in `internal`, with `search_path = public`. The 14 are not every
+  public view: the database has more (for example `recipient_aliases`,
+  `recipient_alias_links`, `irs_revocations`, `irs_pub78` and `org_irs_standing`), and
+  the analyst role has no grant on those. The same migration grants `getfunded_app`
   SELECT on two columns of `internal.raw_files` (`id`, `sha256`) so funder pages can
   show the fingerprint of the file a fact was parsed from; the app probes that grant
   once per process and leaves the fingerprint out until it is there, so the app can be

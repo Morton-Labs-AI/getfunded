@@ -16,7 +16,7 @@ renamed into place, then ``LATEST`` is updated.
 
 The licence boundary is structural, not a promise. Every query reads ONLY the
 republishable surface, the ``public.*`` views, and only the seven listed in
-ALLOWED_VIEWS (plus an optional view when the database has it, see below).
+ALLOWED_VIEWS (plus two optional views when the database has them, see below).
 Before a byte is written the module checks that:
 
 * every output column declares a source view and that view is allowed;
@@ -86,15 +86,23 @@ Optional columns. Some columns exist only when the database exposes their
 source on a public view. This is checked at run time and recorded in the
 manifest under ``optional_columns``:
 
-* ``irs_standing``, ``irs_revocation_date``, ``irs_on_pub78`` in
-  ``foundations.csv.gz`` need the view ``public.org_irs_standing``;
+* ``irs_standing``, ``irs_revocation_date``, ``irs_on_pub78`` and
+  ``irs_filed_after_revocation`` in ``foundations.csv.gz`` need the view
+  ``public.org_irs_standing`` (migrations 0028 and 0032);
 * ``address_basis`` in ``foundations.csv.gz`` needs an ``address_basis``
   column on ``public.organizations`` (migration 0030). It says whether city,
   state and zip come from the IRS master file or from the foundation's own
   latest return;
-* ``link_basis`` in the grants files needs a ``recipient_link_basis`` column
-  on ``public.funding_events``. No public view says how a recipient was
-  linked today, so the column is left out rather than guessed.
+* ``link_basis`` in the grants files needs the view
+  ``public.recipient_alias_links`` (migration 0034). The column has two
+  values. ``filer_consensus``: the id of the grant row is in that view
+  (three or more grant-making charities wrote this recipient name with this
+  organization's EIN). ``name_match``: a Form 990-PF grant row that is not
+  in the view. A Form 990-PF row gives no recipient EIN, so the only other
+  job that links it is the name-and-place matcher. A grant row from a Form
+  990 (Schedule I) has an empty cell: it can be linked by the EIN on the
+  return or by the matcher, and no public view says which. When the view is
+  not in the database the column is left out rather than guessed.
 
 Honesty rules the files obey (the README repeats them for readers):
 
@@ -162,18 +170,46 @@ ALLOWED_VIEWS = (
     "public.funding_events",
     "public.contact_channels",
 )
-# Read only when the database has it (checked with to_regclass at run time).
+# Read only when the database has them (checked with to_regclass at run time).
 IRS_STANDING_VIEW = "public.org_irs_standing"
+ALIAS_LINKS_VIEW = "public.recipient_alias_links"
 CONTACT_VIEW = "public.contact_channels"
 CONTACT_COLUMNS = ("public_contact_email", "public_contact_phone")
 EVENTS_VIEW = "public.funding_events"
 ORGS_VIEW = "public.organizations"
 
-# `link_basis` appears in the grants files only when public.funding_events
-# has this column. Its values pass through unchanged and must be one of
-# LINK_BASIS_VALUES (or empty); any other value stops the export.
-LINK_BASIS_SOURCE_COLUMN = "recipient_link_basis"
-LINK_BASIS_VALUES = ("ein_on_return", "name_and_state_match", "filer_consensus")
+# `link_basis` appears in the grants files only when the database has the
+# view ALIAS_LINKS_VIEW (migration 0034). That view has one row for each grant
+# row that `funderdb resolve aliases --apply` linked and that still carries
+# that link. The column has two values:
+#
+#   filer_consensus  the id of the grant row is in the view: three or more
+#                    grant-making charities wrote this recipient name and
+#                    state with this organization's EIN;
+#   name_match       a Form 990-PF grant row that is not in the view. A Form
+#                    990-PF row gives no recipient EIN, so the only other job
+#                    that links it is the name-and-place matcher
+#                    (`funderdb resolve recipients`).
+#
+# The cell is empty for a grant row that does not come from a Form 990-PF: a
+# Schedule I row of a Form 990 (a few organizations that the IRS lists as
+# private foundations filed Form 990 for a year). The loader links such a row
+# by the EIN the filer wrote, and the matcher can link it by name later. No
+# public view says which of the two it was, so the cell is empty and nothing
+# is guessed. Measured read only on 2026-10-08: of the foundations with an
+# EIN from 01 to 06, 10 have such linked rows (46 rows).
+#
+# The form is read from the row's own locator on public.funding_events: the
+# loaders write there the path of the row inside the return. Any other value
+# in a written file stops the export.
+LINK_BASIS_CONSENSUS = "filer_consensus"
+LINK_BASIS_NAME_MATCH = "name_match"
+LINK_BASIS_VALUES = (LINK_BASIS_CONSENSUS, LINK_BASIS_NAME_MATCH)
+# The key of the empty cells in the manifest's link_basis counts.
+LINK_BASIS_EMPTY_KEY = "not_available"
+ALIAS_LINKS_EVENT_COLUMN = "event_id"
+EVENT_LOCATOR_COLUMN = "source_record_locator"
+FORM_990PF_LOCATOR_PREFIX = "xpath:/Return/ReturnData/IRS990PF/"
 
 # `address_basis` appears in foundations.csv.gz only when public.organizations
 # has this column (migration 0030). The view's value 'filing_header' is
@@ -427,14 +463,28 @@ GRANT_COLUMNS: list[Column] = [
      "IRS OBJECT_ID of the return the grant row comes from."),
 ]
 
-# Optional: appended to the grants files only when public.funding_events has
-# the LINK_BASIS_SOURCE_COLUMN column.
+# Optional: appended to the grants files only when the database has the view
+# ALIAS_LINKS_VIEW (migration 0034). The values are in LINK_BASIS_MEANINGS.
 LINK_BASIS_COLUMN: Column = (
-    "link_basis", ("public.funding_events",),
-    "How the recipient was linked to the organization record: `ein_on_return` (the "
-    "return gives the recipient's EIN), `name_and_state_match` (the name and state on "
-    "the return match one organization) or `filer_consensus` (other filers wrote this "
-    "name and state with one EIN).")
+    "link_basis", (ALIAS_LINKS_VIEW, EVENTS_VIEW),
+    "How the recipient was linked to the organization record: `filer_consensus` "
+    "(three or more grant-making charities wrote this recipient name and state on "
+    "their own returns with this organization's EIN) or `name_match` (the "
+    "name-and-place matcher of this project linked it: the name on the return matches "
+    "exactly one organization). Empty for a grant row from a Form 990: the files do "
+    "not say how that row was linked.")
+# The values of link_basis, in plain words (the README prints them).
+LINK_BASIS_MEANINGS: list[tuple[str, str]] = [
+    (LINK_BASIS_CONSENSUS,
+     "Three or more grant-making charities wrote this recipient name and state on "
+     "their own returns (Form 990, Schedule I) with this organization's EIN, and all "
+     "of them wrote the same EIN. The city on the foundation's grant row matched too."),
+    (LINK_BASIS_NAME_MATCH,
+     "The name-and-place matcher of this project linked the row. The name that the "
+     "foundation wrote matches exactly one organization: the only one with that name "
+     "in the same state, or the only one with that name in the country. In some "
+     "builds an ending such as INC or LLC is not compared."),
+]
 
 
 # Optional: appended to foundations.csv.gz (after the IRS standing columns)
@@ -840,14 +890,64 @@ join public.organizations o on o.id = pf.org_id
 left join public.org_application_posture p on p.org_id = pf.org_id"""
 
 
+# Is the grant row `e` in the view of the filer-consensus links? True or NULL.
+#
+# It is a look-up for each row, on purpose, and it is written with
+# `= any (array[e.id])` on purpose. Each look-up is one probe of the primary
+# key of the link ledger (event_id), and a few more key probes for a row
+# that is in it. The view is read only for the linked grant rows of the one
+# fiscal year.
+#
+# Three other forms were measured on a throwaway database on 2026-10-08:
+# 1.2 million grant rows, 120,500 linked rows in the fiscal year, a link
+# ledger of 180,000 rows, one alias with 60,000 links. This look-up took 1.2
+# to 1.6 seconds there. The statement without the column took 0.6 seconds.
+#
+# * A LEFT JOIN to the view. The view checks that the grant row still points
+#   at the alias's organization. Because of that check the planner expects
+#   the whole view to return 1 row, whatever it holds. With parallel workers
+#   off it chose a nested loop that reads the whole stored view again for
+#   every grant row: 46 seconds with 20,000 ledger rows (2.4 billion pairs
+#   compared) and 12 minutes 18 seconds with 180,000 (21.7 billion pairs).
+#   The live database gave the same plan shape with an empty ledger. The
+#   time grows with rows times links.
+# * A hash join (nested loops switched off): 1.0 second there. But it works
+#   out the whole view in every fiscal-year statement. On the live database
+#   that is one more read of the grants table, or one key probe for each
+#   link of every year, for each grants file. Not measured on live.
+# * The same look-up with `al.event_id = e.id`. The planner then knows the
+#   id of the grant row inside the view too. It started at the grants
+#   table, reached the ledger through the alias, and read every link of the
+#   alias for every grant row of that alias: 21 seconds.
+#
+# `= any (array[...])` is not an equality that the planner passes on to the
+# other tables of the view. So the only way into the view is the primary
+# key of the ledger, whatever the statistics say. `limit 1` states that one
+# row is enough; the key allows no more.
+_LINK_LOOKUP = (f"(select true from {ALIAS_LINKS_VIEW} al\n"
+                f"                    where al.{ALIAS_LINKS_EVENT_COLUMN} = any (array[e.id]) "
+                "limit 1)")
+
+
 def grants_sql(fiscal_year: int, limit: int | None = None, row_cap: int | None = None,
                link_basis: bool = False, lost: tuple[str, ...] = ()) -> str:
     """One fiscal year of linked grants. The recipient's name, city, state and
     EIN come from the linked organization record (alias ``r`` and the ``rid``
     step); the as-filed recipient text of public.funding_events is not read,
     and neither is the purpose text. The order is total: the last key is the
-    grant row's own id."""
-    basis_step = f",\n         e.{LINK_BASIS_SOURCE_COLUMN} as link_basis" if link_basis else ""
+    grant row's own id.
+
+    ``link_basis`` adds the column of that name (see LINK_BASIS_VALUES). For
+    each linked grant row of the fiscal year, the statement looks the row's
+    id up in the view of the filer-consensus links (_LINK_LOOKUP). That is
+    one probe of the primary key of the link ledger, and for a hit a few
+    more key probes inside the view."""
+    basis_step = f""",
+         case when {_LINK_LOOKUP}
+              then '{LINK_BASIS_CONSENSUS}'
+              when e.{EVENT_LOCATOR_COLUMN} like '{FORM_990PF_LOCATOR_PREFIX}%'
+              then '{LINK_BASIS_NAME_MATCH}'
+         end as link_basis""" if link_basis else ""
     basis_out = ",\n  g.link_basis" if link_basis else ""
     cap = f"\nlimit {int(row_cap)}" if row_cap else ""
     return f"""with {_pf_cte(limit)},
@@ -1060,7 +1160,8 @@ def view_columns_used(irs_standing: bool = False, link_basis: bool = False,
                                    "revocation_list_as_of", "pub78_as_of",
                                    "master_file_as_of")
     if link_basis:
-        used[EVENTS_VIEW] = (*used[EVENTS_VIEW], LINK_BASIS_SOURCE_COLUMN)
+        used[EVENTS_VIEW] = (*used[EVENTS_VIEW], EVENT_LOCATOR_COLUMN)
+        used[ALIAS_LINKS_VIEW] = (ALIAS_LINKS_EVENT_COLUMN,)
     if address_basis:
         used[ORGS_VIEW] = (*used[ORGS_VIEW], ADDRESS_BASIS_SOURCE_COLUMN)
     return used
@@ -1110,19 +1211,24 @@ def detect_optional(cur) -> list[dict]:
                    "so the columns are left out"),
     }
     cur.execute(
-        "select exists (select 1 from information_schema.columns "
-        "where table_schema = 'public' and table_name = 'funding_events' "
-        "and column_name = %s)", (LINK_BASIS_SOURCE_COLUMN,))
-    has_basis = bool(cur.fetchone()[0])
+        "select to_regclass(%s::text) is not null, "
+        "coalesce(has_table_privilege(to_regclass(%s::text)::oid, 'select'), false)",
+        (ALIAS_LINKS_VIEW, ALIAS_LINKS_VIEW))
+    links_exist, links_readable = cur.fetchone()
+    has_basis = bool(links_exist and links_readable)
     basis = {
         "id": "link_basis",
         "file": GRANTS_FILE_PATTERN,
         "columns": [LINK_BASIS_COLUMN[0]],
-        "source": f"{EVENTS_VIEW}.{LINK_BASIS_SOURCE_COLUMN}",
+        "source": ALIAS_LINKS_VIEW,
         "present": has_basis,
-        "reason": ("the column is in this database" if has_basis else
-                   f"no public view says how a recipient was linked ({EVENTS_VIEW} has no "
-                   f"{LINK_BASIS_SOURCE_COLUMN} column), so the column is left out, not guessed"),
+        "values": list(LINK_BASIS_VALUES),
+        "reason": ("the view is in this database" if has_basis else
+                   "the view is in this database, but this connection may not read it"
+                   if links_exist else
+                   f"the view {ALIAS_LINKS_VIEW} is not in this database (migration 0034 "
+                   "is not applied), so the files do not say how a recipient was linked. "
+                   "The column is left out, not guessed"),
     }
     cur.execute(
         "select exists (select 1 from information_schema.columns "
@@ -1345,6 +1451,32 @@ years in a row). It does not hold other kinds of revocation. An empty
 `irs_standing` means that the lists are not available for the foundation.
 """
     grants_dictionary = _dictionary(grant_columns(optional["link_basis"]["present"]))
+    link_note = link_bullet = ""
+    if optional["link_basis"]["present"]:
+        counts = optional["link_basis"].get("link_basis_counts") or {}
+        values = "\n".join(f"- `{v}`: {meaning}" for v, meaning in LINK_BASIS_MEANINGS)
+        link_bullet = ("\n- `link_basis` says how each row was linked. See \"How a recipient "
+                       "was linked\".")
+        link_note = f"""
+## How a recipient was linked
+
+A foundation's return gives the name of each grant recipient and no EIN. The
+column `link_basis` says how this database linked the name to an organization
+record. It has two values:
+
+{values}
+
+The cell is empty for a grant row that comes from a Form 990 and not from a
+Form 990-PF. A few organizations that the IRS lists as private foundations
+filed Form 990 for a year. Such a row can be linked by the EIN that the
+filer wrote, and the files do not say how it was linked.
+
+Each kind of link can be wrong. Use `filing_object_id` to check a row
+against the return.
+
+Rows in the grants files of this build: `{LINK_BASIS_CONSENSUS}` {counts.get(LINK_BASIS_CONSENSUS, 0):,}, `{LINK_BASIS_NAME_MATCH}` {counts.get(LINK_BASIS_NAME_MATCH, 0):,}, empty {counts.get(LINK_BASIS_EMPTY_KEY, 0):,}.
+`manifest.json` has the same counts for each grants file.
+"""
     has_address_basis = optional.get("address_basis", {}).get("present", False)
     foundations_dictionary = _dictionary(
         foundation_columns(optional["irs_standing"]["present"], has_address_basis))
@@ -1427,7 +1559,7 @@ scholarship. A public bulk file must not name them. For this reason:
 - The sum of a grants file is less than what the foundations gave. Do not
   use it as a total of giving. Use `grants_paid` in
   `foundation_years.csv.gz` for that.
-- A link can be wrong. If a row names a private person, report it.
+- A link can be wrong. If a row names a private person, report it.{link_bullet}
 - The purpose of a grant is not in the files. See "What is left out on
   purpose".
 
@@ -1481,7 +1613,7 @@ for the year and none of them is of that kind.
 One file for each fiscal year. One row for each linked grant.
 
 {grants_dictionary}
-{absent_note}
+{link_note}{absent_note}
 ## How to cite
 
 > {ATTRIBUTION}. Open Foundation List, version {m['vintage']}.
@@ -1740,7 +1872,9 @@ def run(out_dir: Path | None, *, limit: int | None = None, no_ledger: bool = Fal
             optional = detect_optional(cur)
             option = {o["id"]: o for o in optional}
             use = {o["id"]: o["present"] for o in optional}
-            allowed = ALLOWED_VIEWS + ((IRS_STANDING_VIEW,) if use["irs_standing"] else ())
+            allowed = (ALLOWED_VIEWS
+                       + ((IRS_STANDING_VIEW,) if use["irs_standing"] else ())
+                       + ((ALIAS_LINKS_VIEW,) if use["link_basis"] else ()))
             columns = {
                 "foundations": foundation_columns(use["irs_standing"], use["address_basis"]),
                 "foundation_years": YEAR_COLUMNS,
@@ -1856,6 +1990,7 @@ def run(out_dir: Path | None, *, limit: int | None = None, no_ledger: bool = Fal
                     "automatic_revocation_list": as_of[0].isoformat() if as_of and as_of[0]
                     else None,
                     "publication_78": as_of[1].isoformat() if as_of and as_of[1] else None,
+                    "irs_master_file": as_of[2].isoformat() if as_of and as_of[2] else None,
                 }
             # One statement and one file for each fiscal year that has a
             # linked grant. The coverage statement names those years and gives
@@ -1953,12 +2088,18 @@ def run(out_dir: Path | None, *, limit: int | None = None, no_ledger: bool = Fal
                     + int(r["grants_linked_on_file"]))
         if r["filing_object_id"][:4].isdigit():
             oid_year_set.add(int(r["filing_object_id"][:4]))
-    basis_counts: dict[str, int] = {}
+    # link_basis is counted on the bytes of each grants file. Every key is
+    # there, so a 0 is a counted zero. Without the column there are no counts.
+    def no_basis_counts() -> dict[str, int]:
+        return {**{v: 0 for v in LINK_BASIS_VALUES}, LINK_BASIS_EMPTY_KEY: 0}
+
+    basis_counts = no_basis_counts() if use["link_basis"] else None
     grants_by_fy: dict[int, dict] = {}
     for f in files:
         if f["kind"] != GRANTS_KIND:
             continue
         grants_by_fy[f["fiscal_year"]] = f
+        file_basis = no_basis_counts() if "link_basis" in f["columns"] else None
         for i, r in enumerate(_iter_rows(tmp / f["name"])):
             if i == 0 and list(r.keys()) != f["columns"]:
                 raise RuntimeError(
@@ -1974,13 +2115,26 @@ def run(out_dir: Path | None, *, limit: int | None = None, no_ledger: bool = Fal
                     or _NAME_CARE_OF_RE.search(r["funder_name"] or "")):
                 raise RuntimeError(
                     f"{f['name']} row {i + 1}: a name still has an \"in care of\" part")
-            if "link_basis" in r:
+            if file_basis is not None:
                 if r["link_basis"] and r["link_basis"] not in LINK_BASIS_VALUES:
                     raise RuntimeError(
                         f"{f['name']} row {i + 1}: link_basis {r['link_basis']!r} is not one "
                         f"of {', '.join(LINK_BASIS_VALUES)}")
-                key = r["link_basis"] or "not_stated"
-                basis_counts[key] = basis_counts.get(key, 0) + 1
+                file_basis[r["link_basis"] or LINK_BASIS_EMPTY_KEY] += 1
+        if file_basis is not None:
+            if sum(file_basis.values()) != f["rows"]:
+                raise RuntimeError(
+                    f"{f['name']}: link_basis was counted for {sum(file_basis.values()):,} "
+                    f"rows, but the file has {f['rows']:,}")
+            f["link_basis_counts"] = file_basis
+            for key, n in file_basis.items():
+                basis_counts[key] += n
+    if basis_counts is not None:
+        option["link_basis"]["link_basis_counts"] = basis_counts
+        option["link_basis"]["link_basis_counts_note"] = (
+            "rows of all grants files of this build; `not_available` counts the empty "
+            "cells (grant rows from a Form 990). Each grants file has its own counts "
+            "under `files`")
     datasets, fys, oid_years = sorted(dataset_set), sorted(fy_set), sorted(oid_year_set)
 
     by_year = []
@@ -2004,6 +2158,9 @@ def run(out_dir: Path | None, *, limit: int | None = None, no_ledger: bool = Fal
             "linked_in_foundation_years": in_years,
             "linked_rows_recipient_name_cut": int(y["linked_recipient_name_cut"]),
         })
+        if basis_counts is not None:
+            # Counted on the rows of the file (a sample's file can be capped).
+            by_year[-1]["link_basis_counts_in_file"] = f.get("link_basis_counts") if f else None
     coverage = {
         "rule": ("a grant row is in a grants file only when its recipient is linked to an "
                  "organization record that public.organizations shows; every other grant "
@@ -2023,8 +2180,8 @@ def run(out_dir: Path | None, *, limit: int | None = None, no_ledger: bool = Fal
             "linked grant rows, by the source dataset of the organization record the "
             "recipient is linked to"),
     }
-    if basis_counts:
-        coverage["link_basis_counts"] = dict(sorted(basis_counts.items()))
+    if basis_counts is not None:
+        coverage["link_basis_counts"] = basis_counts
 
     withheld = {
         "grant_purpose": {
