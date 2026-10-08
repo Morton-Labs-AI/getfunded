@@ -10,7 +10,14 @@ import "server-only";
  */
 import { z } from "zod";
 import { PAID_PLAN_IDS, isSelfHosted } from "@/lib/plans";
-import { ENTITLED_STATUSES, StripeNotConfiguredError, createCheckoutSession, createPortalSession, type StripeDeps } from "./stripe";
+import {
+  AlreadySubscribedError,
+  ENTITLED_STATUSES,
+  StripeNotConfiguredError,
+  createCheckoutSession,
+  createPortalSession,
+  type StripeDeps,
+} from "./stripe";
 import { type Db, withUser } from "./db";
 
 export type WorkspaceContext = {
@@ -75,7 +82,10 @@ export async function handleCheckout(req: Request, deps: BillingRouteDeps): Prom
 
     const body = await deps.boundedJson(req, CheckoutBody, 4_000);
 
-    // One subscription per workspace: changes go through the portal, never a second checkout.
+    // One subscription per workspace: changes go through the portal, never a
+    // second checkout. This is the fast local check; createCheckoutSession
+    // asks Stripe as well (our table lags the webhook) and throws
+    // AlreadySubscribedError, mapped to the same 409 below.
     const existing = await wu(ctx.user.id, async (sql) => {
       const rows = await sql`select status from getfunded.subscriptions where workspace_id = ${ctx.workspace.id}`;
       return rows[0]?.status ? String(rows[0].status) : null;
@@ -107,6 +117,13 @@ export async function handleCheckout(req: Request, deps: BillingRouteDeps): Prom
     if (res) return res;
     if (err instanceof StripeNotConfiguredError) {
       return deps.jsonError(503, "stripe_not_configured", "Billing is not configured on this deployment.");
+    }
+    if (err instanceof AlreadySubscribedError) {
+      return deps.jsonError(
+        409,
+        "already_subscribed",
+        "This workspace already has a subscription at Stripe. Change plans from the billing portal.",
+      );
     }
     throw err;
   }

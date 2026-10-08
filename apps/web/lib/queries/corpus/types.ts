@@ -55,7 +55,7 @@ export type SearchHit = {
   grantsOnFile: number | null;
   grantsTotal: string | null;
   grantsLastFy: number | null;
-  /** Label for the SourceChip: "IRS 990-PF · FY2023" or "IRS BMF". */
+  /** Label for the SourceChip: "IRS 990-PF · FY2023" or "IRS master file". */
   sourceLabel: string;
   match: {
     kind: MatchKind;
@@ -92,7 +92,12 @@ export type Provenance = {
   filingYear: number | null;
   /** Filing object id (IRS e-file) or record locator. */
   objectId: string | null;
-  /** Raw-file content hash. Null until the app role can read internal.raw_files. */
+  /**
+   * sha256 of the file the fact was parsed from. Null when the row has no raw
+   * file (BMF-only identity, contact channels) or the app role cannot read
+   * internal.raw_files yet (migration getfunded_0010); the seal then leaves
+   * the fingerprint out rather than showing a blank.
+   */
   sha256: string | null;
   href: string | null;
   license: string | null;

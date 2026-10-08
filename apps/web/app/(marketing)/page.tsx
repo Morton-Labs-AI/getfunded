@@ -92,10 +92,10 @@ function FreeVsPaid() {
         <p className="eyebrow text-primary">Free</p>
         <p className="tnum mt-2 font-mono text-3xl font-semibold text-foreground">{formatPlanPrice(free)}</p>
         <ul className="mt-4 space-y-2 text-sm text-ink-2">
-          <li>Unlimited funder search and profiles with provenance</li>
+          <li>Unlimited funder search and full profiles: where every fact came from, and whether the funder says it accepts applications</li>
           <li>
             {formatNumber(free.monthly_credits)} AI credits a month: about {formatNumber(perMonth(free.monthly_credits, "fit"))} fit
-            analyses or {formatNumber(perMonth(free.monthly_credits, "research"))} research dossiers
+            analyses or {formatNumber(perMonth(free.monthly_credits, "research"))} web research reports
           </li>
           <li>{formatNumber(free.saved_funders_limit)} saved funders and one pipeline</li>
           <li>Outreach drafts (uses credits), {formatNumber(free.export_rows)}-row CSV export</li>
@@ -118,7 +118,8 @@ function FreeVsPaid() {
             {pro.name} ({formatPlanPrice(pro)}): send outreach through your own Gmail, each message approved by you
           </li>
           <li>
-            {team.name} ({formatPlanPrice(team)}): shared knowledge base, sequences and the API
+            {team.name} ({formatPlanPrice(team)}): a knowledge base shared across the team, follow-ups that stop when a funder
+            replies, and the API
           </li>
           <li>Paid use funds the free tier and the open-source project</li>
         </ul>

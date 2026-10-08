@@ -55,7 +55,9 @@ Each saved funder has an activity log: notes, calls, meetings, emails you record
 
 ## Approved facts
 
-Pro and above can keep a small knowledge base: facts about your organization, program descriptions, outcomes and boilerplate. Only facts marked **approved** are ever given to the AI when it drafts outreach. This keeps drafts grounded in what you have checked.
+Every plan can keep a small knowledge base: facts about your organization, program descriptions, outcomes and boilerplate. Only facts marked **approved** are ever given to the AI when it drafts outreach. This keeps drafts grounded in what you have checked.
+
+Everyone in the workspace can read the knowledge base and add to it. Only an owner or admin can mark a fact approved. On Team and above it is shared across up to {{plans.team.members}} seats.
 
 ## Import a CSV
 

@@ -1,13 +1,14 @@
 /**
  * The analyst's system prompt: the allowed relations and their columns (the
- * public views and the internal matviews the `funder_ro` role may read),
- * the honesty rules, and a small cookbook. Pure module; the catalogue is a
+ * public views and the internal matviews the `funder_ro` role may read, the
+ * same two lists the guard in sql-guard.ts enforces), the honesty rules, and
+ * a small cookbook. Pure module; the catalogue is a
  * snapshot of the live corpus (columns, not rows) kept in code so the prompt
  * is cache-stable and never depends on a query at request time.
  */
 import type { Tool } from "@/lib/ai/types";
 
-export const ASK_PROMPT_VERSION = "ask-p1";
+export const ASK_PROMPT_VERSION = "ask-p2";
 
 export type RelationDoc = { name: string; columns: string; note?: string };
 
@@ -113,14 +114,6 @@ export const MATVIEW_DOCS: RelationDoc[] = [
   { name: "internal.mv_amount_histogram", columns: "event_type, bucket integer, n" },
 ];
 
-export const FUNCTION_DOCS: RelationDoc[] = [
-  {
-    name: "internal.similar_orgs(src_org_id uuid, match_limit int default 12, state_in text, org_types text[], min_size numeric, max_size numeric)",
-    columns: "returns (org_id, name, org_type, state, size_amount, dist)",
-    note: "Nearest funders by giving-behaviour embedding (foundations, companies, advisers only). Idiom: select * from internal.similar_orgs('<uuid>', 12, null, null, null, null)",
-  },
-];
-
 function renderDocs(docs: RelationDoc[]): string {
   return docs.map((d) => `${d.name} — ${d.columns}${d.note ? `\n  NOTE: ${d.note}` : ""}`).join("\n");
 }
@@ -132,9 +125,15 @@ export function buildAskSystem(): string {
     "federal award data. You answer a fundraiser's question by writing ONE read-only SQL query.",
     "",
     "## Rules",
-    "- Write exactly one SELECT (a WITH ... SELECT is fine). No semicolons, no DML, no EXPLAIN ANALYZE.",
-    "- Read ONLY these relations: the public.* views and the internal.mv_* views listed below, plus",
-    "  internal.similar_orgs(). Nothing else exists for you. Qualify every relation with its schema.",
+    "- Write exactly one SELECT (a WITH ... SELECT is fine). No semicolons, no DML, no EXPLAIN, no SELECT INTO.",
+    "- Read ONLY these relations: the public.* views and the internal.mv_* views listed below. Nothing",
+    "  else exists for you. Qualify every relation with its schema. Similar-funder lookups live on the",
+    "  funder page, not here.",
+    "- Use ordinary SQL functions only: aggregates, math, string, date/time, coalesce/nullif, similarity().",
+    "  No catalog, settings, file or XML functions; no LATERAL, TABLE, ONLY or TABLESAMPLE; no E'' strings,",
+    "  no $1 parameters. Write LIMIT n, not FETCH FIRST n ROWS ONLY.",
+    "- If a query fails with 'permission denied for view', use the internal.mv_* view that carries the",
+    "  same columns (noted below) instead.",
     "- Never fabricate names, numbers or amounts. The query is the answer; the result is what you know.",
     "- Aggregate in SQL. Add an ORDER BY and a sensible LIMIT (results are capped at 500 rows anyway).",
     "- Paid grants are event_type = 'grant'. Do not sum 'grant_commitment' rows as paid.",
@@ -154,8 +153,6 @@ export function buildAskSystem(): string {
     renderDocs(PUBLIC_VIEW_DOCS),
     "",
     renderDocs(MATVIEW_DOCS),
-    "",
-    renderDocs(FUNCTION_DOCS),
     "",
     "## Cookbook",
     "-- Open-to-apply screening with money paid out (the grantseeker's question):",
@@ -188,7 +185,7 @@ export function buildQueryTool(): Tool {
     input_schema: {
       type: "object",
       properties: {
-        sql: { type: "string", description: "One SELECT or WITH ... SELECT over the allowed relations. No semicolon." },
+        sql: { type: "string", description: "One SELECT or WITH ... SELECT over the allowed relations, schema-qualified. No semicolon, no EXPLAIN." },
         purpose: { type: "string", description: "What the query does, in one plain sentence (e.g. 'Texas foundations that accept applications, ranked by giving')." },
       },
       required: ["sql", "purpose"],
@@ -200,7 +197,7 @@ export function buildQueryTool(): Tool {
 export function buildRepairMessage(error: string): string {
   return [
     `QUERY ERROR: ${error}`,
-    "Fix the query and call write_query again. Use only the listed relations, schema-qualified, one statement, no semicolon.",
+    "Fix the query and call write_query again. Use only the listed relations, schema-qualified, ordinary SQL functions, one statement, no semicolon.",
   ].join("\n");
 }
 

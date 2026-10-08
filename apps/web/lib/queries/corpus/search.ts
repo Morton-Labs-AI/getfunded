@@ -8,8 +8,10 @@ import "server-only";
 import type postgres from "postgres";
 
 import type { PostureValue } from "@/components/data/posture";
+import { DbError } from "@/lib/db/app";
 import { corpusQuery } from "@/lib/db/corpus";
 import { formatEin } from "@/lib/format";
+import { IRS_MASTER_FILE_LABEL } from "@/lib/content/copy";
 import { filingSourceLabel, nteeMajorLabel, orgTypeLabel } from "@/lib/content/labels";
 import { embedQuery } from "@/lib/search/embed";
 import { PAGE_SIZE, nameQuery, type SearchParams } from "@/lib/search/params";
@@ -120,7 +122,7 @@ export function rowToHit(row: Row, ran: RanMode, p: SearchParams): SearchHit {
     grantsOnFile: toInt(row.grants_n),
     grantsTotal: positive(row.grants_total),
     grantsLastFy: row.grants_last_fy ?? null,
-    sourceLabel: filing ? filingSourceLabel(filing.returnType, filing.fy) : "IRS BMF",
+    sourceLabel: filing ? filingSourceLabel(filing.returnType, filing.fy) : IRS_MASTER_FILE_LABEL,
     match: { kind: ran, reason: reasonFor(ran, p, row), snippet: row.snippet, givingTo: givingToOf(row) },
     snapshot: {
       orgId: row.id,
@@ -147,6 +149,17 @@ export function emptyResult(params: SearchParams, extra: Partial<SearchResult> =
     notices: [],
     ...extra,
   };
+}
+
+/**
+ * When `searchFunders` threw because Postgres stopped the statement at the
+ * timeout (SQLSTATE 57014: a very common name over a cold cache), the honest
+ * answer is an empty page with a `timed_out` notice, not an error page. Null
+ * for every other error, which the caller rethrows. The JSON routes keep
+ * answering 504 instead; this is for the rendered page.
+ */
+export function timedOutResult(err: unknown, params: SearchParams): SearchResult | null {
+  return DbError.is(DbError.from(err), "timeout") ? emptyResult(params, { notices: ["timed_out"] }) : null;
 }
 
 export async function searchFunders(params: SearchParams, deps: SearchDeps = {}): Promise<SearchResult> {

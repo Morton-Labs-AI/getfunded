@@ -72,6 +72,9 @@ export const DOCS_DIR = path.join(process.cwd(), "content", "docs");
  * root when building from `apps/web`; the second covers a flattened deploy.
  */
 export const CHANGELOG_PATHS = [
+  // `npm run build` copies the repository CHANGELOG here (scripts/copy-changelog.mjs)
+  // so it is inside the app root and lands in the function's file trace.
+  path.join(process.cwd(), "content", "generated", "CHANGELOG.md"),
   path.join(process.cwd(), "..", "..", "CHANGELOG.md"),
   path.join(process.cwd(), "CHANGELOG.md"),
 ];

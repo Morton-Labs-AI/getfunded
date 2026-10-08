@@ -30,9 +30,11 @@ return meter(
    `quota_exceeded` when the monthly or daily cap would be crossed
    (`QuotaExceededError`, HTTP 402 with `upgradeUrl`).
 4. Runs the callback with the one `AiClient` (live, `AI_MODE=mock`, or disabled).
-5. Settles the ledger row with the real tokens, model and latency, or refunds it
-   when the callback threw. A validation failure after the one retry therefore
-   costs the workspace nothing.
+5. Settles the ledger row with the real tokens, model and latency. When the
+   callback threw, the row is still settled (charged, `meta.failed = true`) if the
+   model had billed tokens, and refunded only when none were spent (`failureStatus`
+   in `lib/billing/meter.ts`). A validation failure after the one retry therefore
+   still costs the feature's credits: the model was paid for the tokens.
 
 The route handlers under `app/api/ai/*` never touch the ledger. Each one is
 `aiRoute(req, feature, handler)` (`lib/ai/route.ts`): same origin, signed in,
@@ -63,7 +65,8 @@ The model answers through a forced tool call whose schema requires
 the structured dossier keeps a sources list (`research-schema.ts`). After zod,
 `validateFitRefs()` / `draftProblems()` check every cited id against the package
 (`packageIds`, `unknownRefs`). One retry names the exact violations; a second
-failure throws `AiOutputRejectedError` and the credits are refunded. Nothing
+failure throws `AiOutputRejectedError`; the credits are charged when tokens were
+spent and refunded only when none were. Nothing
 unvalidated is ever stored.
 
 What is stored (`getfunded.ai_analyses`, append-only) is the package itself

@@ -8,7 +8,10 @@ import "server-only";
  * system (no user), which RLS would otherwise block for writes.
  *
  * Handled: checkout.session.completed, customer.subscription.created/updated/deleted,
- * invoice.payment_failed. Unknown price ids are logged and ignored.
+ * invoice.payment_failed. An entitled subscription on a price id that is not
+ * mapped to a plan is REFUSED with `UnknownPriceError` (the route answers 500
+ * so Stripe retries once the env var is fixed); a non-entitled one (canceled,
+ * unpaid) still applies as a downgrade.
  */
 import type Stripe from "stripe";
 import { appDb, type Db } from "./db";
@@ -45,7 +48,28 @@ export type WebhookDeps = {
   stripe?: Pick<Stripe, "subscriptions">;
   env?: Env;
   log?: (message: string, extra?: Record<string, unknown>) => void;
+  /** Error-level log (default console.error): a misconfiguration the operator must act on. */
+  logError?: (message: string, extra?: Record<string, unknown>) => void;
 };
+
+/**
+ * An entitled subscription arrived on a Stripe price that no STRIPE_PRICE_*
+ * variable names. Applying it would silently leave the workspace on the wrong
+ * plan and answering 200 would make Stripe forget the event, so the handler
+ * throws this and the route answers 500: Stripe retries for up to three days,
+ * which is time to set the variable.
+ */
+export class UnknownPriceError extends Error {
+  readonly code = "unknown_price" as const;
+  readonly eventId: string;
+  readonly priceId: string | null;
+  constructor(eventId: string, priceId: string | null, subscriptionId: string) {
+    super(`Stripe price ${priceId ?? "(none)"} on subscription ${subscriptionId} is not mapped to a plan (event ${eventId}).`);
+    this.name = "UnknownPriceError";
+    this.eventId = eventId;
+    this.priceId = priceId;
+  }
+}
 
 type ApplyInput = {
   eventName: string;
@@ -91,8 +115,8 @@ function toOutcome(event: Stripe.Event, r: { outcome: string; workspace_id: stri
   return { eventId: event.id, type: event.type, outcome, workspaceId: r.workspace_id, plan: r.plan };
 }
 
-function defaultLog(message: string, extra?: Record<string, unknown>) {
-  console.warn(`[stripe-webhook] ${message}`, extra ?? {});
+function defaultLogError(message: string, extra?: Record<string, unknown>) {
+  console.error(`[stripe-webhook] ${message}`, extra ?? {});
 }
 
 /** Apply a subscription object (from a subscription event or a completed checkout). */
@@ -104,13 +128,19 @@ async function applyFromSubscription(
 ): Promise<WebhookOutcome> {
   const env = deps.env ?? process.env;
   const sql = deps.sql ?? appDb;
-  const log = deps.log ?? defaultLog;
+  const logError = deps.logError ?? defaultLogError;
   const rec = subscriptionRecord(sub, env);
   const status = hints.forceStatus ?? rec.status;
   const entitled = ENTITLED_STATUSES.has(status);
   if (entitled && rec.plan === null) {
-    log("unknown Stripe price; event ignored", { eventId: event.id, type: event.type, priceId: rec.priceId, subscription: sub.id });
-    return { eventId: event.id, type: event.type, outcome: "unknown_price", reason: `price ${rec.priceId ?? "(none)"} is not mapped to a plan` };
+    logError("unknown Stripe price on an entitled subscription; refusing the event so Stripe retries", {
+      eventId: event.id,
+      type: event.type,
+      priceId: rec.priceId,
+      subscription: sub.id,
+      hint: "set the matching STRIPE_PRICE_* variable, then let Stripe redeliver",
+    });
+    throw new UnknownPriceError(event.id, rec.priceId, sub.id);
   }
   const result = await applySubscription(sql, {
     eventName: `stripe:${event.id}`,

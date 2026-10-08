@@ -88,10 +88,46 @@ export function mapSubscriptionStatus(status: string | null | undefined): Subscr
     case "incomplete_expired":
       return "canceled";
     case "paused":
-      return "past_due";
+      // Stripe pauses collection when a trial ends without a payment method.
+      // Nothing is being paid, so the workspace is NOT entitled: `unpaid`,
+      // never the `past_due` grace period (which is for a failed charge on a
+      // live subscription).
+      return "unpaid";
     default:
       return "unpaid";
   }
+}
+
+/** The customer already has a live (or still-pending) subscription at Stripe: use the portal, not a second checkout. */
+export class AlreadySubscribedError extends Error {
+  readonly code = "already_subscribed" as const;
+  readonly status = 409;
+  readonly subscriptionId: string;
+  readonly subscriptionStatus: string;
+  constructor(subscriptionId: string, subscriptionStatus: string) {
+    super(`Stripe customer already has subscription ${subscriptionId} (${subscriptionStatus}).`);
+    this.name = "AlreadySubscribedError";
+    this.subscriptionId = subscriptionId;
+    this.subscriptionStatus = subscriptionStatus;
+  }
+}
+
+/**
+ * Stripe statuses under which a second Checkout must be refused. `incomplete`
+ * is a checkout whose first payment is still being confirmed: letting a second
+ * one through is exactly the race that produces two live subscriptions when the
+ * webhook has not caught up yet.
+ */
+export const BLOCKING_STRIPE_STATUSES: ReadonlySet<string> = new Set(["active", "trialing", "past_due", "incomplete"]);
+
+/**
+ * The idempotency key for a Checkout Session: the same workspace asking for
+ * the same plan within the same hour gets the same session back from Stripe
+ * instead of a second one (a double click, a retried request).
+ */
+export function checkoutIdempotencyKey(workspaceId: string, plan: string, now: Date = new Date()): string {
+  const hourBucket = Math.floor(now.getTime() / 3_600_000);
+  return `checkout:${workspaceId}:${plan}:${hourBucket}`;
 }
 
 export type SubscriptionRecord = {
@@ -145,6 +181,8 @@ export type StripeDeps = {
   stripe?: Stripe;
   env?: Env;
   withUser?: WithUser;
+  /** Clock for the idempotency key; tests pin it. */
+  now?: () => Date;
 };
 
 const WorkspaceRef = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200).nullish() });
@@ -223,7 +261,23 @@ const CheckoutInput = z.object({
 
 export type CreateCheckoutSessionInput = z.input<typeof CheckoutInput>;
 
-/** Start Stripe Checkout for a plan. Metadata carries the workspace id so the webhook can find it. */
+/**
+ * Refuse a second Checkout when Stripe already holds a live or pending
+ * subscription for the customer. Our `subscriptions` table lags the webhook,
+ * so the local check in lib/billing/checkout.ts is not enough on its own.
+ */
+export async function assertNoLiveSubscription(s: Pick<Stripe, "subscriptions">, customerId: string): Promise<void> {
+  const list = await s.subscriptions.list({ customer: customerId, status: "all", limit: 20 });
+  const live = list.data.find((sub) => BLOCKING_STRIPE_STATUSES.has(sub.status));
+  if (live) throw new AlreadySubscribedError(live.id, live.status);
+}
+
+/**
+ * Start Stripe Checkout for a plan. Metadata carries the workspace id so the
+ * webhook can find it. Throws `AlreadySubscribedError` (409) when the Stripe
+ * customer already has a blocking subscription; sends an idempotency key so a
+ * repeated request within the hour reuses the same session.
+ */
 export async function createCheckoutSession(
   inputIn: CreateCheckoutSessionInput,
   deps: StripeDeps = {},
@@ -233,17 +287,21 @@ export async function createCheckoutSession(
   const s = deps.stripe ?? stripe(env);
   const price = priceIdFor(input.plan, env);
   const customer = await ensureCustomer(input.workspace, input.userEmail, { userId: input.userId }, { ...deps, stripe: s });
-  const session = await s.checkout.sessions.create({
-    mode: "subscription",
-    customer,
-    line_items: [{ price, quantity: 1 }],
-    success_url: input.successUrl,
-    cancel_url: input.cancelUrl,
-    client_reference_id: input.workspace.id,
-    allow_promotion_codes: true,
-    metadata: { workspace_id: input.workspace.id, plan: input.plan },
-    subscription_data: { metadata: { workspace_id: input.workspace.id, plan: input.plan } },
-  });
+  await assertNoLiveSubscription(s, customer);
+  const session = await s.checkout.sessions.create(
+    {
+      mode: "subscription",
+      customer,
+      line_items: [{ price, quantity: 1 }],
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      client_reference_id: input.workspace.id,
+      allow_promotion_codes: true,
+      metadata: { workspace_id: input.workspace.id, plan: input.plan },
+      subscription_data: { metadata: { workspace_id: input.workspace.id, plan: input.plan } },
+    },
+    { idempotencyKey: checkoutIdempotencyKey(input.workspace.id, input.plan, deps.now?.() ?? new Date()) },
+  );
   return { id: session.id, url: session.url ?? null };
 }
 

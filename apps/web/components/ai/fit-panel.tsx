@@ -140,8 +140,8 @@ async function FitPanelContent({ orgId, savedFunderId }: { orgId: string; savedF
               {a.overallScore}
             </div>
             <div className="mt-1 text-[13px] font-medium text-ai">{ratingWord} fit</div>
-            <div className="mt-0.5 text-[10.5px] text-ink-4" title={AI_COPY.fit.composite}>
-              weighted composite · {a.weightsVersion}
+            <div className="mt-0.5 max-w-40 text-[10.5px] leading-4 text-ink-4" title={`${AI_COPY.fit.composite} Weights ${a.weightsVersion}.`}>
+              A weighted average of the seven scores below. We do the arithmetic, not the AI.
             </div>
           </div>
           <p className="min-w-64 flex-1 text-sm leading-6 text-ink-2">{a.summary}</p>

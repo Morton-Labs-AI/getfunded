@@ -80,29 +80,43 @@ export function FyBars({
   );
 }
 
-/** A single horizontal split bar (program / management / fundraising). */
+export type SplitSegment = { label: string; value: number | null; color: string };
+
+/** The legend / aria text for one segment: a share, or "not available" when the return carries no line. */
+export function splitSegmentText(s: SplitSegment, total: number): string {
+  if (s.value === null) return `${s.label} not available`;
+  return `${s.label} ${Math.round((Math.max(0, s.value) / total) * 100)}%`;
+}
+
+/**
+ * A single horizontal split bar (program / management / fundraising). A null
+ * segment is a line the return does not carry: it takes no width, and the
+ * legend says "not available" instead of showing it as 0%.
+ */
 export function SplitBar({
   segments,
   ariaLabel,
 }: {
-  segments: { label: string; value: number; color: string }[];
+  segments: SplitSegment[];
   ariaLabel: string;
 }) {
-  const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0);
+  const present = segments.filter((s): s is SplitSegment & { value: number } => s.value !== null);
+  const total = present.reduce((s, x) => s + Math.max(0, x.value), 0);
   if (total <= 0) return null;
+  const summary = segments.map((s) => splitSegmentText(s, total)).join(", ");
   return (
     <div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-inset" role="img" aria-label={ariaLabel}>
-        {segments.map((s) => (
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-inset" role="img" aria-label={`${ariaLabel}: ${summary}`}>
+        {present.map((s) => (
           <div key={s.label} style={{ width: `${(Math.max(0, s.value) / total) * 100}%`, background: s.color }} />
         ))}
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {segments.map((s) => (
           <li key={s.label} className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: s.color }} aria-hidden />
+            <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: s.value === null ? "transparent" : s.color, outline: s.value === null ? "1px dashed var(--border-strong)" : undefined }} aria-hidden />
             <span className="text-ink-2">{s.label}</span>
-            <span className="tnum font-medium text-foreground">{Math.round((Math.max(0, s.value) / total) * 100)}%</span>
+            {s.value === null ? <span className="text-ink-3">not available</span> : <span className="tnum font-medium text-foreground">{Math.round((Math.max(0, s.value) / total) * 100)}%</span>}
           </li>
         ))}
       </ul>

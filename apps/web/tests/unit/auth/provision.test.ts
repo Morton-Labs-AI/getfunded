@@ -12,8 +12,12 @@ vi.mock("@/lib/db/app", () => ({
 }));
 
 import { ensureProvisioned, type UserRunner } from "@/lib/auth/provision";
+import { SignupRefusedError } from "@/lib/auth/signup-gate";
 
 type Call = { strings: string[]; values: unknown[] };
+
+/** The sign-up gate that always admits; the gate itself is tested in signup-gate.test.ts. */
+const openGate = async () => {};
 
 /**
  * A fake `sql` tagged template: records every call and returns the rows the
@@ -41,11 +45,25 @@ describe("ensureProvisioned", () => {
     vi.clearAllMocks();
   });
 
+  it("runs the sign-up gate with the normalised email BEFORE touching the database, and refuses when it throws", async () => {
+    const runner = fakeRunner([{ user_id: USER_ID, workspace_id: "ws-1", is_new: true }]);
+    const gate = vi.fn(async () => {
+      throw new SignupRefusedError("invite_required");
+    });
+    await expect(
+      ensureProvisioned({ id: USER_ID, email: "Pat@Example.org", displayName: "Pat" }, { withUser: runner.withUser, gate }),
+    ).rejects.toBeInstanceOf(SignupRefusedError);
+    expect(gate).toHaveBeenCalledWith({ id: USER_ID, email: "pat@example.org" });
+    // provision_user was never called: no account, no workspace, no membership.
+    expect(runner.calls).toHaveLength(0);
+    expect(runner.setUserIds).toEqual([]);
+  });
+
   it("calls getfunded.provision_user as the user and maps the row", async () => {
     const runner = fakeRunner([{ user_id: USER_ID, workspace_id: "ws-1", is_new: true }]);
     const out = await ensureProvisioned(
       { id: USER_ID, email: "Pat@Example.org", displayName: "  Pat Doe " },
-      { withUser: runner.withUser },
+      { withUser: runner.withUser, gate: openGate },
     );
 
     expect(out).toEqual({ userId: USER_ID, workspaceId: "ws-1", isNew: true });

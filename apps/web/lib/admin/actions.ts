@@ -178,7 +178,10 @@ export async function saveFlags(_prev: ActionState, formData: FormData): Promise
   } catch (err) {
     return { ok: false, message: failureMessage(err) };
   }
-  revalidatePath("/", "layout");
+  // The banner (<SiteBanner />) and the sign-up mode are read at request time
+  // (connection(), per-request cache), so they do not need a site-wide purge.
+  // Only the admin pages render the stored flags into their HTML.
+  revalidatePath("/admin", "layout");
   return { ok: true, message: "Flags saved. The banner and sign-up mode apply right away; the AI switch applies to the next call." };
 }
 

@@ -9,7 +9,7 @@ export type Provenance = {
   /** Human dataset name: "IRS 990-PF e-file", "IRS Exempt Orgs BMF". */
   source: string;
   filingYear?: number | string | null;
-  /** Content hash of the filing we read. */
+  /** sha256 of the file we read. When absent the seal leaves the fingerprint out; it never shows a blank. */
   sha256?: string | null;
   /** Link to the public filing or dataset record. */
   href?: string | null;
@@ -52,10 +52,14 @@ export function ProvenanceSeal({
       </span>
       <Dot />
       <span className="tnum">{filingYear ? formatFiscalYear(filingYear) : <Missing bare />}</span>
-      <Dot />
-      <span className="tnum font-mono text-ink-3" title={sha256 ?? undefined}>
-        sha256 {shaPrefix(sha256)}
-      </span>
+      {sha256 ? (
+        <>
+          <Dot />
+          <span className="tnum font-mono text-ink-3" title={`sha256 of the file we read: ${sha256}`}>
+            file fingerprint {shaPrefix(sha256)}
+          </span>
+        </>
+      ) : null}
       {license ? (
         <>
           <Dot />

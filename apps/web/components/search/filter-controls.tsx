@@ -58,99 +58,113 @@ export function FilterControls({ current, base }: { current: SearchParams; base:
     startTransition(() => router.push(searchHref(base, withParams(current, patch))));
   }
 
-  const selectClass = "h-9 min-w-0 max-w-full";
+  const selectClass = "h-9 w-full min-w-0 max-w-full";
+  const baseId = React.useId();
+  const id = (name: string) => `${baseId}-${name}`;
 
   return (
     <div className="flex flex-col gap-3" aria-busy={pending}>
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-        <Select value={current.type} onValueChange={(v) => set({ type: v as SearchType })}>
-          <SelectTrigger className={selectClass} aria-label="Funder type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SEARCH_TYPES.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t === "all" ? "All funder types" : ORG_TYPE_LABELS[t]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
+        <Field id={id("type")} label="Type">
+          <Select value={current.type} onValueChange={(v) => set({ type: v as SearchType })}>
+            <SelectTrigger id={id("type")} className={selectClass}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SEARCH_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t === "all" ? "All funder types" : ORG_TYPE_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-        <Select value={current.state ?? ANY} onValueChange={(v) => set({ state: v === ANY ? null : v })}>
-          <SelectTrigger className={selectClass} aria-label="State">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Any state</SelectItem>
-            {US_STATES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Field id={id("state")} label="State">
+          <Select value={current.state ?? ANY} onValueChange={(v) => set({ state: v === ANY ? null : v })}>
+            <SelectTrigger id={id("state")} className={selectClass}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any state</SelectItem>
+              {US_STATES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-        <Select value={current.posture ?? ANY} onValueChange={(v) => set({ posture: v === ANY ? null : (v as SearchPosture) })}>
-          <SelectTrigger className={selectClass} aria-label="Application status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Any application status</SelectItem>
-            {SEARCH_POSTURES.map((p) => (
-              <SelectItem key={p} value={p}>
-                {POSTURE_LABELS[p]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Field id={id("posture")} label="Applications">
+          <Select value={current.posture ?? ANY} onValueChange={(v) => set({ posture: v === ANY ? null : (v as SearchPosture) })}>
+            <SelectTrigger id={id("posture")} className={selectClass}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any application status</SelectItem>
+              {SEARCH_POSTURES.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {POSTURE_LABELS[p]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-        <Select
-          value={current.minDistributions ? String(current.minDistributions) : ANY}
-          onValueChange={(v) => set({ minDistributions: v === ANY ? null : Number(v) })}
-        >
-          <SelectTrigger className={selectClass} aria-label="Minimum giving per year">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Any giving level</SelectItem>
-            {DISTRIBUTION_PRESETS.map((v) => (
-              <SelectItem key={v} value={String(v)}>
-                Gives {formatMoneyCompact(v)}+ a year
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Field id={id("giving")} label="Gives per year">
+          <Select
+            value={current.minDistributions ? String(current.minDistributions) : ANY}
+            onValueChange={(v) => set({ minDistributions: v === ANY ? null : Number(v) })}
+          >
+            <SelectTrigger id={id("giving")} className={selectClass}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any giving level</SelectItem>
+              {DISTRIBUTION_PRESETS.map((v) => (
+                <SelectItem key={v} value={String(v)}>
+                  Gives {formatMoneyCompact(v)}+ a year
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-        <Select value={current.minAssets ? String(current.minAssets) : ANY} onValueChange={(v) => set({ minAssets: v === ANY ? null : Number(v) })}>
-          <SelectTrigger className={selectClass} aria-label="Minimum assets">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Any asset size</SelectItem>
-            {ASSET_PRESETS.map((v) => (
-              <SelectItem key={v} value={String(v)}>
-                Assets {formatMoneyCompact(v)}+
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Field id={id("assets")} label="Assets">
+          <Select value={current.minAssets ? String(current.minAssets) : ANY} onValueChange={(v) => set({ minAssets: v === ANY ? null : Number(v) })}>
+            <SelectTrigger id={id("assets")} className={selectClass}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any asset size</SelectItem>
+              {ASSET_PRESETS.map((v) => (
+                <SelectItem key={v} value={String(v)}>
+                  Assets {formatMoneyCompact(v)}+
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-        <Select value={current.ntee ?? ANY} onValueChange={(v) => set({ ntee: v === ANY ? null : v })}>
-          <SelectTrigger className={selectClass} aria-label="Focus area (NTEE group)">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Any focus area</SelectItem>
-            {NTEE_FILTER_GROUPS.map((k) => (
-              <SelectItem key={k} value={k}>
-                {NTEE_MAJOR[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Field id={id("focus")} label="Focus area">
+          <Select value={current.ntee ?? ANY} onValueChange={(v) => set({ ntee: v === ANY ? null : v })}>
+            <SelectTrigger id={id("focus")} className={selectClass}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any focus area</SelectItem>
+              {NTEE_FILTER_GROUPS.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {NTEE_MAJOR[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <form
           className="flex min-w-0 flex-1 items-center gap-2"
           onSubmit={(e) => {
@@ -174,22 +188,36 @@ export function FilterControls({ current, base }: { current: SearchParams; base:
           </Button>
         </form>
 
-        <div className="flex items-center gap-2">
-          <Select value={current.sort} onValueChange={(v) => set({ sort: v as SearchSort })}>
-            <SelectTrigger className="h-9" aria-label="Sort results">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SEARCH_SORTS.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {SORT_LABELS[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-end gap-2">
+          <Field id={id("sort")} label="Sort">
+            <Select value={current.sort} onValueChange={(v) => set({ sort: v as SearchSort })}>
+              <SelectTrigger id={id("sort")} className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SEARCH_SORTS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {SORT_LABELS[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
           <ViewToggle value={current.view} onChange={(view) => set({ view, page: current.page })} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A visible label over one control. The label is the control's name, not a hint. */
+function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <Label htmlFor={id} className="text-xs font-medium text-ink-3">
+        {label}
+      </Label>
+      {children}
     </div>
   );
 }

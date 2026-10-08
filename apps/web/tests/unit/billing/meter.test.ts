@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiClient, AiResponse } from "@/lib/ai/types";
-import { AiDisabledError, AiRefusedError } from "@/lib/ai/types";
+import { AiDisabledError, AiError, AiRefusedError } from "@/lib/ai/types";
 import { USER, WS, jsonValue, makeFakeSql, makeFakeWithUser, type SqlCall } from "./fake-sql";
 
 vi.mock("server-only", () => ({}));
@@ -12,7 +12,7 @@ vi.mock("@/lib/billing/db", () => ({
   },
 }));
 
-import { QuotaExceededError, WorkspaceAccessError, flagDisabled, getUsage, limitsFor, meter } from "@/lib/billing/meter";
+import { QuotaExceededError, WorkspaceAccessError, failureStatus, flagDisabled, getUsage, limitsFor, meter } from "@/lib/billing/meter";
 import { planFor } from "@/lib/plans";
 
 const ENV = { AI_ENABLED: "true", SELF_HOSTED: "" } as Record<string, string | undefined>;
@@ -99,7 +99,10 @@ describe("meter()", () => {
     expect(jsonValue(settle.values[5])).toMatchObject({ error: "Error: model exploded" });
   });
 
-  it("a refusal refunds but keeps the tokens the model billed", async () => {
+  it("a failure that spent tokens is SETTLED (charged) with the tokens and marked failed, not refunded", async () => {
+    // P1 regression: failed model calls used to be refunded, so they were free,
+    // unbounded and invisible in the cost report. Tokens were billed, so the
+    // credits are charged and the row records them.
     const fake = makeFakeSql(defaultRows);
     const { withUser } = makeFakeWithUser(fake);
     const refusal = new AiRefusedError("declined", { inputTokens: 50, outputTokens: 0, model: "claude-opus-5-5" });
@@ -107,7 +110,37 @@ describe("meter()", () => {
       meter({ userId: USER, workspaceId: WS, feature: "research" }, async () => { throw refusal; }, { ai: fakeAi(), env: ENV, withUser }),
     ).rejects.toBe(refusal);
     const settle = fake.find("set status = ")[0];
-    expect(settle.values.slice(0, 4)).toEqual(["refunded", "claude-opus-5-5", 50, 0]);
+    expect(settle.values.slice(0, 4)).toEqual(["settled", "claude-opus-5-5", 50, 0]);
+    expect(jsonValue(settle.values[5])).toMatchObject({ failed: true, error: expect.stringContaining("declined") });
+  });
+
+  it("a plain AiError carrying usage with tokens is settled too (research notes failures)", async () => {
+    const fake = makeFakeSql(defaultRows);
+    const { withUser } = makeFakeWithUser(fake);
+    const err = new AiError("ai_no_notes", 502, "no notes", { usage: { inputTokens: 1200, outputTokens: 30, model: "claude-opus-5-5" } });
+    await expect(
+      meter({ userId: USER, workspaceId: WS, feature: "research" }, async () => { throw err; }, { ai: fakeAi(), env: ENV, withUser }),
+    ).rejects.toBe(err);
+    expect(fake.find("set status = ")[0].values.slice(0, 4)).toEqual(["settled", "claude-opus-5-5", 1200, 30]);
+  });
+
+  it("a failure whose usage has zero tokens is still refunded", async () => {
+    const fake = makeFakeSql(defaultRows);
+    const { withUser } = makeFakeWithUser(fake);
+    const refusal = new AiRefusedError("declined", { inputTokens: 0, outputTokens: 0, model: "claude-opus-5-5" });
+    await expect(
+      meter({ userId: USER, workspaceId: WS, feature: "fit" }, async () => { throw refusal; }, { ai: fakeAi(), env: ENV, withUser }),
+    ).rejects.toBe(refusal);
+    const settle = fake.find("set status = ")[0];
+    expect(settle.values[0]).toBe("refunded");
+    expect(jsonValue(settle.values[5])).not.toHaveProperty("failed");
+  });
+
+  it("failureStatus: tokens > 0 → settled, otherwise refunded", () => {
+    expect(failureStatus(null)).toBe("refunded");
+    expect(failureStatus({ inputTokens: 0, outputTokens: 0, model: "m" })).toBe("refunded");
+    expect(failureStatus({ inputTokens: 1, outputTokens: 0, model: "m" })).toBe("settled");
+    expect(failureStatus({ inputTokens: 0, outputTokens: 7, model: "m" })).toBe("settled");
   });
 
   it("maps a P0001 quota_exceeded raise to QuotaExceededError and never runs the model", async () => {

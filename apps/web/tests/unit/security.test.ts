@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { allowedHosts, assertSameOrigin, boundedJson, clientIp, isSameOrigin, jsonError } from "@/lib/security";
+import { allowedHosts, assertSameOrigin, boundedJson, clientIp, isSameOrigin, jsonError, trustsProxyHeaders } from "@/lib/security";
 
 const APP = "https://getfunded.ai";
 
@@ -168,14 +168,22 @@ describe("boundedJson", () => {
 });
 
 describe("clientIp", () => {
-  const get = (headers: Record<string, string>) => clientIp(new Request(`${APP}/x`, { headers }));
+  const TRUSTED = { TRUST_PROXY: "true" };
+  const get = (headers: Record<string, string>, env: Record<string, string | undefined> = TRUSTED) =>
+    clientIp(new Request(`${APP}/x`, { headers }), env);
 
-  it("takes the first hop of X-Forwarded-For", () => {
-    expect(get({ "x-forwarded-for": "203.0.113.9, 10.0.0.1, 10.0.0.2" })).toBe("203.0.113.9");
+  it("takes the RIGHT-MOST hop of X-Forwarded-For (the one the trusted proxy appended)", () => {
+    // A client that sends its own X-Forwarded-For lands on the left; the proxy appends the real address.
+    expect(get({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" })).toBe("203.0.113.9");
+    expect(get({ "x-forwarded-for": "203.0.113.9" })).toBe("203.0.113.9");
+  });
+
+  it("skips unusable right-most entries", () => {
+    expect(get({ "x-forwarded-for": "203.0.113.9, unknown" })).toBe("203.0.113.9");
   });
 
   it("trims whitespace and lower-cases IPv6", () => {
-    expect(get({ "x-forwarded-for": "  2001:DB8::1 , 10.0.0.1" })).toBe("2001:db8::1");
+    expect(get({ "x-forwarded-for": "10.0.0.1,  2001:DB8::1 " })).toBe("2001:db8::1");
   });
 
   it("strips brackets and a port", () => {
@@ -191,5 +199,19 @@ describe("clientIp", () => {
     expect(get({})).toBe("unknown");
     expect(get({ "x-forwarded-for": "not an ip" })).toBe("unknown");
     expect(get({ "x-forwarded-for": "" })).toBe("unknown");
+  });
+
+  it("ignores the forwarding headers entirely when no proxy is trusted (a client cannot pick its own bucket)", () => {
+    expect(get({ "x-forwarded-for": "203.0.113.9", "x-real-ip": "203.0.113.9" }, {})).toBe("unknown");
+    expect(get({ "x-forwarded-for": "203.0.113.9" }, { TRUST_PROXY: "false" })).toBe("unknown");
+    expect(get({ "x-forwarded-for": "203.0.113.9" }, { TRUST_PROXY: "false", VERCEL: "1" })).toBe("unknown");
+  });
+
+  it("trusts the headers on Vercel (VERCEL set) and when TRUST_PROXY is true/1/yes", () => {
+    expect(get({ "x-forwarded-for": "203.0.113.9" }, { VERCEL: "1" })).toBe("203.0.113.9");
+    expect(get({ "x-forwarded-for": "203.0.113.9" }, { TRUST_PROXY: "1" })).toBe("203.0.113.9");
+    expect(get({ "x-forwarded-for": "203.0.113.9" }, { TRUST_PROXY: "YES" })).toBe("203.0.113.9");
+    expect(trustsProxyHeaders({})).toBe(false);
+    expect(trustsProxyHeaders({ VERCEL: "1" })).toBe(true);
   });
 });

@@ -49,14 +49,14 @@ async function UsageContent() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Credits used" value={formatNumber(totalCredits)} hint="Reserved and settled" icon={Sparkles} />
-        <StatTile label="Tokens in / out" value={`${formatCompact(tokensIn)} / ${formatCompact(tokensOut)}`} hint={`${formatNumber(settled)} settled calls`} icon={Cpu} />
+        <StatTile label="Tokens in / out" value={`${formatCompact(tokensIn)} / ${formatCompact(tokensOut)}`} hint={`${formatNumber(settled)} settled calls; totals also count failed calls that spent tokens`} icon={Cpu} />
         <StatTile
           label="Estimated cost"
           value={cost.unknownModels.length > 0 && cost.cents === 0 ? <Missing bare /> : formatUsdCents(cost.cents)}
           hint={`List prices checked ${PRICES_CHECKED}; input and output tokens only`}
           icon={Coins}
         />
-        <StatTile label="Refunded calls" value={formatNumber(refunded)} hint="Calls that failed and gave credits back" icon={Undo2} />
+        <StatTile label="Refunded calls" value={formatNumber(refunded)} hint="Calls that spent no tokens, so the credits came back" icon={Undo2} />
       </div>
 
       <Section title="Credits per day by feature" description="Which features spend the credits, day by day.">
@@ -95,11 +95,11 @@ async function UsageContent() {
 
       <Section
         title="Models and estimated cost"
-        description="Settled calls grouped by model. Cost = input tokens × input price + output tokens × output price, from the constants in lib/admin/cost.ts."
+        description="Calls grouped by model: settled calls, plus failed calls that spent tokens (those are charged too). Cost = input tokens × input price + output tokens × output price, from the constants in lib/admin/cost.ts."
         aside={cost.unknownModels.length > 0 ? `No price on file for: ${cost.unknownModels.join(", ")}` : undefined}
       >
         {report.modelTotals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No settled model calls in this window.</p>
+          <p className="text-sm text-muted-foreground">No model calls with tokens in this window.</p>
         ) : (
           <Table>
             <TableHeader>

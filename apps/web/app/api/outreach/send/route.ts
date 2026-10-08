@@ -9,9 +9,14 @@
  * contact list, honours the daily cap, reconciles interrupted sends by
  * Message-ID and records an outcome for every attempt. Nothing in the
  * response or the log ever contains a token.
+ *
+ * A signed-out caller gets 401 JSON (this is a fetch() endpoint, a redirect
+ * would be swallowed). `requireWorkspace()` runs outside the try: it ends in
+ * redirect(), which throws, and a catch-all would turn that into a 500.
  */
 import { connection } from "next/server";
 
+import { getUserOrNull } from "@/lib/auth/session";
 import { OutreachRunError, runSendForCaller } from "@/lib/outreach/run";
 import { sendRequestSchema } from "@/lib/outreach/types";
 import { userSubject, withRateLimit } from "@/lib/ratelimit";
@@ -24,7 +29,13 @@ export async function POST(req: Request): Promise<Response> {
   await connection();
   try {
     assertSameOrigin(req);
-    const { user, workspace } = await requireWorkspace();
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
+  if (!(await getUserOrNull())) return jsonError(401, "sign_in_required", "Sign in to send outreach.");
+  const { user, workspace } = await requireWorkspace();
+  try {
     const limited = await withRateLimit(req, SEND_RUNS, () => userSubject(user.id));
     if (limited) return limited;
     const body = await boundedJson(req, sendRequestSchema, 16_000);

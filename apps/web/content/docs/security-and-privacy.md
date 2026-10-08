@@ -32,7 +32,7 @@ One Postgres holds two parts: the public corpus and the workspace data.
 - Every workspace table has Row Level Security enabled **and forced**. Each query runs with your user id set on the connection, and the policies only return rows of workspaces you belong to. No user id means zero rows, never someone else's rows.
 - Append-only tables (activity, stage history, AI analyses, send outcomes) have no update or delete grant at all.
 - The app never runs as the database owner or as Supabase's service role, and the service key is not in the app's environment.
-- "Ask the analyst" runs model-written SQL on a separate, read-only role with a 15-second time limit and no access to workspace tables.
+- "Ask the analyst" runs model-written SQL on a separate, read-only role with a 15-second time limit and no access to workspace tables. That role can read only the public views and the summary tables the app's SQL guard allows (migration `getfunded_0010` grants exactly that list), the guard itself allows only those names and a fixed list of ordinary SQL functions, and each query is sent in a way that lets the database refuse a second statement. `npm run db:ping` checks that the role's grants still match the guard.
 
 ## AI processing
 
@@ -54,7 +54,7 @@ Integration tokens are encrypted with AES-256-GCM under a key that lives only in
 
 ## Rate limits
 
-Anonymous search is limited to 30 requests a minute per IP address. Signed-in search is limited to 120 a minute per user. API keys are limited to 60 a minute. Limits are enforced in the database so they hold across servers.
+Anonymous search is limited to 30 requests a minute per IP address. Signed-in search is limited to 120 a minute per user. API keys are limited to 600 a minute, refilling at ten a second. Limits are enforced in the database so they hold across servers.
 
 ## Transport and headers
 

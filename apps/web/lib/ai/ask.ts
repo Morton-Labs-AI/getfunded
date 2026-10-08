@@ -5,10 +5,14 @@ import "server-only";
  * explanation. Metered as 'ask' (2 credits) for the whole exchange.
  *
  * The model-written SQL runs ONLY on the `analyst` pool (role `funder_ro`,
- * read-only at the role level), inside `begin read only` with
- * `search_path = public` and a 15 s statement timeout, after `guardSql()`
- * and a LIMIT wrap at 500 rows. When ANALYST_DATABASE_URL is unset the
- * feature refuses with "Not configured on this install".
+ * read-only at the role level, granted exactly the guard's allowlist by
+ * migration getfunded_0010), inside `begin read only` with
+ * `search_path = public`, `standard_conforming_strings = on` and a 15 s
+ * statement timeout, after `guardSql()` and a LIMIT wrap at 500 rows. The
+ * query itself goes over the extended protocol (Parse/Bind/Execute), so the
+ * server refuses a second statement even if the guard ever missed one. When
+ * ANALYST_DATABASE_URL is unset the feature refuses with "Not configured on
+ * this install".
  *
  * Events are emitted through `emit()` as they happen so the route can stream
  * them: phase → sql → rows | sql_error (one repair) → text deltas → usage → done.
@@ -30,8 +34,18 @@ import {
 } from "./ask-prompt";
 import { normalizeToolInput } from "./evidence";
 import { AiNotConfiguredError, AiOutputRejectedError } from "./http";
-import { GuardError, ROW_CAP, guardSql, isExplain, serializeValue, textTable, wrapWithLimit, type GuardedResult } from "./sql-guard";
+import { GuardError, ROW_CAP, guardSql, pgTypeName, serializeValue, textTable, wrapWithLimit, type GuardedResult } from "./sql-guard";
 import type { AskEvent } from "./sse";
+
+/**
+ * Query options that force the extended protocol with the unnamed statement.
+ * postgres.js picks the simple protocol whenever there are no parameters
+ * unless told otherwise; the simple protocol accepts several statements in
+ * one string, the extended protocol refuses them ("cannot insert multiple
+ * commands into a prepared statement"). `simple` is not in the published
+ * types, hence the cast.
+ */
+export const EXTENDED_PROTOCOL = { prepare: false, simple: false } as postgres.UnsafeQueryOptions;
 
 /** The request body and the engine input are one schema (lib/ai/api-schemas.ts). */
 export const AskInput = AskBody;
@@ -50,8 +64,10 @@ const QueryCall = z.object({ sql: z.string().min(1).max(20_000), purpose: z.stri
 
 /**
  * Run one guarded query on the analyst pool: READ ONLY transaction,
- * search_path pinned to public, statement timeout, LIMIT wrap. Throws
- * `GuardError` for a rejected query and the Postgres error for a failed one.
+ * search_path pinned to public, standard string lexing pinned on (so the
+ * guard and the server agree on where every literal ends), statement
+ * timeout, LIMIT wrap, extended protocol. Throws `GuardError` for a rejected
+ * query and the Postgres error for a failed one.
  */
 export async function executeGuardedSql(pool: postgres.Sql, raw: string, opts: { statementTimeoutMs?: number } = {}): Promise<GuardedResult> {
   const q = guardSql(raw);
@@ -61,14 +77,17 @@ export async function executeGuardedSql(pool: postgres.Sql, raw: string, opts: {
   const result = await pool.begin("read only", async (tx) => {
     await tx.unsafe(`set local statement_timeout = '${timeout}ms'`);
     await tx.unsafe("set local search_path = public");
-    return tx.unsafe(wrapped);
+    await tx.unsafe("set local standard_conforming_strings = on");
+    return tx.unsafe(wrapped, [], EXTENDED_PROTOCOL);
   });
   const ms = Math.round(performance.now() - t0);
   const rowsIn = result as unknown as Record<string, unknown>[];
-  const columns =
-    (result as unknown as { columns?: { name: string }[] }).columns?.map((c) => c.name) ?? Object.keys(rowsIn[0] ?? {});
+  // postgres.js hangs the RowDescription on the result: name and pg_type oid per column.
+  const meta = (result as unknown as { columns?: { name: string; type?: number }[] }).columns;
+  const columns = meta?.map((c) => c.name) ?? Object.keys(rowsIn[0] ?? {});
+  const types = meta?.map((c) => pgTypeName(c.type));
   const rows = rowsIn.map((r) => columns.map((c) => serializeValue(r[c])));
-  return { columns, rows, rowCount: rows.length, ms, capped: !isExplain(q) && rows.length >= ROW_CAP };
+  return { columns, ...(types ? { types } : {}), rows, rowCount: rows.length, ms, capped: rows.length >= ROW_CAP };
 }
 
 function historyMessages(history: AskInput["history"]): MessageParam[] {
@@ -122,7 +141,15 @@ export async function runAsk(ctx: { userId: string; workspaceId: string }, input
       for (let attempt = 0; attempt < 2 && !result; attempt++) {
         try {
           result = await executeGuardedSql(pool, sql, { statementTimeoutMs: deps.statementTimeoutMs });
-          emit({ type: "rows", columns: result.columns, rows: result.rows, total: result.rowCount, ms: result.ms, capped: result.capped });
+          emit({
+            type: "rows",
+            columns: result.columns,
+            ...(result.types ? { types: result.types } : {}),
+            rows: result.rows,
+            total: result.rowCount,
+            ms: result.ms,
+            capped: result.capped,
+          });
           error = null;
         } catch (err) {
           error = err instanceof GuardError ? err.message : err instanceof Error ? err.message.slice(0, 400) : String(err);

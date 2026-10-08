@@ -52,7 +52,9 @@ export type SearchNotice =
   | "pool_bounded"
   | "posture_filter"
   | "giving_to_pool"
-  | "rate_limited";
+  | "rate_limited"
+  /** The database stopped the query at the statement timeout (a very common name on a cold cache). */
+  | "timed_out";
 
 export type BuiltSearch = {
   text: string;
@@ -90,6 +92,17 @@ export function docKindsFor(type: SearchType): string[] {
     default:
       return ["foundation"];
   }
+}
+
+/**
+ * The spellings a name query must match. IRS master-file names drop the
+ * apostrophe ("CHILDRENS HOSPITAL") while e-filed names keep it ("Children'S
+ * Hospital"), so a query typed with one (straight or curly) also matches the
+ * apostrophe-less spelling. Both patterns use the trigram index on `name`.
+ */
+export function nameVariants(name: string): string[] {
+  const stripped = name.replace(/['\u2019]/g, "");
+  return stripped !== name && stripped.trim().length >= MIN_NAME_CHARS ? [name, stripped] : [name];
 }
 
 /** Escape LIKE metacharacters (backslash is the default escape). */
@@ -205,14 +218,15 @@ function einPool(ein: string, ps: Params): string {
 
 function namePool(name: string, p: SearchParams, ps: Params): string {
   const q = ps.add(name);
-  const contains = ps.add(likeContains(name));
-  const prefix = ps.add(likePrefix(name.toUpperCase()));
+  const variants = nameVariants(name);
+  const contains = variants.map((v) => `o.name ilike ${ps.add(likeContains(v))}::text`).join(" or ");
+  const prefix = variants.map((v) => `upper(o.name) like ${ps.add(likePrefix(v.toUpperCase()))}::text`).join(" or ");
   const bits = orgFilters(p, ps);
   return `select o.id as org_id,
-           ((case when upper(o.name) like ${prefix}::text then 1 else 0 end) + similarity(o.name, ${q}::text))::float8 as rank,
+           ((case when ${prefix} then 1 else 0 end) + similarity(o.name, ${q}::text))::float8 as rank,
            null::text as snippet
     from internal.organizations o${joins(bits)}
-    where o.name ilike ${contains}::text
+    where (${contains})
       and ${bits.where.join("\n      and ")}
     order by rank desc, o.name_normalized asc
     limit ${POOL_LIMIT}`;

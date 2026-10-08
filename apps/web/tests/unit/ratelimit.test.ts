@@ -5,7 +5,7 @@ import { makeFakeSql } from "./billing/fake-sql";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/billing/db", () => ({ appDb: undefined, withUser: async () => { throw new Error("real withUser"); } }));
 
-import { ANON_SEARCH, USER_SEARCH, ipSubject, limit, rateLimitKey, tooManyRequests, userSubject, withRateLimit } from "@/lib/ratelimit";
+import { AI_REQUESTS, ANON_SEARCH, USER_SEARCH, ipSubject, limit, rateLimitKey, tooManyRequests, userSubject, withRateLimit } from "@/lib/ratelimit";
 
 function bucket(answers: boolean[]) {
   let i = 0;
@@ -20,6 +20,12 @@ describe("presets", () => {
     expect(ipSubject("1.2.3.4")).toBe("ip:1.2.3.4");
     expect(ipSubject("")).toBeNull();
     expect(userSubject("u1")).toBe("user:u1");
+  });
+
+  it("AI requests: 20/min per user on its own 'ai' bucket, separate from search", () => {
+    expect(AI_REQUESTS).toEqual({ name: "ai", capacity: 20, refillPerSec: 20 / 60 });
+    expect(rateLimitKey(AI_REQUESTS, userSubject("u1") as string)).toBe("user:u1:ai");
+    expect(rateLimitKey(AI_REQUESTS, "user:u1")).not.toBe(rateLimitKey(USER_SEARCH, "user:u1"));
   });
 });
 

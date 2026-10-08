@@ -28,8 +28,17 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="card-title" className={cn("leading-none font-semibold", className)} {...props} />;
+type CardTitleProps = React.ComponentProps<"div"> & {
+  /**
+   * The element to render. Defaults to a div so a card inside a page keeps the
+   * page's own heading order; pass "h1" when the card is the page (sign-in,
+   * welcome, invite) or "h2"/"h3" when it is a section.
+   */
+  as?: "div" | "h1" | "h2" | "h3" | "h4" | "p" | "span";
+};
+
+function CardTitle({ as: Tag = "div", className, ...props }: CardTitleProps) {
+  return <Tag data-slot="card-title" className={cn("leading-none font-semibold", className)} {...props} />;
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {

@@ -4,9 +4,10 @@ import { KeyRound, MailCheck } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { SignupMode } from "@/lib/admin/flags";
 import { createSupabaseBrowserClient } from "@/lib/auth/supabase-browser";
 
 /**
@@ -16,6 +17,14 @@ import { createSupabaseBrowserClient } from "@/lib/auth/supabase-browser";
  *  - the 6-digit code from the same email, for people whose mail filters
  *    rewrite or block links. verifyOtp() sets the session cookies in the
  *    browser, then a full navigation to /auth/callback provisions the account.
+ *
+ * `signupMode` is the steward flag read on the server. It decides
+ * `shouldCreateUser` (so the auth server does not mint accounts the app will
+ * refuse) and the copy. The RULE is enforced server-side in
+ * lib/auth/signup-gate.ts when the account would be provisioned; this is the
+ * courtesy layer. In `invite` mode the auth user must still be creatable,
+ * because an invited person is new by definition; the gate then checks the
+ * invitation.
  */
 
 type Stage = "form" | "sent";
@@ -24,17 +33,42 @@ type AuthErrorLike = { code?: string; status?: number; message?: string };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function friendlyAuthError(error: unknown): string {
+/** The sign-in form's heading and description, by sign-up mode. */
+export const SIGNIN_COPY: Record<SignupMode, { title: string; description: string }> = {
+  open: {
+    title: "Sign in",
+    description: "New here? This same form creates your free account. There is no password: we email you a link and a code.",
+  },
+  invite: {
+    title: "Sign in",
+    description:
+      "New accounts are by invitation right now. If you were invited, use the email address the invitation was sent to. There is no password: we email you a link and a code.",
+  },
+  closed: {
+    title: "Sign in",
+    description: "New accounts are paused right now. If you already have one, sign in with your email. There is no password: we email you a link and a code.",
+  },
+};
+
+export function friendlyAuthError(error: unknown, signupMode: SignupMode = "open"): string {
   const e = (error ?? {}) as AuthErrorLike;
   const code = e.code ?? "";
+  const message = typeof e.message === "string" ? e.message : "";
   if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit" || e.status === 429) {
     return "Too many sign-in emails were sent to that address. Wait a few minutes and try again.";
   }
   if (code === "otp_expired") return "That code has expired. Request a new email and use the new code.";
+  // The auth server answers "Signups not allowed for otp" (code otp_disabled)
+  // when shouldCreateUser is false and the address has no account: that is our
+  // own sign-up mode speaking, not a server misconfiguration.
+  if (code === "signup_disabled" || (code === "otp_disabled" && /signup/i.test(message))) {
+    return signupMode === "invite"
+      ? "No account exists for that address and new accounts are by invitation. Use the address your invitation was sent to."
+      : "New accounts are paused right now. If you already have one, check your email address.";
+  }
   if (code === "otp_disabled") return "Code sign-in is turned off on this server. Use the link in the email.";
   if (code === "email_address_invalid" || code === "validation_failed") return "Enter a valid email address.";
-  if (code === "signup_disabled") return "New accounts are paused right now. If you already have one, check your email address.";
-  if (typeof e.message === "string" && /not configured/i.test(e.message)) {
+  if (/not configured/i.test(message)) {
     return "Sign-in is not set up on this server yet.";
   }
   return "Something went wrong. Try again in a moment.";
@@ -44,12 +78,15 @@ export function SignInForm({
   next,
   appUrl,
   initialError = null,
+  signupMode = "open",
 }: {
   /** Already validated by `safeNextPath` on the server. */
   next: string;
   /** `APP_URL` from the server, or "" to use the browser's origin. */
   appUrl: string;
   initialError?: string | null;
+  /** The steward flag, read on the server. */
+  signupMode?: SignupMode;
 }) {
   const ids = { name: useId(), email: useId(), code: useId(), error: useId() };
   const [stage, setStage] = useState<Stage>("form");
@@ -61,19 +98,22 @@ export function SignInForm({
   const [notice, setNotice] = useState<string | null>(null);
 
   const callbackUrl = `${appUrl || (typeof window !== "undefined" ? window.location.origin : "")}/auth/callback?next=${encodeURIComponent(next)}`;
+  const copy = SIGNIN_COPY[signupMode];
+  const headingClass = "text-2xl leading-none font-semibold tracking-tight";
 
   async function sendEmail(): Promise<boolean> {
     const supabase = createSupabaseBrowserClient();
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
-        shouldCreateUser: true,
+        // closed: never mint an auth user. open and invite: the server gate decides.
+        shouldCreateUser: signupMode !== "closed",
         data: { display_name: name.trim() },
         emailRedirectTo: callbackUrl,
       },
     });
     if (authError) {
-      setError(friendlyAuthError(authError));
+      setError(friendlyAuthError(authError, signupMode));
       return false;
     }
     return true;
@@ -89,7 +129,7 @@ export function SignInForm({
     try {
       if (await sendEmail()) setStage("sent");
     } catch (caught) {
-      setError(friendlyAuthError(caught));
+      setError(friendlyAuthError(caught, signupMode));
     } finally {
       setBusy(false);
     }
@@ -102,7 +142,7 @@ export function SignInForm({
     try {
       if (await sendEmail()) setNotice("We sent another email. The newest code is the one that works.");
     } catch (caught) {
-      setError(friendlyAuthError(caught));
+      setError(friendlyAuthError(caught, signupMode));
     } finally {
       setBusy(false);
     }
@@ -123,13 +163,13 @@ export function SignInForm({
         type: "email",
       });
       if (authError) {
-        setError(friendlyAuthError(authError));
+        setError(friendlyAuthError(authError, signupMode));
         return;
       }
       // Full navigation so the server sees the new cookies and provisions the account.
       window.location.assign(new URL(`/auth/callback?next=${encodeURIComponent(next)}`, window.location.origin).toString());
     } catch (caught) {
-      setError(friendlyAuthError(caught));
+      setError(friendlyAuthError(caught, signupMode));
       setBusy(false);
     }
   }
@@ -151,7 +191,9 @@ export function SignInForm({
           <div className="mb-1 inline-flex size-9 items-center justify-center rounded-md bg-primary-tint text-primary">
             <MailCheck className="size-5" aria-hidden />
           </div>
-          <CardTitle className="text-2xl font-semibold tracking-tight">Check your email</CardTitle>
+          <h1 data-slot="card-title" className={headingClass}>
+            Check your email
+          </h1>
           <CardDescription>
             We sent a sign-in link to <span className="font-medium text-foreground">{email.trim()}</span>. Open it
             on this device to finish.
@@ -217,10 +259,10 @@ export function SignInForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl font-semibold tracking-tight">Sign in</CardTitle>
-        <CardDescription>
-          New here? This same form creates your free account. There is no password: we email you a link and a code.
-        </CardDescription>
+        <h1 data-slot="card-title" className={headingClass}>
+          {copy.title}
+        </h1>
+        <CardDescription>{copy.description}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onRequest} className="flex flex-col gap-4" noValidate>

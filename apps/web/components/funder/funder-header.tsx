@@ -5,7 +5,7 @@ import { Missing } from "@/components/data/missing";
 import { Posture } from "@/components/data/posture";
 import { SourceChip } from "@/components/data/source-chip";
 import { Badge } from "@/components/ui/badge";
-import { WEBSITE_FROM_FILING, WEBSITE_FROM_REGISTRY } from "@/lib/content/copy";
+import { IRS_MASTER_FILE_FULL_NAME, IRS_MASTER_FILE_LABEL, WEBSITE_FROM_FILING, WEBSITE_FROM_REGISTRY } from "@/lib/content/copy";
 import { filingSourceLabel } from "@/lib/content/labels";
 import { formatEin, formatMoneyCompact, formatNumber } from "@/lib/format";
 import type { FunderRecord } from "@/lib/queries/corpus/types";
@@ -71,7 +71,13 @@ export function FunderHeader({ funder, actions }: { funder: FunderRecord; action
             {funder.grants.firstFy && funder.grants.lastFy ? ` · FY${funder.grants.firstFy}–${funder.grants.lastFy}` : ""}
           </Badge>
         ) : null}
-        {funder.latest ? <SourceChip label={filingSourceLabel(funder.latest.returnType, funder.latest.fy)} /> : <SourceChip label="IRS BMF" />}
+        {funder.latest ? (
+          <SourceChip label={filingSourceLabel(funder.latest.returnType, funder.latest.fy)} />
+        ) : (
+          <span title={IRS_MASTER_FILE_FULL_NAME}>
+            <SourceChip label={IRS_MASTER_FILE_LABEL} provenance={<Seal p={funder.bmf.provenance} />} />
+          </span>
+        )}
       </div>
     </header>
   );

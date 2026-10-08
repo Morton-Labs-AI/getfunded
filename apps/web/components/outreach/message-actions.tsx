@@ -169,7 +169,7 @@ export function MessageActions({ message, context }: { message: ActionsMessage; 
               title={context.approval.ok ? undefined : context.approval.error}
               onClick={() =>
                 run("Could not approve", () => approveMessageAction({ ...ref, senderIdentityId: senderId || undefined }), () =>
-                  toast.success("Approved", { description: "It goes out on the next send run." }),
+                  toast.success("Approved", { description: OUTREACH_COPY.sending.approvedToast }),
                 )
               }
             >
@@ -179,9 +179,14 @@ export function MessageActions({ message, context }: { message: ActionsMessage; 
           </>
         ) : null}
         {s === "failed" && message.channel === "email" && context.approval.ok ? (
-          <Button size="sm" variant="outline" disabled={pending} onClick={() => run("Could not retry", () => retryMessageAction(ref), () => toast.success("Queued again"))}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => run("Could not queue it again", () => retryMessageAction(ref), () => toast.success("Queued again", { description: OUTREACH_COPY.sending.approvedToast }))}
+          >
             <RotateCcw aria-hidden />
-            Retry on next run
+            {OUTREACH_COPY.sending.retry}
           </Button>
         ) : null}
         {s === "approved" && context.canRunSend ? <RunButtons messageIds={[message.id]} showSync={false} /> : null}

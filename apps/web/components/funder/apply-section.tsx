@@ -109,8 +109,8 @@ export function ApplySection({ funder }: { funder: FunderRecord }) {
       )}
 
       <p className="mt-3 text-xs text-ink-3">
-        Posture: {POSTURE_LABELS[posture]}
-        {app.fy ? `, from the FY${app.fy} return.` : "."}
+        Application policy: {POSTURE_LABELS[posture]}
+        {app.fy ? `, as stated on the FY${app.fy} return.` : ", as stated on the return."}
       </p>
     </ProfileSection>
   );

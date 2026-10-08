@@ -33,8 +33,7 @@ export const SEMANTIC_UNAVAILABLE_NOTICE =
   "Describe-the-work search is not available right now, so we matched your words as keywords instead. " +
   "Results may be narrower than a meaning-based search would give.";
 
-export const NAME_TOO_SHORT_NOTE =
-  "Type at least three characters of the name. Shorter searches cannot use the name index.";
+export const NAME_TOO_SHORT_NOTE = "Type at least three letters of the name so we can match it.";
 
 export const POOL_BOUNDED_NOTE = (limit: number) =>
   `More funders matched than we can rank at once. You are seeing the top ${limit.toLocaleString("en-US")}; add a filter to narrow the list.`;
@@ -54,6 +53,10 @@ export const GIVING_TO_PLACEHOLDER = "e.g. food bank, community college, animal 
 
 export const RATE_LIMITED_NOTE = (seconds: number) =>
   `You have searched a lot in the last minute. Please wait ${seconds} second${seconds === 1 ? "" : "s"} and try again.`;
+
+export const TIMED_OUT_NOTE =
+  "That search took too long, so we stopped it. A very common word matches a large share of all funders. " +
+  "Add a state or a type, use more of the name, or try describe-the-work search.";
 
 export const NO_RESULTS_TITLE = "No funders matched";
 export const NO_RESULTS_HINT =
@@ -93,11 +96,12 @@ export const POSTURE_EXPLAINERS = {
 
 export const CAN_I_APPLY_TITLE = "Can I apply?";
 
+/** The one place "Part XV" is explained; every other mention can say "this section". */
 export const HOW_TO_APPLY_NOTE =
-  "Application guidance comes from Part XV of the funder's own Form 990-PF, shown as filed. It is the funder's words, not ours.";
+  "Application guidance comes from the funder's own Form 990-PF, Part XV (the section where a private foundation says how to apply), shown as filed. It is the funder's words, not ours.";
 
 export const PART_XV_FREE_TEXT_NOTE =
-  "Part XV fields are free text and the IRS form cuts them short. Filers sometimes put whole sentences in the contact-name box. Shown exactly as filed.";
+  "These fields are free text and the IRS form cuts them short. Filers sometimes put whole sentences in the contact-name box. Shown exactly as filed.";
 
 export const CONTACT_NAME_WITHHELD = "Not published";
 
@@ -119,8 +123,12 @@ export const FILING_AS_FILED_NOTE =
 export const AMENDED_RULE_NOTE =
   "When an amended return replaces an original, every figure here uses the amended return. The original is not shown.";
 
+/** The IRS Exempt Organizations Business Master File, in the words the UI uses. */
+export const IRS_MASTER_FILE_LABEL = "IRS master file";
+export const IRS_MASTER_FILE_FULL_NAME = "IRS Exempt Organizations Business Master File: the IRS's list of every tax-exempt organization, updated monthly";
+
 export const BMF_SNAPSHOT_NOTE =
-  "Asset, income and revenue figures come from the IRS Business Master File, a coarse annual extract. " +
+  "Asset, income and revenue figures come from the IRS master file (the IRS Exempt Organizations Business Master File), a coarse annual extract. " +
   "Year-by-year figures appear once the organization's e-filed returns are in the database.";
 
 export const DISTRIBUTIONS_NOTE =
@@ -129,7 +137,8 @@ export const DISTRIBUTIONS_NOTE =
 
 export const EXPENSE_SPLIT_NOTE =
   "Form 990 splits expenses into program services, management and fundraising. The split is self-reported, " +
-  "and a grantmaker, a research institute and a direct-service nonprofit book the same work differently.";
+  "and a grantmaker, a research institute and a direct-service nonprofit book the same work differently. " +
+  "A line the return does not carry reads \"not available\"; it is never counted as zero.";
 
 export const NO_FINANCIALS_NOTE =
   "No parsed e-filed return is on record for this organization yet, so year-by-year financials are not available.";
@@ -139,7 +148,8 @@ export const NO_FINANCIALS_NOTE =
 export const GRANTS_PAID_TITLE = "Grants paid";
 
 export const GRANTS_EMPTY_NOTE =
-  "No grant rows from public filings are on record for this funder. Public-charity grant lists (Schedule I) are not in the database yet.";
+  "No grant rows from public filings are on record for this funder. Grant lists come from Form 990-PF and from Schedule I of Form 990; " +
+  "a return the IRS has not yet published, or one with no grant list, has no rows here.";
 
 export const GRANTS_AS_REPORTED_NOTE =
   "Recipients are shown as the funder wrote them on the return. A recipient with a link was matched to an organization record; " +

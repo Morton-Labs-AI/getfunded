@@ -13,11 +13,14 @@ import "server-only";
  *
  * Honesty: a missing number is written as "not available", never 0; the
  * posture word for an absent statement is "Not stated in filings"; the word
- * "closed" never appears.
+ * "closed" never appears. Grant rows are the same live rows the funder page
+ * counts (lib/queries/corpus/sql-fragments.ts liveGrantEvents): a superseded
+ * filing's grants are never cited.
  */
 import type postgres from "postgres";
 import { withUser, type Db } from "@/lib/billing/db";
 import { corpusQuery } from "@/lib/db/corpus";
+import { liveGrantEvents } from "@/lib/queries/corpus/sql-fragments";
 import { addApplicantEvidence, readProfile, type Applicant, type KnowledgeItem } from "./applicant";
 import { EvidenceBuilder, clip, moneyForModel, type EvidenceItem } from "./evidence";
 import { FunderNotFoundError } from "./http";
@@ -157,7 +160,7 @@ export async function addFunderEvidence(
     identityBits.push(`IRS Business Master File snapshot: assets ${moneyForModel(bmfAssets)}, income ${moneyForModel(bmfIncome)}.`);
   }
   b.add("identity", "source", "identity", identityBits.join(" "), {
-    label: str(org.source_dataset) ?? "IRS Exempt Organizations BMF",
+    label: str(org.source_dataset) ?? "IRS master file (Exempt Organizations BMF)",
     dataset: str(org.source_dataset),
     href: str(org.source_url),
   });
@@ -259,12 +262,12 @@ export async function addFunderEvidence(
     corpusItems++;
   }
 
-  // Grant statistics.
+  // Grant statistics, over the same live rows as the funder page header.
   const statRows = await soft([] as Rows, async (s) => (await s`
-    select n::text as n, total::text as total, first_fy, last_fy
-    from internal.mv_funder_event_stats
-    where org_id = ${orgId}::uuid and event_type = 'grant'
-    limit 1`) as Rows);
+    select count(*)::text as n, sum(pe.amount)::text as total,
+           min(pe.fiscal_year)::int as first_fy, max(pe.fiscal_year)::int as last_fy
+    from public.funding_events pe
+    where ${liveGrantEvents(s, orgId)}`) as Rows);
   const stats = statRows[0];
   const grantCount = num(stats?.n) ?? 0;
   if (stats && grantCount > 0) {
@@ -281,11 +284,11 @@ export async function addFunderEvidence(
 
   // The largest grants with their stated purpose.
   const grantRows = await soft([] as Rows, async (s) => (await s`
-    select recipient_name, recipient_city, recipient_state, amount::text as amount, fiscal_year, purpose_text,
-           source_dataset, filing_object_id
-    from public.funding_events
-    where funder_org_id = ${orgId}::uuid and event_type = 'grant'
-    order by amount desc nulls last, id
+    select pe.recipient_name, pe.recipient_city, pe.recipient_state, pe.amount::text as amount, pe.fiscal_year, pe.purpose_text,
+           pe.source_dataset, pe.filing_object_id
+    from public.funding_events pe
+    where ${liveGrantEvents(s, orgId)}
+    order by pe.amount desc nulls last, pe.id
     limit 20`) as Rows);
   for (const g of grantRows) {
     const place = [str(g.recipient_city), str(g.recipient_state)].filter(Boolean).join(", ");
@@ -305,11 +308,11 @@ export async function addFunderEvidence(
 
   // Giving geography by recipient state.
   const geoRows = await soft([] as Rows, async (s) => (await s`
-    select coalesce(recipient_state, '??') as state, count(*)::int as n, sum(amount)::text as total
-    from public.funding_events
-    where funder_org_id = ${orgId}::uuid and event_type = 'grant'
+    select coalesce(pe.recipient_state, '??') as state, count(*)::int as n, sum(pe.amount)::text as total
+    from public.funding_events pe
+    where ${liveGrantEvents(s, orgId)}
     group by 1
-    order by sum(amount) desc nulls last
+    order by sum(pe.amount) desc nulls last
     limit 10`) as Rows);
   if (geoRows.length > 0) {
     b.add(

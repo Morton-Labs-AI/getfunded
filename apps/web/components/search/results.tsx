@@ -8,6 +8,7 @@ import { Posture } from "@/components/data/posture";
 import { SourceChip } from "@/components/data/source-chip";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { IRS_MASTER_FILE_FULL_NAME, IRS_MASTER_FILE_LABEL } from "@/lib/content/copy";
 import { formatEin, formatMoneyCompact, formatNumber } from "@/lib/format";
 import type { SearchHit } from "@/lib/queries/corpus/types";
 
@@ -32,7 +33,12 @@ function GivingLine({ hit }: { hit: SearchHit }) {
     parts.push(
       <span key="a">
         Assets <Money value={hit.assets} compact className="font-semibold text-foreground" />
-        {hit.assetsSource === "bmf" ? <span className="text-ink-4"> (BMF)</span> : null}
+        {hit.assetsSource === "bmf" ? (
+          <span className="text-ink-4">
+            {" "}
+            (<abbr title={IRS_MASTER_FILE_FULL_NAME} className="no-underline">{IRS_MASTER_FILE_LABEL}</abbr>)
+          </span>
+        ) : null}
       </span>,
     );
   }

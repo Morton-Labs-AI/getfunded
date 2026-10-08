@@ -5,9 +5,13 @@
  * Reply detection from Gmail thread metadata (headers and timestamps only,
  * never a body). A reply records a 'replied' outcome and cancels pending
  * follow-ups to that contact; a delivery failure records 'bounced'.
+ *
+ * A signed-out caller gets 401 JSON; `requireWorkspace()` (which redirects by
+ * throwing) runs outside the try so its redirect is never turned into a 500.
  */
 import { connection } from "next/server";
 
+import { getUserOrNull } from "@/lib/auth/session";
 import { OutreachRunError, runSyncForCaller } from "@/lib/outreach/run";
 import { syncRequestSchema } from "@/lib/outreach/types";
 import { userSubject, withRateLimit } from "@/lib/ratelimit";
@@ -20,7 +24,13 @@ export async function POST(req: Request): Promise<Response> {
   await connection();
   try {
     assertSameOrigin(req);
-    const { user, workspace } = await requireWorkspace();
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
+  if (!(await getUserOrNull())) return jsonError(401, "sign_in_required", "Sign in to check for replies.");
+  const { user, workspace } = await requireWorkspace();
+  try {
     const limited = await withRateLimit(req, SYNC_RUNS, () => userSubject(user.id));
     if (limited) return limited;
     const body = await boundedJson(req, syncRequestSchema, 4_000);

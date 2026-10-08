@@ -1,6 +1,8 @@
-import { Check, Minus } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber } from "@/lib/format";
 import { PLANS, formatPlanPrice, isPaidPlanId, type Plan, type PlanId } from "@/lib/plans";
@@ -25,9 +27,16 @@ function exportLabel(plan: Plan): string {
 
 function outreachLabel(plan: Plan): string {
   if (plan.features.dedicated_outreach) return "Dedicated outreach";
-  if (plan.features.sequences) return "Send via Gmail + sequences";
+  if (plan.features.sequences) return "Send via Gmail, plus follow-ups that stop when a funder replies";
   if (plan.features.send_gmail) return "Send via your own Gmail";
   return "Drafts only";
+}
+
+/** The knowledge base is on every plan; what grows with the plan is how many people share it. */
+export function knowledgeLabel(plan: Plan): string {
+  if (plan.members === null) return "Shared across every seat";
+  if (plan.members === 1) return "Included";
+  return `Shared across ${formatNumber(plan.members)} seats`;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -42,7 +51,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 /**
  * The five public plans from lib/plans.ts, side by side (stacked on phones).
  * The current plan is marked; higher plans get an Upgrade button when the
- * viewer may manage billing and the deployment has billing at all.
+ * viewer may manage billing and the deployment has billing at all. Enterprise
+ * is never self-serve: it links to /contact.
  */
 export function PlanComparison({
   currentPlan,
@@ -58,9 +68,10 @@ export function PlanComparison({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Plans</CardTitle>
+        <CardTitle as="h2">Plans</CardTitle>
         <CardDescription>
-          Every plan includes funder search, profiles with provenance and application posture. Prices are per month.
+          Every plan includes funder search and full profiles: where every fact came from, and whether the funder says it
+          accepts applications. Prices are per month.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -69,6 +80,7 @@ export function PlanComparison({
             const plan = PLANS[id];
             const current = id === currentPlan;
             const higher = ORDER[id] > ORDER[currentPlan];
+            const enterprise = id === "enterprise";
             return (
               <div
                 key={id}
@@ -90,21 +102,29 @@ export function PlanComparison({
                 </div>
                 <div className="divide-y">
                   <Row label="Members">{limit(plan.members)}</Row>
-                  <Row label="AI credits">{limit(plan.monthly_credits)}{plan.monthly_credits !== null && ORDER[id] >= 3 ? " pooled" : ""}</Row>
+                  <Row label="AI credits">
+                    {limit(plan.monthly_credits)}
+                    {plan.monthly_credits !== null && ORDER[id] >= 3 ? " pooled" : ""}
+                  </Row>
                   <Row label="Saved funders">{limit(plan.saved_funders_limit)}</Row>
                   <Row label="Pipelines">{limit(plan.pipelines_limit)}</Row>
                   <Row label="Export">{exportLabel(plan)}</Row>
                   <Row label="Outreach">{outreachLabel(plan)}</Row>
-                  <Row label="Shared knowledge">
-                    {plan.features.shared_knowledge ? <Check className="inline size-4 text-success" aria-label="Included" /> : <Minus className="inline size-4 text-ink-4" aria-label="Not included" />}
-                  </Row>
+                  <Row label="Knowledge base">{knowledgeLabel(plan)}</Row>
                 </div>
-                {canBuy && higher && isPaidPlanId(id) && !hasSubscription ? (
+                {current ? (
+                  <p className="mt-auto text-xs text-ink-3">Your plan.</p>
+                ) : enterprise && higher ? (
+                  <Button asChild size="sm" variant="outline" className="mt-auto">
+                    <Link href="/contact">
+                      Contact us about Enterprise
+                      <ArrowUpRight aria-hidden />
+                    </Link>
+                  </Button>
+                ) : canBuy && higher && isPaidPlanId(id) && !hasSubscription ? (
                   <CheckoutButton plan={id} size="sm" className="mt-auto">
                     Upgrade to {plan.name}
                   </CheckoutButton>
-                ) : current ? (
-                  <p className="mt-auto text-xs text-ink-3">Your plan.</p>
                 ) : null}
               </div>
             );
@@ -114,8 +134,8 @@ export function PlanComparison({
           <p className="mt-3 text-xs text-ink-3">You already have a subscription. Change plans from the billing portal above.</p>
         ) : null}
         <p className="mt-3 text-xs text-ink-3">
-          Plan changes take effect at once; credits are prorated on upgrade. There is no silent overage: at the limit, the
-          AI refuses with a clear message.
+          Plan changes take effect at once. The new plan&rsquo;s allowance applies from your next request; unused credits do
+          not carry over. There is no silent overage: at the limit, the AI stops and tells you.
         </p>
       </CardContent>
     </Card>

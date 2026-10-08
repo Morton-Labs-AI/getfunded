@@ -93,36 +93,52 @@ export function formatPercent(ratio: Numeric, digits = 0): string {
 export type DateStyle = "short" | "long" | "month" | "year";
 
 /**
+ * Every date and time is formatted in UTC. The same string then comes out on
+ * the server and in the browser, so a <time> rendered by a client component
+ * never fails hydration because the two machines sit in different zones.
+ */
+export const DATE_TIME_ZONE = "UTC";
+
+/**
  * Dates. Date-only strings (Postgres `date` columns, e.g. "2024-03-01") are
- * parsed as local midnight so they never shift a day west of Greenwich.
+ * parsed as UTC midnight and formatted in UTC, so they never shift a day in
+ * either direction.
  */
 export function formatDate(v: string | Date | number | null | undefined, style: DateStyle = "short"): string {
   if (v === null || v === undefined || v === "") return MDASH;
   const d =
     typeof v === "string"
-      ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00` : v)
+      ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00Z` : v)
       : typeof v === "number"
         ? new Date(v)
         : v;
   if (Number.isNaN(d.getTime())) return MDASH;
+  const tz = { timeZone: DATE_TIME_ZONE } as const;
   switch (style) {
     case "long":
-      return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      return d.toLocaleDateString("en-US", { ...tz, year: "numeric", month: "long", day: "numeric" });
     case "month":
-      return d.toLocaleDateString("en-US", { year: "numeric", month: "short" });
+      return d.toLocaleDateString("en-US", { ...tz, year: "numeric", month: "short" });
     case "year":
-      return d.toLocaleDateString("en-US", { year: "numeric" });
+      return d.toLocaleDateString("en-US", { ...tz, year: "numeric" });
     default:
-      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      return d.toLocaleDateString("en-US", { ...tz, year: "numeric", month: "short", day: "numeric" });
   }
 }
 
-/** "Sep 1, 2:32 PM" — timestamps for activity and outreach logs. */
+/** "Sep 1, 2:32 PM UTC" — timestamps for activity and outreach logs. Always UTC, and it says so. */
 export function formatDateTime(v: string | Date | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return MDASH;
   const d = typeof v === "string" || typeof v === "number" ? new Date(v) : v;
   if (Number.isNaN(d.getTime())) return MDASH;
-  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleString("en-US", {
+    timeZone: DATE_TIME_ZONE,
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 }
 
 /** EIN as the IRS prints it: 12-3456789. Non-9-digit input is returned as-is. */

@@ -105,6 +105,18 @@ describe("POST /api/billing/checkout", () => {
     );
   });
 
+  it("maps AlreadySubscribedError from Stripe's own subscription list to the same 409", async () => {
+    const { d } = deps("owner", {
+      createCheckoutSession: async () => {
+        const { AlreadySubscribedError } = await import("@/lib/billing/stripe");
+        throw new AlreadySubscribedError("sub_live", "incomplete");
+      },
+    });
+    const res = await handleCheckout(post({ plan: "pro" }), d);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: { code: "already_subscribed" } });
+  });
+
   it("answers 503 when Stripe is not configured", async () => {
     const { d } = deps("owner", {
       createCheckoutSession: async () => {

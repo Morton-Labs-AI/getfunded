@@ -22,7 +22,7 @@ export const HONESTY_RULES: Array<{ title: string; body: string }> = [
   },
   {
     title: "Every fact has a source.",
-    body: "Each value carries the dataset, the filing year and the hash of the exact file we read. Click it and check.",
+    body: "Each value carries the dataset, the filing year and, where we have it, a fingerprint of the exact file we read. Click it and check.",
   },
   {
     title: "AI is labelled and cites its evidence.",
@@ -43,7 +43,7 @@ export const DATA_CLASSES = {
   source: {
     name: "Source",
     summary: "Verified from a public filing.",
-    body: "Teal, with a dotted underline and a document icon. Click it to see the filing, the year and the file hash.",
+    body: "Teal, with a dotted underline and a document icon. Click it to see the filing, the year and, where we have it, the file fingerprint.",
   },
   ai: {
     name: "AI",
@@ -78,7 +78,7 @@ export const FEATURE_COPY: Record<Feature, { name: string; body: string }> = {
   ask: { name: "Ask the analyst", body: "Writes one read-only query to answer your question and explains the result." },
   draft: { name: "Outreach draft polish", body: "Rewrites your template using facts from the funder’s record only." },
   fit: { name: "Fit analysis", body: "Reads the funder’s filings and your profile, then scores and explains fit with citations." },
-  research: { name: "Research dossier", body: "Web search plus a structured, sourced dossier on one funder." },
+  research: { name: "Research on the web", body: "Searches the public web and writes a report on one funder. Every section lists its sources." },
 };
 
 /** Display order and a one-line pitch for each public plan. */
@@ -86,8 +86,8 @@ export const PLAN_COPY: Record<Exclude<PlanId, "unlimited">, { tagline: string; 
   free: { tagline: "Search everything. Try the AI.", audience: "One person, getting started" },
   starter: { tagline: "A real prospect list.", audience: "A solo development director" },
   pro: { tagline: "Send through your own Gmail.", audience: "A small fundraising team" },
-  team: { tagline: "Shared knowledge and an API.", audience: "A fundraising department" },
-  enterprise: { tagline: "A person, not just compute.", audience: "Managed outreach with an SLA" },
+  team: { tagline: "A shared knowledge base, follow-ups and an API.", audience: "A fundraising department" },
+  enterprise: { tagline: "A person, not just software.", audience: "Managed outreach with an SLA" },
 };
 
 export const PLAN_ORDER: Array<Exclude<PlanId, "unlimited">> = ["free", "starter", "pro", "team", "enterprise"];
@@ -95,11 +95,11 @@ export const PLAN_ORDER: Array<Exclude<PlanId, "unlimited">> = ["free", "starter
 export const PRICING_FAQ: Array<{ q: string; a: string }> = [
   {
     q: "What is a credit?",
-    a: "A unit of AI use. One credit is about 4,000 input tokens and 1,000 output tokens on a mid-size model. Search, profiles, saving and the pipeline never use credits. Only calls to a language model do.",
+    a: "A unit of AI use. One credit is about 4,000 input tokens and 1,000 output tokens on a mid-size model. A token is about three quarters of a word, so one credit is roughly 3,000 words read and 750 words written. Search, profiles, saving and the pipeline never use credits. Only calls to a language model do.",
   },
   {
     q: "What happens when I reach the limit?",
-    a: "The AI button tells you, with a link to upgrade. Nothing else changes. There is no silent overage and no surprise bill. Credits reset on your billing day; Free resets on the first of the month.",
+    a: "The AI button tells you, with a link to upgrade. Nothing else changes. There is no silent overage and no surprise bill. Credits reset on your billing day; Free resets on the first of the month. If you upgrade, the new plan's allowance applies from your next request; unused credits do not carry over.",
   },
   {
     q: "Can I run it myself?",

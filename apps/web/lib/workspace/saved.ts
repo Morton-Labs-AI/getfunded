@@ -366,6 +366,15 @@ export async function updateSavedFunder(
 
   try {
     return await run(ctx, deps, async (sql) => {
+      // owner_id is a client-supplied user id: it must name a member of THIS
+      // workspace, or a stale picker (or a crafted request) could assign a
+      // funder to a stranger. Same rule as tasks.assignee_id in tasks.ts.
+      if (typeof set.owner_id === "string") {
+        const member = await sql<{ ok: boolean }[]>`
+          select exists(select 1 from getfunded.members
+                        where workspace_id = ${ctx.workspaceId}::uuid and user_id = ${set.owner_id}::uuid) as ok`;
+        if (!member[0]?.ok) return { ok: false, code: "invalid", message: "Pick an owner from this workspace." };
+      }
       const rows = await sql<{ version: number | string }[]>`
         update getfunded.saved_funders
         set ${sql(set)}

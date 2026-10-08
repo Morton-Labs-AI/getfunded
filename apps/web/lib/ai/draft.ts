@@ -4,7 +4,9 @@ import "server-only";
  * facts, the dossier facts and the applicant profile. Metered as 'draft'
  * (2 credits). The model's output must pass the schema, cite package ids for
  * every claim and never assert the funder's interest; one retry names the
- * problems, then the call fails and the credits are refunded.
+ * problems, then the call fails. The credits are still charged when the model
+ * billed tokens (the ledger row settles with `meta.failed = true`) and are
+ * refunded only when none were spent (lib/billing/meter.ts failureStatus).
  */
 import { z } from "zod";
 import { addUsage, type AiClient, type AiRequest, type Usage } from "@/lib/ai/types";

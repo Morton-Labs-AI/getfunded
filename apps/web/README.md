@@ -23,6 +23,14 @@ Required to boot: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`,
 internal unlimited plan and hides billing. `AI_MODE=mock` gives a deterministic,
 token-free model client for local work and tests.
 
+`TRUST_PROXY=true` tells the app to read the client address from `X-Forwarded-For` /
+`X-Real-IP` for the per-IP rate limits. Set it on any self-hosted install that sits
+behind a reverse proxy you control (nginx, Caddy, a load balancer); Vercel is trusted
+automatically. Off Vercel and without it, those headers are ignored because a client
+could write them itself, so every anonymous visitor shares one rate-limit bucket
+(30 searches a minute in total). It is also what the Playwright suite sets for
+`next start` (section 5).
+
 ## 2. Scripts
 
 | Script | What it does |
@@ -77,6 +85,13 @@ What this guarantees:
 - Every model call goes through `meter()` in `lib/billing/meter.ts`, and only
   `lib/ai/client.ts` imports the Anthropic SDK. A unit test fails the build if another
   file imports it.
+- A failed model call is not free when the model was paid. `meter()` reserves the
+  feature's credits, runs the call, and then settles the ledger row with the real
+  tokens. When the call threw but the error carries tokens the model billed (a
+  refusal, a rejected tool call, a schema failure after the retry), the row is settled
+  all the same, with `meta.failed = true`, and the credits stay charged; only a call
+  that spent no tokens (the model never answered) is refunded. The admin usage page
+  counts those failed-but-spent calls in its model totals.
 
 ## 4. Migrations
 
@@ -98,6 +113,26 @@ Adding a migration: next number, same conventions, every `grant`/`revoke` betwee
 `-- @roles-begin` and `-- @roles-end`, idempotent statements, then `npm test` (the
 PGlite tests apply the whole directory).
 
+Two migrations change what roles can reach and need a word on deployment:
+
+- **0010, analyst role scope.** `funder_ro` (the role behind "Ask the analyst",
+  `ANALYST_DATABASE_URL`) may SELECT exactly what `lib/ai/sql-guard.ts` allows: the
+  14 `public.*` views and the 11 `internal.mv_*` materialized views, nothing else in
+  `internal`, with `search_path = public`. The same migration grants `getfunded_app`
+  SELECT on two columns of `internal.raw_files` (`id`, `sha256`) so funder pages can
+  show the fingerprint of the file a fact was parsed from; the app probes that grant
+  once per process and leaves the fingerprint out until it is there, so the app can be
+  deployed before or after the migration. Run it as the corpus owner. Then verify:
+  `ANALYST_DATABASE_URL=… npm run db:ping` must print `PASS` (it compares the role's
+  readable relations with the guard's allowlist and fails on any drift).
+- **0011, sign-up gate, invite email binding, ledger reaper.** Adds the doors
+  `has_pending_invite(email)` (what `signup_mode = 'invite'` checks before a new
+  account is provisioned) and `invite_preview(token)`; replaces `accept_invite(token)`
+  so the signed-in email must match the invited address (`invite_wrong_email`); and
+  gives `daily_maintenance` a third argument that refunds `usage_ledger` rows left
+  `reserved` for longer than the window (`meta.reaped = true`). No new tables; the
+  0009 two-argument door keeps working.
+
 ## 5. Tests
 
 1. `npm test` runs everything under `tests/unit` in about five seconds. No real
@@ -110,8 +145,20 @@ PGlite tests apply the whole directory).
 3. Server-only modules can be imported in tests; `vitest.config.mts` maps `server-only`
    to an empty stub. Modules that touch the pool are mocked through one seam,
    `vi.mock("@/lib/billing/db")`.
-4. `npm run e2e` needs a production build running on port 3050 (`npm run build && npm
-   start`) and Playwright browsers installed.
+4. `npm run e2e` runs the Playwright smoke tests against the production build. Build
+   first (`npm run build`); the suite then starts `next start` itself, on port 3050,
+   with `AI_MODE=mock SELF_HOSTED=true TRUST_PROXY=true APP_URL=http://localhost:3050`
+   (`playwright.config.ts`). `TRUST_PROXY=true` matters: off Vercel the app ignores
+   `X-Forwarded-For` unless told to trust it, so every request would read as one
+   "unknown" address and the whole suite (plus anything else hitting the server)
+   would share a single anonymous search bucket (30/min). `next start` fills
+   `X-Forwarded-For` from the socket address, so with the flag requests bucket by
+   real client address and a test can send its own header. The database variables
+   come from your shell or `.env.local`; Playwright browsers must be installed
+   (`npx playwright install chromium`). To use another port, set
+   `PLAYWRIGHT_BASE_URL=http://localhost:3051`; the server command follows it. A
+   server already listening on that port is reused (except in CI), so start it with
+   the same four variables if you start it by hand.
 
 ## 6. Layout
 

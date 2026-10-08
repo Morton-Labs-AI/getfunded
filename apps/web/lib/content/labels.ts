@@ -72,7 +72,7 @@ export function returnTypeLabel(code: string | null | undefined): string {
 /** Dataset names as the corpus records them, in plain words. */
 export const DATASET_LABELS: Record<string, string> = {
   irs_990_xml: "IRS 990 e-file",
-  irs_eo_bmf: "IRS Exempt Organizations BMF",
+  irs_eo_bmf: "IRS master file (Exempt Organizations BMF)",
   sbir_awards: "SBIR/STTR awards",
   sec_form_adv: "SEC Form ADV",
   sec_form_adv_filings: "SEC Form ADV",

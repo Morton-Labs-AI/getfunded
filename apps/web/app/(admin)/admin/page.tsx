@@ -7,6 +7,7 @@ import { PageHeader, PlanBadge, Section, dayCaption, featureLabel } from "@/comp
 import { BarChart, FunnelBars, StackedBars, chartColor } from "@/components/admin/charts";
 import { Missing } from "@/components/data/missing";
 import { StatTile } from "@/components/data/stat-tile";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireSteward } from "@/lib/admin/gate";
 import { dayWindow, getOverview, listStewards, pivotFeatures } from "@/lib/admin/queries";
@@ -104,7 +105,17 @@ async function Overview() {
                     <span className="font-medium">{s.displayName ?? <Missing bare />}</span>{" "}
                     <span className="text-muted-foreground">{s.email}</span>
                   </span>
-                  {s.userId === session.user.id ? <PlanBadge plan="you" /> : null}
+                  <span className="flex shrink-0 items-center gap-2">
+                    {!s.listed ? (
+                      <Badge
+                        variant="outline"
+                        title="This account has the steward flag in the database, but its email is not in the ADMIN_EMAILS environment variable. Removing the flag removes its access."
+                      >
+                        Flag only, not in ADMIN_EMAILS
+                      </Badge>
+                    ) : null}
+                    {s.userId === session.user.id ? <PlanBadge plan="you" /> : null}
+                  </span>
                 </li>
               ))}
             </ul>

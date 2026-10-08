@@ -12,7 +12,8 @@ import { requireWorkspace } from "@/lib/workspace/context";
 import { WORKSPACE_COPY } from "@/lib/workspace/copy";
 import { listImports } from "@/lib/workspace/imports";
 import { softFail } from "@/lib/workspace/safe";
-import { getWorkspacePlan } from "@/lib/workspace/saved";
+import { countSaved, getWorkspacePlan } from "@/lib/workspace/saved";
+import { run } from "@/lib/workspace/sql";
 import type { WorkspaceCtx } from "@/lib/workspace/types";
 
 export const metadata: Metadata = { title: WORKSPACE_COPY.import.title };
@@ -36,11 +37,13 @@ export default function ImportPage() {
 async function ImportContent() {
   const { user, workspace } = await requireWorkspace();
   const ctx: WorkspaceCtx = { userId: user.id, workspaceId: workspace.id };
-  const [history, plan] = await Promise.all([
+  const [history, plan, saved] = await Promise.all([
     softFail("imports", [], () => listImports(ctx)),
     softFail("plan", null, () => getWorkspacePlan(ctx)),
+    softFail("saved count", null, () => run(ctx, undefined, (sql) => countSaved(sql, ctx.workspaceId))),
   ]);
   const limit = plan?.saved_funders_limit ?? null;
+  const room = limit === null || saved === null ? null : Math.max(0, limit - saved);
 
   return (
     <>
@@ -48,8 +51,16 @@ async function ImportContent() {
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex flex-col gap-4">
-          {limit !== null ? (
-            <UpgradeNotice message={`Your plan holds ${formatNumber(limit)} saved funders. Rows past that limit are listed in the report, not added.`} />
+          {limit !== null && room === 0 ? (
+            <UpgradeNotice
+              message={`Your list is full: your plan holds ${formatNumber(limit)} saved funders and you have ${formatNumber(saved ?? limit)}. Rows that match will be listed in the report, not added.`}
+            />
+          ) : limit !== null ? (
+            <p className="text-sm leading-6 text-ink-3" role="note">
+              Your plan holds {formatNumber(limit)} saved funders.
+              {room !== null ? ` You have ${formatNumber(saved ?? 0)}, so this import can add up to ${formatNumber(room)} more.` : ""} Rows past
+              that are listed in the report, not added.
+            </p>
           ) : null}
           <ImportWizard />
         </div>

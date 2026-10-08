@@ -3,7 +3,7 @@ import { Mail, Phone } from "lucide-react";
 import { Missing } from "@/components/data/missing";
 import { SourceValue } from "@/components/data/source-chip";
 import { Badge } from "@/components/ui/badge";
-import { CONTACT_ON_FILE_NOT_PUBLISHED, CONTACT_TIER_NOTE } from "@/lib/content/copy";
+import { CONTACT_TIER_NOTE } from "@/lib/content/copy";
 import { datasetLabel } from "@/lib/content/labels";
 import { formatDate } from "@/lib/format";
 import type { ApplicationInfo, ContactChannel } from "@/lib/queries/corpus/types";
@@ -74,7 +74,7 @@ export function ContactsSection({ channels, application }: { channels: ContactCh
       )}
       {withheld.length > 0 ? (
         <p className="mt-3 text-xs text-ink-3">
-          The latest Form 990-PF lists {withheld.join(" and ")} for applications. {CONTACT_ON_FILE_NOT_PUBLISHED}, because it belongs to a named person.
+          The latest Form 990-PF lists {withheld.join(" and ")} for applications. It is on the filing but not published here.
         </p>
       ) : null}
     </ProfileSection>

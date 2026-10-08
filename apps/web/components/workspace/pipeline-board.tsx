@@ -172,6 +172,7 @@ function Card({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const dueSoon = row.nextActionDue !== null && row.nextActionDue <= today;
+  const dueWord = row.nextActionDue === null ? null : row.nextActionDue < today ? "Overdue" : row.nextActionDue === today ? "Due today" : null;
   return (
     <article className={cn("rounded-md border bg-card p-2.5 shadow-xs", overlay && "rotate-2 shadow-overlay")}>
       <div className="flex items-start gap-1.5">
@@ -198,8 +199,12 @@ function Card({
           <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-ink-3">
             <span className="truncate">{row.ownerName ?? "Nobody yet"}</span>
             {row.nextActionDue ? (
-              <span className={cn("tnum inline-flex items-center gap-1", dueSoon && "font-medium text-warning")} title={row.nextAction ?? undefined}>
+              <span
+                className={cn("tnum inline-flex items-center gap-1", dueSoon && "font-medium text-warning")}
+                title={[dueWord, row.nextAction].filter(Boolean).join(": ") || undefined}
+              >
                 <CalendarClock className="size-3" aria-hidden />
+                {dueWord ? `${dueWord} ` : ""}
                 {formatDate(row.nextActionDue)}
               </span>
             ) : null}

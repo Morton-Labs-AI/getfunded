@@ -3,10 +3,26 @@
  * with `sseFrame`, the chat component decodes with `parseSseFrames`, and one
  * test round-trips both.
  */
+/**
+ * Postgres column types as the rows event names them, mapped from the type
+ * oids postgres.js reports (`pgTypeName` in lib/ai/sql-guard.ts). The chat
+ * uses them to pick a formatter: an integer is never shown as dollars.
+ */
+export type ColumnType = "int" | "numeric" | "float" | "date" | "timestamp" | "bool" | "text" | "unknown";
+
 export type AskEvent =
   | { type: "phase"; phase: "write" | "run" | "explain" }
   | { type: "sql"; sql: string; purpose: string; repaired?: boolean }
-  | { type: "rows"; columns: string[]; rows: Array<Array<string | number | boolean | null>>; total: number; ms: number; capped: boolean }
+  | {
+      type: "rows";
+      columns: string[];
+      /** One entry per column, when the server knows them (older servers omit it). */
+      types?: ColumnType[];
+      rows: Array<Array<string | number | boolean | null>>;
+      total: number;
+      ms: number;
+      capped: boolean;
+    }
   | { type: "sql_error"; message: string }
   | { type: "text"; text: string }
   | { type: "usage"; credits: number; inputTokens: number; outputTokens: number; model: string; mock: boolean }

@@ -2,6 +2,7 @@ import "server-only";
 
 import type postgres from "postgres";
 
+import { isAdminEmail } from "@/lib/auth/identity";
 import { getUsage, type UsageSummary } from "@/lib/billing/meter";
 import { toInt } from "@/lib/billing/pg";
 import { withUser } from "@/lib/db/app";
@@ -151,7 +152,9 @@ export async function getUsageReport(stewardId: string, days = 30): Promise<Usag
                coalesce(sum(credits), 0)::int as credits,
                avg(latency_ms) as avg_latency
         from getfunded.usage_ledger
-        where status = 'settled' and created_at >= ${windowStart(sql, days)}
+        where (status = 'settled'
+               or (status = 'refunded' and coalesce(input_tokens, 0) + coalesce(output_tokens, 0) > 0))
+          and created_at >= ${windowStart(sql, days)}
         group by model
         order by calls desc`,
       sql<{ status: string; n: number }[]>`
@@ -438,11 +441,24 @@ export async function getWorkspaceDetail(stewardId: string, workspaceId: string)
   return { ...base, usage };
 }
 
+export type StewardRow = {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  /**
+   * Listed in ADMIN_EMAILS. False means the database flag is set but the
+   * operator's list no longer names them: lib/admin/steward.ts refuses them
+   * at the gate whenever ADMIN_EMAILS is non-empty, so the overview should
+   * show them as "flag only" and offer to remove the flag.
+   */
+  listed: boolean;
+};
+
 /** Every steward, for the overview's "who can see this page" list. */
-export async function listStewards(stewardId: string): Promise<Array<{ userId: string; email: string; displayName: string | null }>> {
+export async function listStewards(stewardId: string, env: Record<string, string | undefined> = process.env): Promise<StewardRow[]> {
   return withUser(stewardId, async (sql) => {
     const rows = await sql<{ id: string; email: string; display_name: string | null }[]>`
       select id, email::text as email, display_name from getfunded.users where is_steward order by email`;
-    return rows.map((r) => ({ userId: r.id, email: r.email, displayName: r.display_name }));
+    return rows.map((r) => ({ userId: r.id, email: r.email, displayName: r.display_name, listed: isAdminEmail(r.email, env) }));
   });
 }

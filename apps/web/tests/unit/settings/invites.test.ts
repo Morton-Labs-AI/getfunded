@@ -11,6 +11,7 @@ import {
   generateInviteToken,
   hashInviteToken,
   inviteExpiry,
+  inviteMatchesEmail,
   inviteStatus,
   inviteUrl,
   parseInviteToken,
@@ -92,14 +93,27 @@ describe("acceptInviteFailure", () => {
     expect(acceptInviteFailure(new Error("invite_invalid"))).toBe("invalid");
     expect(acceptInviteFailure(new Error("invite_used"))).toBe("used");
     expect(acceptInviteFailure(new Error("invite_expired"))).toBe("expired");
+    // Migration 0011: the door refuses an account whose email is not the invited one.
+    expect(acceptInviteFailure(new Error("invite_wrong_email"))).toBe("wrong_email");
+    expect(acceptInviteFailure({ message: "wrapped", cause: { message: "invite_wrong_email" } })).toBe("wrong_email");
     expect(acceptInviteFailure({ code: "28000", message: "accept_invite: not signed in" })).toBe("not_signed_in");
     expect(acceptInviteFailure({ message: "wrapped", cause: { code: "28000", message: "x" } })).toBe("not_signed_in");
     expect(acceptInviteFailure({ message: "unknown", cause: { message: "invite_used" } })).toBe("used");
     expect(acceptInviteFailure(new Error("connection reset"))).toBe("unknown");
     expect(acceptInviteFailure(null)).toBe("unknown");
-    for (const reason of ["invalid", "used", "expired", "not_signed_in", "unknown"] as const) {
+    for (const reason of ["invalid", "used", "expired", "wrong_email", "not_signed_in", "unknown"] as const) {
       expect(ACCEPT_INVITE_COPY[reason].length).toBeGreaterThan(10);
       expect(ACCEPT_INVITE_COPY[reason]).not.toMatch(/closed/i);
     }
+    expect(ACCEPT_INVITE_COPY.wrong_email).toMatch(/different email address/);
+  });
+});
+
+describe("inviteMatchesEmail", () => {
+  it("compares like citext: case-insensitive, trimmed", () => {
+    const preview = { email: "Invitee@Example.org" };
+    expect(inviteMatchesEmail(preview, "invitee@example.org")).toBe(true);
+    expect(inviteMatchesEmail(preview, "  INVITEE@EXAMPLE.ORG ")).toBe(true);
+    expect(inviteMatchesEmail(preview, "stranger@example.org")).toBe(false);
   });
 });

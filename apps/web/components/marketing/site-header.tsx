@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight, Menu } from "lucide-react";
 
 import { Logo } from "@/components/brand/logo";
+import { SkipLink } from "@/components/ui/skip-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +59,7 @@ function NavLink({
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b bg-topbar backdrop-blur">
+      <SkipLink />
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Logo />
 

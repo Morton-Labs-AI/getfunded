@@ -73,9 +73,17 @@ describe("verifyApiKey / lookupApiKey", () => {
   });
 
   it("refuses keys on plans without API access", async () => {
-    const r = await lookupApiKey(`Bearer ${key.plaintext}`, { sql: doorSql({ ...row, plan: "pro" }).sql });
+    const r = await lookupApiKey(`Bearer ${key.plaintext}`, { sql: doorSql({ ...row, plan: "pro" }).sql, env: { SELF_HOSTED: "" } });
     expect(r.status).toBe("plan_forbidden");
-    expect(await verifyApiKey(`Bearer ${key.plaintext}`, { sql: doorSql({ ...row, plan: "pro" }).sql })).toBeNull();
+    expect(await verifyApiKey(`Bearer ${key.plaintext}`, { sql: doorSql({ ...row, plan: "pro" }).sql, env: { SELF_HOSTED: "" } })).toBeNull();
+  });
+
+  it("resolves the plan through planFor, so a SELF_HOSTED install accepts keys whatever the column says", async () => {
+    const env = { SELF_HOSTED: "true" };
+    const free = await lookupApiKey(`Bearer ${key.plaintext}`, { sql: doorSql({ ...row, plan: "free" }).sql, env });
+    expect(free.status).toBe("ok");
+    const pro = await verifyApiKey(`Bearer ${key.plaintext}`, { sql: doorSql({ ...row, plan: "pro" }).sql, env });
+    expect(pro?.workspaceId).toBe(WS);
   });
 
   it("filters unknown scopes", async () => {

@@ -11,7 +11,7 @@ import { parseSseFrames, sseFrame, sseHeaders, type AskEvent } from "@/lib/ai/ss
 const EVENTS: AskEvent[] = [
   { type: "phase", phase: "write" },
   { type: "sql", sql: "select o.id as org_id, o.name\nfrom public.organizations o\nlimit 5", purpose: "Five organizations" },
-  { type: "rows", columns: ["org_id", "name"], rows: [["11111111-1111-4111-8111-111111111111", "Example Fund"], ["2", null]], total: 2, ms: 12, capped: false },
+  { type: "rows", columns: ["org_id", "name"], types: ["text", "text"], rows: [["11111111-1111-4111-8111-111111111111", "Example Fund"], ["2", null]], total: 2, ms: 12, capped: false },
   { type: "text", text: "Two rows came back.\n\nBoth are " },
   { type: "text", text: "foundations." },
   { type: "usage", credits: 2, inputTokens: 1200, outputTokens: 80, model: "mock", mock: true },

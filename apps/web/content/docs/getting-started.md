@@ -32,7 +32,7 @@ Click a funder to open its profile. The profile shows:
 - **Money.** Assets, revenue, grants paid, by year.
 - **Grants paid**, with the recipients and the purpose, as reported.
 - **Officers and trustees**, as reported on the filing.
-- **A source line on every fact.** Click it to see the filing, the year and the file hash.
+- **A source line on every fact.** Click it to see the dataset, the filing year, a link to the filing and, when we have it, the fingerprint of the file we read.
 
 ## Step 3: Create a free account
 

@@ -3,7 +3,7 @@ import { SearchX } from "lucide-react";
 import { NlFilterBar } from "@/components/ai/nl-filter-bar";
 import { SaveFunderButton } from "@/components/workspace/save-funder-button";
 import { NO_RESULTS_HINT, NO_RESULTS_TITLE, RESULT_COUNT, SEARCH_TAGLINE, SEARCH_TITLE, SORTED_WITHIN_POOL_NOTE } from "@/lib/content/copy";
-import { searchFunders, emptyResult } from "@/lib/queries/corpus/search";
+import { searchFunders, emptyResult, timedOutResult } from "@/lib/queries/corpus/search";
 import { softFail } from "@/lib/queries/corpus/safe";
 import { getCorpusCounts } from "@/lib/queries/corpus/stats";
 import type { SearchHit, SearchResult } from "@/lib/queries/corpus/types";
@@ -66,9 +66,20 @@ export async function SearchView({ mode, searchParams, plan, savedByOrg }: Searc
   }
 
   const gate = await limitSearchRender();
-  const result: SearchResult = gate.ok
-    ? await searchFunders(params)
-    : emptyResult(params, { notices: ["rate_limited"], retryAfterSec: gate.retryAfterSec });
+  let result: SearchResult;
+  if (gate.ok) {
+    try {
+      result = await searchFunders(params);
+    } catch (err) {
+      // The statement timeout is an answer, not a crash: say so and keep the
+      // form and filters on screen. Anything else still reaches the error page.
+      const timedOut = timedOutResult(err, params);
+      if (!timedOut) throw err;
+      result = timedOut;
+    }
+  } else {
+    result = emptyResult(params, { notices: ["rate_limited"], retryAfterSec: gate.retryAfterSec });
+  }
 
   const shown = result.hits.length;
   const sortedWithinPool = result.ran !== null && result.ran !== "ein" && result.params.sort !== "relevance";

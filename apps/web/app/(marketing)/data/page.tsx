@@ -70,14 +70,14 @@ const SOURCES: Array<{ source: string; publisher: string; take: string; terms: s
 ];
 
 const KNOWN_LIMITS: string[] = [
-  "Entity resolution is not applied. Records of the same fund from different SEC sources are separate organizations, and people are per source.",
+  "The same fund can appear more than once. Records of one fund from different SEC sources are kept as separate organizations, and people are kept per source; we have not merged them.",
   "Not ingested: 990-EZ, 990-N, 990-T, paper returns, Publication 78, auto-revocations and determination letters.",
-  "Grants-paid totals come from 990-PF filings, so giving-ranked views cover private foundations only.",
+  "The gives-per-year filter and the most-giving sort read the Form 990-PF giving lines (qualifying distributions, else charitable disbursements), so in name and browse searches they cover private foundations only; describe-the-work search also counts a public charity's reported grants, averaged per year. Profile grant lists include Schedule I grants from public charities as well as 990-PF grants.",
   "The IRS publishes XML in batches. At any time tens of thousands of indexed returns have no detail yet. They appear when the IRS publishes them.",
   "Back-year 990-PF grant rows are loaded for the newest index years only; earlier years carry filings, financials and officers.",
   "Form D names the issuer raising money, never the investors. It is not a deal graph.",
-  "Inside parsed 990-PFs, Schedule B is present on about a quarter of filings, and Part XV application information is actionable on about a quarter.",
-  "Keyword search matches names and titles only. Semantic search covers foundations, advisers, companies and programs, not public charities.",
+  "Inside parsed 990-PFs, the donor list (Schedule B) is present on about a quarter of filings, and the how-to-apply section (Part XV) says something usable on about a quarter.",
+  "Keyword search matches names and titles only. Describe-the-work search reads giving records, so it covers private foundations, companies, federal programs and the public charities that report the grants they make; a charity with no grant list is found by name or EIN only.",
   "Filers make mistakes. We publish filings as filed. Out-of-range numbers are set to missing, not corrected.",
 ];
 
@@ -157,52 +157,67 @@ export default function DataPage() {
           <SectionHeading
             eyebrow="The provenance contract"
             title="One chain, kept for every row."
-            lede="Every fact row carries the id of the hashed file it was parsed from and a locator for the exact record inside that file. A re-parse can never make old data look fresh."
+            lede="Every fact on a funder page points back to the exact government file it came from, and to the exact record inside that file. If we read a file again later, the old facts cannot pretend to be new."
           />
           <div className="flex flex-col gap-4">
-            <CodeBlock
-              title="The chain"
-              copy={false}
-              code={[
-                "dataset name → source URL → sha256-hashed immutable file → licence code",
-                "            → ingestion-ledger run → row (raw_file_id + source_record_locator)",
-              ].join("\n")}
-            />
             <div>
               <p className="eyebrow text-muted-foreground">How it looks on a funder page (example values)</p>
               <div className="mt-2">
                 <ProvenanceSeal source="IRS 990-PF e-file" filingYear={2023} sha256={EXAMPLE_SHA} license="Public domain" />
               </div>
+              <p className="mt-2 text-sm leading-6 text-ink-2">
+                The dataset, the filing year, the fingerprint of the file we read (the first characters of its sha256 hash) and a
+                link to the filing. When a fact has no file behind it, such as the identity line from the IRS master file, the
+                fingerprint is left out rather than shown blank.
+              </p>
             </div>
             <ul className="space-y-2 text-sm leading-6 text-ink-2">
               <li>
-                <strong className="font-semibold text-foreground">Record locators</strong> look like{" "}
-                <code className="rounded-sm border bg-inset px-1 font-mono text-[0.85em]">row:EIN=…</code> for a CSV row or an element
-                path inside the 990 XML for a filing value.
+                <strong className="font-semibold text-foreground">Every file is kept and fingerprinted.</strong> We store the file as
+                we downloaded it, its sha256 hash, when we fetched it, the publisher&rsquo;s last-modified date, and when we last
+                read it.
               </li>
               <li>
-                <strong className="font-semibold text-foreground">Three timestamps</strong> per file: when we fetched it, the
-                publisher&rsquo;s last-modified date, and when we last parsed it.
+                <strong className="font-semibold text-foreground">Every fact knows its place in the file.</strong> A CSV row or an
+                element inside the 990 XML, so anyone can open the same file and find the same value.
               </li>
               <li>
-                <strong className="font-semibold text-foreground">Amended filings supersede.</strong> Within one EIN, return type and
-                tax period, the newest filing is live. Older ones keep their detail rows but lose their grant rows, so nothing is
-                counted twice.
+                <strong className="font-semibold text-foreground">Amended filings replace the original.</strong> Within one EIN, return
+                type and tax period, the newest filing is the one that counts. Older ones keep their detail rows but lose their
+                grant rows, so nothing is counted twice.
               </li>
               <li>
                 <strong className="font-semibold text-foreground">Exports are reproducible.</strong> A published export is byte-identical
-                on re-run and its manifest lists the hash of every file. Full description:{" "}
-                <a
-                  href={LINKS.corpusProvenance}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 font-medium text-primary underline underline-offset-4"
-                >
-                  PROVENANCE.md
-                  <ArrowUpRight className="size-3" aria-hidden />
-                </a>
+                on re-run and its manifest lists the hash of every file.
               </li>
             </ul>
+            <details className="group rounded-lg border bg-card p-4 shadow-card">
+              <summary className="cursor-pointer text-sm font-medium text-foreground">How it works in detail</summary>
+              <div className="mt-3 flex flex-col gap-3">
+                <CodeBlock
+                  title="The chain"
+                  copy={false}
+                  code={[
+                    "dataset name → source URL → sha256-hashed immutable file → licence code",
+                    "            → ingestion-ledger run → row (raw_file_id + source_record_locator)",
+                  ].join("\n")}
+                />
+                <p className="text-sm leading-6 text-ink-2">
+                  Record locators look like{" "}
+                  <code className="rounded-sm border bg-inset px-1 font-mono text-[0.85em]">row:EIN=…</code> for a CSV row or an
+                  element path inside the 990 XML for a filing value. Full description:{" "}
+                  <a
+                    href={LINKS.corpusProvenance}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-0.5 font-medium text-primary underline underline-offset-4"
+                  >
+                    PROVENANCE.md
+                    <ArrowUpRight className="size-3" aria-hidden />
+                  </a>
+                </p>
+              </div>
+            </details>
           </div>
         </div>
       </Section>
@@ -212,7 +227,7 @@ export default function DataPage() {
           <SectionHeading
             eyebrow="Contact data"
             title="Published by affirmative act, never by default."
-            lede="A funder page shows a contact only when the record allows it. The SQL nulls the value otherwise, so a bug in the app cannot leak it."
+            lede="A funder page shows a contact only when the record allows it. Otherwise the database sends no value at all, so a bug in the app cannot leak it."
           />
           <div className="rounded-lg border bg-card shadow-card">
             <Table>
@@ -224,10 +239,13 @@ export default function DataPage() {
               </TableHeader>
               <TableBody>
                 <TableRow className="align-top">
-                  <TableCell className="whitespace-normal font-medium text-foreground">publishability = public</TableCell>
+                  <TableCell className="whitespace-normal font-medium text-foreground">
+                    Published on purpose
+                    <span className="mt-0.5 block font-mono text-[0.8em] font-normal text-ink-3">publishability = public</span>
+                  </TableCell>
                   <TableCell className="whitespace-normal text-ink-2">
-                    Every contact row defaults to internal only. Publishing is a deliberate flag, set by the loader under a rule
-                    written in SQL so every reviewer applies the same one.
+                    Every contact record starts as internal only. Publishing it is a deliberate flag, set by the loader under one
+                    rule written once in the database, so every reviewer applies the same rule.
                   </TableCell>
                 </TableRow>
                 <TableRow className="align-top">
@@ -238,10 +256,10 @@ export default function DataPage() {
                   </TableCell>
                 </TableRow>
                 <TableRow className="align-top">
-                  <TableCell className="whitespace-normal font-medium text-foreground">Privacy tiers</TableCell>
+                  <TableCell className="whitespace-normal font-medium text-foreground">Three privacy tiers</TableCell>
                   <TableCell className="whitespace-normal text-ink-2">
-                    green (a role desk), yellow (a professional contact from a filing), red (never). A database check forbids red
-                    and public on the same row.
+                    Green is a shared desk such as grants@ or an office phone. Yellow is a professional contact for a named person,
+                    taken from a filing; it stays internal. Red is never shown. The database refuses to mark a red contact public.
                   </TableCell>
                 </TableRow>
                 <TableRow className="align-top">
@@ -254,7 +272,7 @@ export default function DataPage() {
                 <TableRow className="align-top">
                   <TableCell className="whitespace-normal font-medium text-foreground">Checked before every export</TableCell>
                   <TableCell className="whitespace-normal text-ink-2">
-                    Seven boundary assertions run before a byte is written. One failure aborts the export.
+                    Seven safety checks run before a single byte is written. If one fails, the export stops.
                   </TableCell>
                 </TableRow>
               </TableBody>

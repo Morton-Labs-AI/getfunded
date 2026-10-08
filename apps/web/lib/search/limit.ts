@@ -11,11 +11,17 @@ import { getSession } from "@/lib/auth/session";
 import { ANON_SEARCH, USER_SEARCH, ipSubject, limit, rateLimitKey, userSubject, withRateLimit } from "@/lib/ratelimit";
 import { clientIp } from "@/lib/security";
 
-export type SearchLimit = { ok: true; subject: "user" | "ip" | "none" } | { ok: false; retryAfterSec: number; subject: "user" | "ip" };
+export type SearchLimit = { ok: true; subject: "user" | "ip" } | { ok: false; retryAfterSec: number; subject: "user" | "ip" };
 
-function attributableIp(req: Request): string | null {
-  const ip = clientIp(req);
-  return ip === "unknown" ? null : ipSubject(ip);
+/**
+ * The anonymous bucket subject. A request whose address cannot be read
+ * (`clientIp` → "unknown": no trusted proxy headers) is NOT let through; every
+ * such request shares the one `ip:unknown` bucket. Sharing is the safe
+ * direction: an attacker who strips the headers gets 30/min in total, not
+ * unlimited. Operators behind their own proxy set TRUST_PROXY (see .env.example).
+ */
+export function anonSearchSubject(req: Request): string {
+  return ipSubject(clientIp(req)) ?? "ip:unknown";
 }
 
 /** For Server Components: reads the request headers itself. */
@@ -27,8 +33,7 @@ export async function limitSearchRender(): Promise<SearchLimit> {
     return r.ok ? { ok: true, subject: "user" } : { ok: false, retryAfterSec: r.retryAfterSec ?? 1, subject: "user" };
   }
   const h = await headers();
-  const subject = attributableIp(new Request("http://search.local/", { headers: h }));
-  if (!subject) return { ok: true, subject: "none" };
+  const subject = anonSearchSubject(new Request("http://search.local/", { headers: h }));
   const r = await limit(rateLimitKey(ANON_SEARCH, subject), ANON_SEARCH);
   return r.ok ? { ok: true, subject: "ip" } : { ok: false, retryAfterSec: r.retryAfterSec ?? 2, subject: "ip" };
 }
@@ -37,5 +42,5 @@ export async function limitSearchRender(): Promise<SearchLimit> {
 export async function limitSearchRequest(req: Request): Promise<Response | null> {
   const session = await getSession();
   if (session) return withRateLimit(req, USER_SEARCH, () => userSubject(session.user.id));
-  return withRateLimit(req, ANON_SEARCH, attributableIp);
+  return withRateLimit(req, ANON_SEARCH, anonSearchSubject);
 }

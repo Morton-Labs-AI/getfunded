@@ -12,6 +12,8 @@ Plain SQL, applied in filename order. Each file is one numbered step:
 | `getfunded_0006_outreach.sql` | `contacts`, `sender_identities`, `secrets`, `messages`, `suppressions`, `send_outcomes`; door `read_secret` |
 | `getfunded_0007_steward.sql` | `flags` (seeded `ai_enabled=true`, `signup_mode="open"`), `events`, `plan_overrides` |
 | `getfunded_0008_billing_webhook.sql` | (billing owner) doors `apply_subscription` for the Stripe webhook and `verify_api_key` for the public API, both running with no signed-in user |
+| `getfunded_0009_steward.sql` | steward policies, doors `set_steward`, `claim_steward`, `daily_maintenance`; two indexes for `/admin` |
+| `getfunded_0010_analyst_role_scope.sql` | corpus grants only: `funder_ro` (Ask the analyst) scoped to exactly the SQL guard's allowlist (public views + `internal.mv_*`), its default privileges and `search_path` tightened; `getfunded_app` gets SELECT on `internal.raw_files (id, sha256)` for provenance seals |
 
 Every table has RLS enabled **and forced**. The app never bypasses a policy; it
 opens a transaction and runs `select set_config('app.user_id', $1, true)` with
@@ -81,6 +83,47 @@ Rules:
   comes through `read_secret()`. `workspaces.plan` and `billing_anchor_day` have
   no app `update` grant; they move through `apply_subscription()` (0008).
 
+## Migration 0010: the analyst role and provenance hashes
+
+`getfunded_0010_analyst_role_scope.sql` is a corpus-grants file (one
+`-- @roles-begin corpus` block, stripped in PGlite). It does two things:
+
+1. **Scopes `funder_ro`**, the login role behind "Ask the analyst"
+   (`ANALYST_DATABASE_URL`), to exactly what `lib/ai/sql-guard.ts` allows: SELECT
+   on the 14 `public.*` views and the 11 `internal.mv_*` materialized views,
+   nothing else in `internal` (no `contact_channels`, `raw_files`,
+   `org_web_facts`, `filing_application_info`, ...). It also removes the default
+   privilege that would grant the role every future `internal` table, and sets
+   the role's `search_path` to `public` so a bare name can never resolve into
+   `internal`. The guard refuses those names first; after 0010 the database
+   refuses them too. `internal.similar_orgs` and `internal.hybrid_search` read
+   internal tables as the caller (they are not SECURITY DEFINER), so they stop
+   working for `funder_ro`; the analyst prompt no longer offers them and the
+   funder page keeps calling them through `getfunded_app`. To hand them back
+   to the analyst, make them SECURITY DEFINER in the corpus (open-funder-db) or
+   grant `funder_ro` SELECT on `internal.search_documents`,
+   `internal.organizations` and `internal.funding_programs` and add those names
+   to the guard's allowlist and the `db:ping` expectation.
+2. **Grants `getfunded_app` SELECT on `internal.raw_files (id, sha256)`**, two
+   columns, so funder pages show the fingerprint of the file each fact was
+   parsed from. The app probes this grant once per process and leaves the
+   fingerprint out until it is there, so the order of deploy and migrate does
+   not matter.
+
+Operator notes:
+
+- `funder_ro` is created by the corpus, not by this repo. When the role is
+  absent the role steps are skipped with a NOTICE; the raw_files column grant
+  still applies.
+- `ALTER DEFAULT PRIVILEGES FOR ROLE <owner>` and `ALTER ROLE funder_ro SET ...`
+  need the migration runner to be that owner (or a superuser, or hold
+  CREATEROLE). On Supabase the `postgres` role qualifies. A step without
+  privilege raises a NOTICE and the rest of the file still applies.
+- Verify with `ANALYST_DATABASE_URL=... npm run db:ping`: it reads the two
+  allowlists from `lib/ai/sql-guard.ts` and prints `FAIL` with the extra or
+  missing relation names when the live grants differ. The same run checks the
+  `raw_files` column grant on the app connection.
+
 ## Operator step: the login role
 
 `getfunded_app` is `NOLOGIN` and never gets a password in a shipped file. After
@@ -97,14 +140,16 @@ create role getfunded_login login password '…' in role getfunded_app;
 everything from `getfunded_app`, including the role-level
 `statement_timeout = '20s'`. Verify with `npm run db:ping`, which must print
 `PASS`: the corpus read works, a corpus write is refused, a `getfunded` write
-under `set_config` works, and an append-only delete is refused.
+under `set_config` works, an append-only delete is refused, and the
+`internal.raw_files (id, sha256)` grant from 0010 is in place. Set
+`ANALYST_DATABASE_URL` as well to check the analyst role (see 0010 above).
 
 ## Scripts
 
 | Script | Purpose |
 | --- | --- |
 | `npm run db:migrate` | apply pending migrations (`--status`, `--dry-run`, `--to`, `--force`) |
-| `npm run db:ping` | connectivity and boundary proof for `DATABASE_URL`; prints PASS/FAIL |
+| `npm run db:ping` | connectivity and boundary proof for `DATABASE_URL`, and for `ANALYST_DATABASE_URL` when set (funder_ro's readable relations must equal the guard's allowlist); prints PASS/FAIL |
 | `npm run seed:demo -- --owner you@example.org` | self-host only (`SELF_HOSTED=true`): one "Demo Food Bank" workspace, three saved funders chosen from the corpus by EIN, two tasks; `--remove` undoes it |
 
 The `package.json` entries:
@@ -135,3 +180,19 @@ The `package.json` entries:
   period both use it.
 - Adding a migration: next number, same conventions, roles block for every
   grant, and run `npm test` (the PGlite tests apply the whole directory).
+
+### 0011: sign-up gate doors, invite email binding, ledger reaper
+
+`getfunded_0011_signup_invites_and_reaper.sql` adds two SECURITY DEFINER doors
+for the sign-in flow, `has_pending_invite(email text)` (true when a pending
+invite names the address; what `signup_mode = 'invite'` checks before a new
+account is provisioned) and `invite_preview(token)` (the invited address,
+workspace name, role and status for the signed-in holder of a token). It
+replaces `accept_invite(token)` so the caller's `users.email` must match the
+invite's email or the door raises `invite_wrong_email`, and it adds a
+three-argument `daily_maintenance(retention, stale_send, stale_reservation)`
+whose return table gains `ledger_reaped`: `usage_ledger` rows left `reserved`
+longer than the window are set to `refunded` with `meta.reaped = true`. The
+0009 two-argument door keeps its shape and now delegates to it with a one-hour
+window, so a replay of 0009 still applies. Door errors to match on `message`:
+`invite_wrong_email`.

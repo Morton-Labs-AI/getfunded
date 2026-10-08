@@ -72,11 +72,18 @@ export type AiClient = {
 export class AiError extends Error {
   readonly code: string;
   readonly status: number;
-  constructor(code: string, status: number, message: string, options?: { cause?: unknown }) {
-    super(message, options);
+  /**
+   * Tokens the model billed before the failure, when the thrower knows them.
+   * `meter()` reads this through `usageFromError`: a failure that spent tokens
+   * is settled (charged), one that spent nothing is refunded.
+   */
+  readonly usage: Usage | null;
+  constructor(code: string, status: number, message: string, options?: { cause?: unknown; usage?: Usage | null }) {
+    super(message, options?.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = "AiError";
     this.code = code;
     this.status = status;
+    this.usage = options?.usage ?? null;
   }
   toJSON() {
     return { error: this.code, message: this.message };
@@ -93,21 +100,17 @@ export class AiDisabledError extends AiError {
 
 /** The model declined the request (`stop_reason: "refusal"`). Carries the usage so the ledger can record tokens. */
 export class AiRefusedError extends AiError {
-  readonly usage: Usage | null;
   constructor(message = "The model declined this request.", usage: Usage | null = null) {
-    super("ai_refused", 422, message);
+    super("ai_refused", 422, message, { usage });
     this.name = "AiRefusedError";
-    this.usage = usage;
   }
 }
 
 /** A tool call was required but the model answered in prose twice. */
 export class AiNoToolCallError extends AiError {
-  readonly usage: Usage | null;
   constructor(toolName: string, usage: Usage | null = null) {
-    super("ai_no_tool_call", 502, `The model did not call the ${toolName} tool.`);
+    super("ai_no_tool_call", 502, `The model did not call the ${toolName} tool.`, { usage });
     this.name = "AiNoToolCallError";
-    this.usage = usage;
   }
 }
 

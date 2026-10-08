@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 
 import { AiFeatureError, AiOutputRejectedError } from "@/lib/ai/http";
@@ -45,6 +46,12 @@ import { requireWorkspace } from "@/lib/workspace/context";
  * through withUser(), and returns a small plain result the UI can show.
  * Next.js checks the Origin header on every action; nothing here trusts a
  * workspace id from the client.
+ *
+ * `caller()` runs OUTSIDE every try block. It ends in `redirect()` for a
+ * signed-out user, and redirect() works by throwing: caught inside a try it
+ * would become "Something went wrong" instead of the sign-in page. `friendly()`
+ * also starts with `unstable_rethrow`, so a framework error thrown by anything
+ * else inside a try (revalidatePath, a nested redirect) still reaches Next.
  */
 
 export type ActionResult<T = Record<never, never>> = ({ ok: true } & T) | { ok: false; error: string };
@@ -52,6 +59,8 @@ export type ActionResult<T = Record<never, never>> = ({ ok: true } & T) | { ok: 
 const OUTREACH = "/app/outreach";
 
 function friendly(error: unknown): string {
+  // Next.js control flow (redirect, notFound) must never be turned into copy.
+  unstable_rethrow(error);
   if (error instanceof DbError) {
     if (error.code === "forbidden") return "You do not have permission to do that in this workspace.";
     if (error.code === "conflict") return "That already exists.";
@@ -62,7 +71,7 @@ function friendly(error: unknown): string {
   }
   if (error instanceof AiDisabledError) return "AI features are turned off right now. Plain drafts still work.";
   if (error instanceof AiOutputRejectedError) {
-    return "The model's rewrite did not pass the honesty checks (every sentence must cite a source), so it was thrown away and your credits were refunded. Your own text is unchanged; try again or edit by hand.";
+    return "The model's rewrite did not pass the honesty checks (every sentence must cite a source), so it was thrown away. Your own text is unchanged; try again or edit by hand.";
   }
   if (error instanceof AiFeatureError) return error.message;
   if (error instanceof z.ZodError) {
@@ -78,6 +87,7 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): { ok: true; data: T } |
   return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
 }
 
+/** Signed-in user + active workspace, or a redirect to /signin. Call it before `try`. */
 async function caller() {
   const { user, workspace } = await requireWorkspace();
   return { user, workspace, ctx: { userId: user.id, workspaceId: workspace.id } };
@@ -94,8 +104,8 @@ function moveToResult(r: MoveResult): ActionResult<{ id: string; version: number
 export async function saveDraftAction(input: unknown): Promise<ActionResult<{ id: string; version: number; status: string }>> {
   const parsed = parse(draftInputSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const result = await saveDraft(ctx, parsed.data);
     if (result.ok) {
       revalidatePath(OUTREACH);
@@ -124,8 +134,8 @@ const polishSchema = z.object({
 export async function polishDraftAction(input: unknown): Promise<PolishActionResult> {
   const parsed = parse(polishSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx, workspace } = await caller();
   try {
-    const { ctx, workspace } = await caller();
     const saved = await getSavedFunderOption(ctx, parsed.data.savedFunderId);
     if (!saved) return { ok: false, error: "That funder is not on your saved list." };
     const funder = await getFunder(saved.orgId);
@@ -152,8 +162,8 @@ const approveSchema = messageRefSchema.extend({ senderIdentityId: uuid.optional(
 export async function approveMessageAction(input: unknown): Promise<ActionResult<{ id: string; version: number; status: string }>> {
   const parsed = parse(approveSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx, workspace } = await caller();
   try {
-    const { ctx, workspace } = await caller();
     const abilities = outreachAbilities({ plan: workspace.plan });
     const sendable = abilities.sendGmail ? await sendableIdentities(ctx, workspace.role) : [];
     const result = await approveMessage(ctx, parsed.data, { canSendGmail: abilities.sendGmail, sendable });
@@ -170,8 +180,8 @@ export async function approveMessageAction(input: unknown): Promise<ActionResult
 async function simple(input: unknown, fn: (ctx: { userId: string; workspaceId: string }, id: string, version: number) => Promise<MoveResult>) {
   const parsed = parse(messageRefSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const result = await fn(ctx, parsed.data.id, parsed.data.version);
     if (result.ok) {
       revalidatePath(OUTREACH);
@@ -198,8 +208,8 @@ export async function retryMessageAction(input: unknown) {
 export async function recordByHandAction(input: unknown): Promise<ActionResult<{ id: string; version: number; status: string }>> {
   const parsed = parse(recordByHandSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const result = await recordByHand(ctx, parsed.data);
     if (result.ok) {
       revalidatePath(OUTREACH);
@@ -214,8 +224,8 @@ export async function recordByHandAction(input: unknown): Promise<ActionResult<{
 export async function recordReplyAction(input: unknown): Promise<ActionResult<{ canceled: number }>> {
   const parsed = parse(recordReplySchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const result = await recordReplyByHand(ctx, parsed.data);
     if (result.ok) {
       revalidatePath(OUTREACH);
@@ -230,8 +240,8 @@ export async function recordReplyAction(input: unknown): Promise<ActionResult<{ 
 export async function createFollowUpAction(input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = parse(z.object({ parentId: uuid }), input);
   if (!parsed.ok) return parsed;
+  const { ctx, user, workspace } = await caller();
   try {
-    const { ctx, user, workspace } = await caller();
     const result = await createFollowUp(ctx, parsed.data.parentId, {
       orgName: workspace.name,
       senderName: user.displayName ?? user.email,
@@ -250,8 +260,8 @@ export async function createFollowUpAction(input: unknown): Promise<ActionResult
 export async function createContactAction(input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = parse(contactInputSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const owned = await getSavedFunderOption(ctx, parsed.data.savedFunderId);
     if (!owned) return { ok: false, error: "That funder is not on your saved list." };
     const result = await createContact(ctx, parsed.data);
@@ -265,8 +275,8 @@ export async function createContactAction(input: unknown): Promise<ActionResult<
 export async function updateContactAction(input: unknown): Promise<ActionResult<{ id: string; version: number }>> {
   const parsed = parse(contactUpdateSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const result = await updateContact(ctx, parsed.data);
     if (result.ok) revalidatePath(`${OUTREACH}/new`);
     return result.ok ? { ok: true, id: result.contact.id, version: result.contact.version } : result;
@@ -278,8 +288,8 @@ export async function updateContactAction(input: unknown): Promise<ActionResult<
 export async function deleteContactAction(input: unknown): Promise<ActionResult> {
   const parsed = parse(z.object({ id: uuid }), input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     await deleteContact(ctx, parsed.data.id);
     revalidatePath(`${OUTREACH}/new`);
     return { ok: true };
@@ -302,8 +312,8 @@ const useFilingSchema = z.object({
 export async function copyFilingContactAction(input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = parse(useFilingSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const saved = await getSavedFunderOption(ctx, parsed.data.savedFunderId);
     if (!saved) return { ok: false, error: "That funder is not on your saved list." };
     const channels = await getFilingChannels(saved.orgId);
@@ -324,8 +334,8 @@ export async function copyFilingContactAction(input: unknown): Promise<ActionRes
 export async function addSuppressionAction(input: unknown): Promise<ActionResult<{ value: string }>> {
   const parsed = parse(suppressionInputSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const result = await addSuppression(ctx, parsed.data);
     if (result.ok) revalidatePath(`${OUTREACH}/settings`);
     return result;
@@ -337,8 +347,8 @@ export async function addSuppressionAction(input: unknown): Promise<ActionResult
 export async function removeSuppressionAction(input: unknown): Promise<ActionResult> {
   const parsed = parse(z.object({ kind: z.enum(["email", "domain"]), value: z.string().trim().min(1).max(320) }), input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     await removeSuppression(ctx, parsed.data);
     revalidatePath(`${OUTREACH}/settings`);
     return { ok: true };
@@ -350,8 +360,8 @@ export async function removeSuppressionAction(input: unknown): Promise<ActionRes
 export async function updateDailyCapAction(input: unknown): Promise<ActionResult<{ dailyCap: number; version: number }>> {
   const parsed = parse(dailyCapSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const updated = await updateDailyCap(ctx, { id: parsed.data.senderIdentityId, version: parsed.data.version, dailyCap: parsed.data.dailyCap });
     if (!updated) return { ok: false, error: "This mailbox was changed somewhere else. Reload the page and try again." };
     revalidatePath(`${OUTREACH}/settings`);
@@ -364,8 +374,8 @@ export async function updateDailyCapAction(input: unknown): Promise<ActionResult
 export async function saveTemplateAction(input: unknown): Promise<ActionResult<{ id: string; version: number }>> {
   const parsed = parse(boilerplateInputSchema, input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     const result = await saveWorkspaceTemplate(ctx, parsed.data);
     if (result.ok) {
       revalidatePath(`${OUTREACH}/settings`);
@@ -380,8 +390,8 @@ export async function saveTemplateAction(input: unknown): Promise<ActionResult<{
 export async function deleteTemplateAction(input: unknown): Promise<ActionResult> {
   const parsed = parse(z.object({ id: uuid }), input);
   if (!parsed.ok) return parsed;
+  const { ctx } = await caller();
   try {
-    const { ctx } = await caller();
     await deleteWorkspaceTemplate(ctx, parsed.data.id);
     revalidatePath(`${OUTREACH}/settings`);
     revalidatePath(`${OUTREACH}/new`);

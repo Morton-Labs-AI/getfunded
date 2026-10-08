@@ -17,11 +17,11 @@ GetFunded uses a language model for a few specific jobs. Each job costs credits.
 | Ask the analyst | Writes one read-only database query to answer your question, and explains the result | {{credits.ask}} |
 | Outreach draft polish | Rewrites your template using facts from the funder's record only | {{credits.draft}} |
 | Fit analysis | Reads the funder's filings and your organization profile, then scores and explains fit | {{credits.fit}} |
-| Research dossier | Searches the web and builds a structured, sourced dossier on one funder | {{credits.research}} |
+| Research on the web | Searches the public web and writes a report on one funder, with every source listed | {{credits.research}} |
 
 ## What the AI tools never do
 
-- **They never invent a fact.** Every statement in a fit analysis or dossier cites an evidence id from the package the model was given. You can click each one.
+- **They never invent a fact.** Every statement in a fit analysis cites an evidence id from the package the model was given. You can click each one. Every section of a web research report lists the pages it came from.
 - **They never claim a funder is interested in you.** An analysis says how the record compares with your profile. It does not predict a decision.
 - **They never write to the database.** "Ask the analyst" runs on a read-only database role with a time limit.
 - **They never see other workspaces.** The model gets your profile, the funder's public record, and your approved facts. Nothing else.
@@ -35,7 +35,7 @@ One credit is about 4,000 input tokens and 1,000 output tokens on a mid-size mod
 
 ## Monthly and daily limits
 
-| Plan | Credits per month | Daily soft cap |
+| Plan | Credits per month | Most credits in one day |
 |---|---|---|
 | Free | {{plans.free.monthly_credits}} | {{plans.free.daily_credits}} |
 | Starter | {{plans.starter.monthly_credits}} | {{plans.starter.daily_credits}} |
@@ -43,7 +43,7 @@ One credit is about 4,000 input tokens and 1,000 output tokens on a mid-size mod
 | Team | {{plans.team.monthly_credits}} pooled | {{plans.team.daily_credits}} (can be turned off) |
 | Enterprise | {{plans.enterprise.monthly_credits}} pooled | {{plans.enterprise.daily_credits}} (can be turned off) |
 
-The daily cap is one third of the monthly amount. It spreads use across the month and limits the damage from a runaway script. Team and Enterprise can turn it off in settings.
+The daily limit is one third of the monthly amount. It spreads use across the month and limits the damage from a runaway script. Team and Enterprise can turn it off in settings.
 
 Current limits are always on [Pricing](/pricing). The usage meter in your workspace shows what you have used this period.
 
@@ -51,7 +51,7 @@ Current limits are always on [Pricing](/pricing). The usage meter in your worksp
 
 When a call would cross your monthly or daily limit, it is refused with a clear message and a link to upgrade. There is no silent overage and no surprise bill.
 
-Credits reset on your billing day. Free workspaces reset on the first of the month.
+Credits reset on your billing day. Free workspaces reset on the first of the month. If you change plan, the new plan's allowance applies from your next request; unused credits do not carry over.
 
 ## How metering works
 
@@ -60,7 +60,7 @@ Every model call goes through one function in the server. It:
 1. reserves the credits inside a database transaction,
 2. runs the model,
 3. records the real token counts,
-4. refunds the reservation if the call failed.
+4. keeps the charge if the call failed after the model had already read or written tokens (the model bills us for them either way), and refunds the reservation only when nothing was spent, for example when the model never answered.
 
 If the model is turned off for everyone (for example during an incident), every AI button shows a notice and nothing is charged.
 

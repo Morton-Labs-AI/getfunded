@@ -1,12 +1,14 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type postgres from "postgres";
 import { cache } from "react";
 import { z } from "zod";
 
 import { ensureProvisioned } from "@/lib/auth/provision";
 import { requireUser, type SessionUser } from "@/lib/auth/session";
+import { SignupRefusedError } from "@/lib/auth/signup-gate";
 import { withUser } from "@/lib/db/app";
 
 /**
@@ -187,13 +189,33 @@ export async function setActiveWorkspace(workspaceId: string): Promise<SetActive
 }
 
 /**
+ * Where a signed-in person with no account goes when the sign-up gate refuses
+ * to create one: /signin explains the refusal (it reads `error`) and offers
+ * sign-out instead of bouncing them back here.
+ */
+export function signupRefusedPath(code: SignupRefusedError["code"]): string {
+  return `/signin?error=${encodeURIComponent(code)}`;
+}
+
+/**
  * Everything a workspace page needs: the signed-in user (or a redirect to
  * sign in), their provisioned account, and the active workspace. Cached per
  * request so a layout and its page share one round of queries.
+ *
+ * A session can exist without an account: a person who finished the auth
+ * flow but skipped /auth/callback (or whose account the sign-up gate refused
+ * there) still holds a session cookie. `ensureProvisioned()` then throws
+ * `SignupRefusedError`, which becomes a redirect to a friendly /signin
+ * screen rather than an error page.
  */
 export const requireWorkspace = cache(async (): Promise<{ user: SessionUser; workspace: Workspace }> => {
   const user = await requireUser();
-  await ensureProvisioned(user);
+  try {
+    await ensureProvisioned(user);
+  } catch (err) {
+    if (SignupRefusedError.is(err)) redirect(signupRefusedPath(err.code));
+    throw err;
+  }
   const workspace = await getActiveWorkspace(user.id);
   return { user, workspace };
 });

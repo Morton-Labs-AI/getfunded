@@ -9,7 +9,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { appDb, type Db } from "@/lib/billing/db";
-import { can } from "@/lib/plans";
+import { can, planFor } from "@/lib/plans";
 
 export const API_KEY_PREFIX = "gf_live_";
 export const API_KEY_RANDOM_LENGTH = 32;
@@ -67,7 +67,7 @@ export type ApiPrincipal = {
   plan: string;
 };
 
-export type ApiKeyDeps = { sql?: Db };
+export type ApiKeyDeps = { sql?: Db; env?: Record<string, string | undefined> };
 
 export type ApiKeyLookup =
   | { status: "ok"; principal: ApiPrincipal }
@@ -102,7 +102,9 @@ export async function lookupApiKey(header: string | null | undefined, deps: ApiK
     createdBy: row.created_by ?? null,
     plan: row.plan ?? "free",
   };
-  if (!can(principal.plan, "api")) return { status: "plan_forbidden", principal };
+  // planFor, not the raw column: SELF_HOSTED puts every workspace on the
+  // internal unlimited plan (which includes the API) whatever the column says.
+  if (!can(planFor({ plan: principal.plan }, null, deps.env ?? process.env), "api")) return { status: "plan_forbidden", principal };
   return { status: "ok", principal };
 }
 

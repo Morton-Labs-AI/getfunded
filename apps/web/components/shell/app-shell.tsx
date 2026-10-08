@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { SkipLink } from "@/components/ui/skip-link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -367,6 +368,7 @@ export function AppShell({
       data-collapsed={collapsed ? "" : undefined}
       className={cn("flex w-full bg-background text-foreground", embedded ? "h-full min-h-0" : "min-h-dvh", className)}
     >
+      <SkipLink />
       {/* Desktop sidebar */}
       <aside
         className={cn(
@@ -450,7 +452,9 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1">{children}</main>
+        <main id="main" tabIndex={-1} className="flex-1 outline-none">
+          {children}
+        </main>
       </div>
     </div>
   );

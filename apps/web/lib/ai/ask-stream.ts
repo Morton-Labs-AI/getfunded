@@ -11,7 +11,10 @@
  *     chat shows what happened instead of a dead connection.
  *
  * A client that goes away stops receiving frames; the model call itself runs
- * to completion so the ledger row is settled either way.
+ * to completion so the ledger row is settled either way. `askStream()` hands
+ * the route that completion promise (`settled`) so it can keep the function
+ * alive with `after()` from next/server: a reservation must never be left
+ * 'reserved' because the browser closed the tab.
  */
 import { aiErrorPayload, aiErrorToResponse, internalErrorResponse } from "./http";
 import { sseFrame, sseHeaders, type AskEvent } from "./sse";
@@ -42,7 +45,18 @@ export function errorEventFor(err: unknown): Extract<AskEvent, { type: "error" }
   return { type: "error", code: "internal_error", message: "Something went wrong on our side. Please try again.", status: 500 };
 }
 
+export type AskStreamResult = {
+  response: Response;
+  /** Resolves (never rejects) once the run has finished, including after the client went away. */
+  settled: Promise<void>;
+};
+
+/** The response only; see `askStream()` when the caller must wait for the run. */
 export async function askStreamResponse(run: AskRunner, opts: AskStreamOptions = {}): Promise<Response> {
+  return (await askStream(run, opts)).response;
+}
+
+export async function askStream(run: AskRunner, opts: AskStreamOptions = {}): Promise<AskStreamResult> {
   const encoder = new TextEncoder();
   let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
   let closed = false;
@@ -111,15 +125,20 @@ export async function askStreamResponse(run: AskRunner, opts: AskStreamOptions =
     },
   );
 
+  const settled: Promise<void> = running.then(
+    () => undefined,
+    () => undefined,
+  );
+
   const outcome = await Promise.race([first.then(() => null), running]);
   if (outcome && !outcome.ok && !outcome.started) {
     finish();
     const res = aiErrorToResponse(outcome.err);
-    if (res) return res;
+    if (res) return { response: res, settled };
     (opts.log ?? defaultLog)("ask failed before start", describe(outcome.err));
-    return internalErrorResponse();
+    return { response: internalErrorResponse(), settled };
   }
-  return new Response(stream, { headers: sseHeaders() });
+  return { response: new Response(stream, { headers: sseHeaders() }), settled };
 }
 
 function describe(err: unknown): Record<string, unknown> {

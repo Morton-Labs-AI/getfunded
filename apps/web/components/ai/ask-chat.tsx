@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { readAiError, type AiApiError } from "@/lib/ai/api-client";
 import { AI_COPY } from "@/lib/ai/copy";
-import { parseSseFrames, type AskEvent } from "@/lib/ai/sse";
+import { parseSseFrames, type AskEvent, type ColumnType } from "@/lib/ai/sse";
 import { formatMoney, formatNumber, toNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,7 @@ type SqlSegment = {
   repaired: boolean;
   status: "running" | "done" | "error";
   columns?: string[];
+  types?: ColumnType[];
   rows?: Cell[][];
   total?: number;
   ms?: number;
@@ -81,7 +82,7 @@ export function applyAskEvent(turn: Turn, ev: AskEvent, now: number): Turn {
       return { ...turn, segments };
     case "rows": {
       const seg = lastSql(segments);
-      if (seg) Object.assign(seg, { status: "done", columns: ev.columns, rows: ev.rows, total: ev.total, ms: ev.ms, capped: ev.capped });
+      if (seg) Object.assign(seg, { status: "done", columns: ev.columns, types: ev.types, rows: ev.rows, total: ev.total, ms: ev.ms, capped: ev.capped });
       return { ...turn, segments };
     }
     case "sql_error": {
@@ -315,6 +316,7 @@ function AssistantTurn({ turn }: { turn: Turn }) {
   const elapsedMs = turn.endedAt ? turn.endedAt - turn.startedAt : null;
   const streaming = turn.status === "streaming";
   const empty = turn.segments.length === 0;
+  const lastSqlIndex = turn.segments.reduce((last, seg, i) => (seg.kind === "sql" ? i : last), -1);
 
   return (
     <AiCard
@@ -329,7 +331,7 @@ function AssistantTurn({ turn }: { turn: Turn }) {
         {turn.segments.map((seg, i) => {
           switch (seg.kind) {
             case "sql":
-              return <SqlBlock key={i} seg={seg} />;
+              return <SqlBlock key={i} seg={seg} usage={i === lastSqlIndex ? turn.usage : null} />;
             case "text":
               return <AnswerText key={i} text={seg.text} />;
             case "note":
@@ -353,15 +355,20 @@ function AssistantTurn({ turn }: { turn: Turn }) {
 
         {turn.usage ? (
           <p className="tnum flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2 text-xs text-ink-3">
-            <span>
-              {turn.usage.credits} credit{turn.usage.credits === 1 ? "" : "s"}
-            </span>
-            <span aria-hidden>·</span>
-            <span>
-              {formatNumber(turn.usage.inputTokens)} tokens in, {formatNumber(turn.usage.outputTokens)} out
-            </span>
-            <span aria-hidden>·</span>
-            <span className="font-mono">{turn.usage.model}</span>
+            <span className="font-medium text-ink-2">{creditsUsed(turn.usage.credits)}</span>
+            {lastSqlIndex >= 0 ? (
+              <>
+                <span aria-hidden>·</span>
+                <span>Tokens and model are under “{AI_COPY.ask.showWork}”.</span>
+              </>
+            ) : (
+              <>
+                <span aria-hidden>·</span>
+                <span>
+                  {formatNumber(turn.usage.inputTokens)} tokens read, {formatNumber(turn.usage.outputTokens)} written
+                </span>
+              </>
+            )}
             {turn.usage.mock ? <Badge variant="outline">Mock model</Badge> : null}
           </p>
         ) : null}
@@ -414,9 +421,16 @@ function AnswerText({ text }: { text: string }) {
   );
 }
 
+/** "2 credits used", "1 credit used". */
+export function creditsUsed(credits: number): string {
+  return `${credits} credit${credits === 1 ? "" : "s"} used`;
+}
+
 /* -------------------------------------------------------- show the work */
 
-function SqlBlock({ seg }: { seg: SqlSegment }) {
+const REPAIRED_TITLE = "The first query was rejected or failed, so the model wrote it again. This is the second version.";
+
+function SqlBlock({ seg, usage }: { seg: SqlSegment; usage: Usage | null }) {
   const [open, setOpen] = React.useState(false);
   const running = seg.status === "running";
   return (
@@ -432,8 +446,8 @@ function SqlBlock({ seg }: { seg: SqlSegment }) {
             <span className="font-medium text-foreground">{AI_COPY.ask.showWork}</span>
             <span className="truncate text-ink-3">{seg.purpose}</span>
             {seg.repaired ? (
-              <Badge variant="warning" className="shrink-0">
-                Fixed once
+              <Badge variant="warning" className="shrink-0" title={REPAIRED_TITLE}>
+                Query corrected once
               </Badge>
             ) : null}
           </span>
@@ -454,13 +468,27 @@ function SqlBlock({ seg }: { seg: SqlSegment }) {
           </span>
         </button>
         {open ? (
-          <pre className="overflow-x-auto border-t px-3 py-2.5 font-mono text-[12.5px] leading-5 text-ink-2">
-            <code>{seg.sql}</code>
-          </pre>
+          <>
+            <pre className="overflow-x-auto border-t px-3 py-2.5 font-mono text-[12.5px] leading-5 text-ink-2">
+              <code>{seg.sql}</code>
+            </pre>
+            {usage ? (
+              <p className="tnum flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-3 py-2 text-[11px] text-ink-3">
+                <span>
+                  {formatNumber(usage.inputTokens)} tokens read, {formatNumber(usage.outputTokens)} written
+                </span>
+                <span aria-hidden>·</span>
+                <span className="font-mono">{usage.model}</span>
+                <span className="text-ink-4">(a token is about three quarters of a word)</span>
+              </p>
+            ) : null}
+          </>
         ) : null}
         {seg.status === "error" && seg.errorMessage ? <p className="border-t px-3 py-2 font-mono text-xs text-danger">{seg.errorMessage}</p> : null}
       </div>
-      {seg.status === "done" && seg.columns && seg.rows ? <ResultTable columns={seg.columns} rows={seg.rows} total={seg.total ?? seg.rows.length} capped={Boolean(seg.capped)} /> : null}
+      {seg.status === "done" && seg.columns && seg.rows ? (
+        <ResultTable columns={seg.columns} types={seg.types} rows={seg.rows} total={seg.total ?? seg.rows.length} capped={Boolean(seg.capped)} />
+      ) : null}
     </div>
   );
 }
@@ -470,8 +498,54 @@ function SqlBlock({ seg }: { seg: SqlSegment }) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ORG_ID_COL = /(^|_)org_id$|^id$/i;
 const NAME_COL = /name|funder|recipient|organization|foundation|charity/i;
-const MONEY_COL = /amount|total|assets|revenue|distributions|disbursements|expenses|income|aum|fund_size|contributions|compensation|comp$|giving|paid|sum/i;
-const COUNT_COL = /^(n|count|grants|events|n_.*|.*_count|rows)$/i;
+/**
+ * How a column renders. The rows event carries the Postgres column type when
+ * the server knows it, and the type wins: an integer is a count or a plain
+ * number, never dollars; a numeric or float is money only when the column
+ * NAME is money-like. Without a type (an older server, an unknown oid) the
+ * name decides, and counts win over money: the model writes
+ * `count(*) as total` as often as `sum(amount) as total`, and a count shown as
+ * dollars is a lie while a dollar total shown as a plain number is merely
+ * terse (the explanation carries the $). Years are left as they are.
+ */
+const COUNT_COL = /^(n|count|cnt|grants|events|rows|filings|orgs|people|funders|recipients|n_.*|num_.*|number_of_.*|.*_count|.*_n)$/i;
+const MONEY_COL =
+  /amount|assets|revenue|distributions|disbursements|expenses?|income|aum|fund_size|contributions|compensation|comp$|giving|paid|dollars|usd|salary|benefits|liabilities|award_floor|award_ceiling|size_amount|total_grants|grants_total|total_amount|sum_amount|avg_amount|median_amount|max_amount|min_amount/i;
+const PLAIN_NUMBER_COL = /^(total|sum|avg|average|mean|median|pct|percent|percentage|share|ratio|rank|.*_total|.*_sum|total_.*|sum_.*|.*_pct|.*_percent|.*_avg)$/i;
+/** fiscal_year, tax_year, fy, first_fy: a year is not a quantity (no thousands separator). */
+const YEAR_COL = /(^|_)(year|yr|fy)(_|$)/i;
+
+export type CellFormat = "count" | "money" | "number" | "text";
+
+/** Exported for the unit test: which formatter a column gets, from its type when known, else its name. */
+export function cellFormatFor(col: string, type?: ColumnType | string | null): CellFormat {
+  if (YEAR_COL.test(col)) return "text";
+  switch (type) {
+    case "int":
+      return COUNT_COL.test(col) || !PLAIN_NUMBER_COL.test(col) ? "count" : "number";
+    case "numeric":
+    case "float":
+      if (COUNT_COL.test(col)) return "count";
+      return MONEY_COL.test(col) ? "money" : "number";
+    case "date":
+    case "timestamp":
+    case "bool":
+    case "text":
+      return "text";
+    default:
+      break;
+  }
+  if (COUNT_COL.test(col)) return "count";
+  if (MONEY_COL.test(col)) return "money";
+  if (PLAIN_NUMBER_COL.test(col)) return "number";
+  return "text";
+}
+
+function formatPlainNumber(v: string | number): string {
+  const n = toNumber(v);
+  if (n === null) return String(v);
+  return Number.isInteger(n) ? formatNumber(n) : n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
 
 /** Pair each org-id column with a name column; the name links to the funder page and the id hides. */
 function linkPlan(columns: string[]): { hidden: Set<number>; linkFor: (number | null)[] } {
@@ -489,7 +563,7 @@ function linkPlan(columns: string[]): { hidden: Set<number>; linkFor: (number | 
   return { hidden, linkFor };
 }
 
-function ResultTable({ columns, rows, total, capped }: { columns: string[]; rows: Cell[][]; total: number; capped: boolean }) {
+function ResultTable({ columns, types, rows, total, capped }: { columns: string[]; types?: ColumnType[]; rows: Cell[][]; total: number; capped: boolean }) {
   const [expanded, setExpanded] = React.useState(false);
   if (rows.length === 0) {
     return (
@@ -514,8 +588,8 @@ function ResultTable({ columns, rows, total, capped }: { columns: string[]; rows
         <Table>
           <TableHeader>
             <TableRow>
-              {visible.map(({ c }) => (
-                <TableHead key={c} className={cn(MONEY_COL.test(c) || COUNT_COL.test(c) ? "text-right" : undefined)}>
+              {visible.map(({ c, i }) => (
+                <TableHead key={c} className={cn(cellFormatFor(c, types?.[i]) !== "text" ? "text-right" : undefined)}>
                   {c.replaceAll("_", " ")}
                 </TableHead>
               ))}
@@ -527,7 +601,7 @@ function ResultTable({ columns, rows, total, capped }: { columns: string[]; rows
                 {visible.map(({ c, i }) => {
                   const idIdx = linkFor[i];
                   const linkId = idIdx !== null ? row[idIdx] : null;
-                  return <ResultCell key={i} col={c} value={row[i]} linkId={typeof linkId === "string" && UUID_RE.test(linkId) ? linkId : null} />;
+                  return <ResultCell key={i} col={c} type={types?.[i]} value={row[i]} linkId={typeof linkId === "string" && UUID_RE.test(linkId) ? linkId : null} />;
                 })}
               </TableRow>
             ))}
@@ -545,19 +619,24 @@ function ResultTable({ columns, rows, total, capped }: { columns: string[]; rows
   );
 }
 
-function ResultCell({ col, value, linkId }: { col: string; value: Cell; linkId: string | null }) {
+function ResultCell({ col, type, value, linkId }: { col: string; type?: ColumnType; value: Cell; linkId: string | null }) {
+  const format = cellFormatFor(col, type);
   if (value === null || value === undefined || value === "") {
     return (
-      <TableCell className={cn(MONEY_COL.test(col) || COUNT_COL.test(col) ? "text-right" : undefined)}>
+      <TableCell className={cn(format !== "text" ? "text-right" : undefined)}>
         <Missing bare />
       </TableCell>
     );
   }
-  if (MONEY_COL.test(col) && toNumber(typeof value === "boolean" ? null : value) !== null) {
+  const numeric = typeof value !== "boolean" && toNumber(value) !== null;
+  if (numeric && format === "count") {
+    return <TableCell className="tnum text-right font-mono text-[12.5px] text-foreground">{formatNumber(value as string | number)}</TableCell>;
+  }
+  if (numeric && format === "money") {
     return <TableCell className="tnum text-right font-mono text-[12.5px] text-foreground">{formatMoney(value as string | number)}</TableCell>;
   }
-  if (COUNT_COL.test(col) && toNumber(typeof value === "boolean" ? null : value) !== null) {
-    return <TableCell className="tnum text-right font-mono text-[12.5px] text-foreground">{formatNumber(value as string | number)}</TableCell>;
+  if (numeric && format === "number") {
+    return <TableCell className="tnum text-right font-mono text-[12.5px] text-foreground">{formatPlainNumber(value as string | number)}</TableCell>;
   }
   const text = String(value);
   if (linkId) {

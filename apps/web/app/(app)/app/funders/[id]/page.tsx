@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { History, ListChecks, MessageSquare, Users } from "lucide-react";
 
 import { FitPanel } from "@/components/ai/fit-panel";
+import { ResearchPanel } from "@/components/ai/research-panel";
 import { Missing } from "@/components/data/missing";
 import { Money } from "@/components/data/money";
 import { YoursBlock, YoursTag } from "@/components/data/yours-tag";
@@ -48,7 +49,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /**
  * A funder inside the workspace: the public profile (Source data from
- * filings) with the Save button and the AI fit panel in its slots, then the
+ * filings) with the Save button, the AI fit panel and the web research panel
+ * in its slots, then the
  * YOURS half: stage, owner, notes, tasks, contacts and stage history. The
  * Yours half only exists once the funder is saved.
  */
@@ -104,7 +106,12 @@ async function FunderContent({ params, searchParams }: Props) {
               size="default"
             />
           ),
-          sidebar: <FitPanel orgId={funder.orgId} savedFunderId={saved?.id} />,
+          sidebar: (
+            <div className="flex flex-col gap-4">
+              <FitPanel orgId={funder.orgId} savedFunderId={saved?.id} />
+              <ResearchPanel orgId={funder.orgId} savedFunderId={saved?.id} />
+            </div>
+          ),
         }}
       />
 

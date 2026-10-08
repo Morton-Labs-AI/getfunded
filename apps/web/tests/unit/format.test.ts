@@ -3,6 +3,7 @@ import {
   MDASH,
   formatCompact,
   formatDate,
+  formatDateTime,
   formatEin,
   formatFiscalYear,
   formatMoney,
@@ -92,6 +93,12 @@ describe("formatPercent", () => {
 describe("formatDate", () => {
   it("formats date-only strings without a timezone shift", () => {
     expect(formatDate("2024-03-01")).toBe("Mar 1, 2024");
+    expect(formatDate("2024-12-31")).toBe("Dec 31, 2024");
+  });
+  it("formats timestamps in UTC so server and browser agree", () => {
+    // 23:30 UTC on Mar 1 is already Mar 2 east of Greenwich and still Mar 1 west of it.
+    expect(formatDate("2024-03-01T23:30:00Z")).toBe("Mar 1, 2024");
+    expect(formatDate(new Date("2024-03-01T23:30:00Z"), "long")).toBe("March 1, 2024");
   });
   it("supports long, month and year styles", () => {
     expect(formatDate("2024-03-01", "long")).toBe("March 1, 2024");
@@ -101,6 +108,17 @@ describe("formatDate", () => {
   it("em dash for missing or invalid", () => {
     expect(formatDate(null)).toBe(MDASH);
     expect(formatDate("not a date")).toBe(MDASH);
+  });
+});
+
+describe("formatDateTime", () => {
+  it("formats in UTC and says so", () => {
+    expect(formatDateTime("2024-09-01T14:32:00Z")).toBe("Sep 1, 2:32 PM UTC");
+    expect(formatDateTime(new Date("2024-09-01T00:05:00Z"))).toBe("Sep 1, 12:05 AM UTC");
+  });
+  it("em dash for missing or invalid", () => {
+    expect(formatDateTime(null)).toBe(MDASH);
+    expect(formatDateTime("nope")).toBe(MDASH);
   });
 });
 

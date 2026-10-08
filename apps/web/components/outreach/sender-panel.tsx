@@ -58,7 +58,7 @@ function CapForm({ identity }: { identity: PanelIdentity }) {
         {pending ? <Loader2 className="animate-spin" aria-hidden /> : null}
         Save limit
       </Button>
-      <p className="basis-full text-xs leading-5 text-ink-3">Counted per UTC day. 0 pauses sending. Google applies its own limits on top.</p>
+      <p className="basis-full text-xs leading-5 text-ink-3">Counted per calendar day. 0 pauses sending. Google applies its own limits on top.</p>
     </form>
   );
 }
@@ -79,7 +79,7 @@ export function SenderPanel({
   isAdmin: boolean;
   canSendGmail: boolean;
   sendGmailReason: string | null;
-  /** The operator set GOOGLE_CLIENT_ID/SECRET and SECRETS_KEY. */
+  /** The person who runs the server finished the Google setup (OAuth client) and the secrets setup (encryption key). */
   configured: { gmail: boolean; secrets: boolean };
   notice?: { tone: "success" | "error"; text: string } | null;
 }) {
@@ -110,7 +110,7 @@ export function SenderPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Your Gmail</CardTitle>
+        <CardTitle as="h2">Your Gmail</CardTitle>
         <CardDescription>{OUTREACH_COPY.gmail.scopes}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -121,10 +121,10 @@ export function SenderPanel({
         ) : null}
         {!canSendGmail ? <p className="rounded-md bg-inset px-3 py-2 text-sm text-ink-2">{sendGmailReason}</p> : null}
         {canSendGmail && !configured.gmail ? (
-          <p className="rounded-md bg-inset px-3 py-2 text-sm text-ink-2">Gmail is not set up on this server yet. The operator needs to add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.</p>
+          <p className="rounded-md bg-inset px-3 py-2 text-sm text-ink-2">{OUTREACH_COPY.gmail.notSetUp}</p>
         ) : null}
         {canSendGmail && configured.gmail && !configured.secrets ? (
-          <p className="rounded-md bg-inset px-3 py-2 text-sm text-ink-2">SECRETS_KEY is missing on this server, so a mailbox connection cannot be stored safely. The operator needs to set it.</p>
+          <p className="rounded-md bg-inset px-3 py-2 text-sm text-ink-2">{OUTREACH_COPY.gmail.noSecretsKey}</p>
         ) : null}
 
         {identities.length === 0 ? <p className="text-sm text-ink-3">No mailbox is connected yet.</p> : null}

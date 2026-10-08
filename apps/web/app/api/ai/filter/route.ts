@@ -16,6 +16,13 @@ import { boundedJson } from "@/lib/security";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 
+/**
+ * One short fast-model tool call (seconds, not minutes). A hung call is cut by
+ * the platform at 60 s; the daily reaper (migration 0011) refunds any row that
+ * is left 'reserved' by that.
+ */
+export const maxDuration = 60;
+
 export async function POST(req: Request): Promise<Response> {
   return aiRoute(req, "nl_filter", async ({ ctx }) => {
     const body = await boundedJson(req, FilterBody, 16_000);

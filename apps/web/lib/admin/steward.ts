@@ -2,9 +2,16 @@
  * Pure steward logic, shared by lib/admin/gate.ts (pages, actions, routes)
  * and its tests. No server imports here.
  *
- * A user is a steward when EITHER
- *   - `getfunded.users.is_steward` is true (what Row Level Security reads), OR
- *   - their email is in `ADMIN_EMAILS` (the operator's bootstrap list).
+ * A user is a steward when
+ *   - their email is in `ADMIN_EMAILS` (the operator's list), OR
+ *   - `ADMIN_EMAILS` is empty and `getfunded.users.is_steward` is true (an
+ *     install that manages stewards from the database alone).
+ *
+ * When ADMIN_EMAILS is set it is the source of truth: a database flag on its
+ * own does NOT open /admin. Otherwise access would be sticky, because
+ * `claim_steward` promotes but never demotes, and removing someone from the
+ * list would not remove their access. The overview lists flagged users who
+ * are not on the list so the operator can clear the flag.
  *
  * The database flag is what makes cross-workspace reads work, so a listed
  * user whose flag is still false is promoted on first visit through the
@@ -31,15 +38,18 @@ export type StewardDecision = {
 };
 
 export function decideSteward(input: StewardInput, env: Env = process.env): StewardDecision {
+  const emails = adminEmails(env);
   const listed = isAdminEmail(input.email, env);
   const flagged = input.flagged === true;
   const needsClaim = listed && !flagged;
+  // The flag alone opens /admin only when the operator keeps no list at all.
+  const flagAlone = flagged && emails.length === 0;
   return {
-    allowed: listed || flagged,
+    allowed: listed || flagAlone,
     listed,
     flagged,
     needsClaim,
-    claimEmails: needsClaim ? adminEmails(env) : [],
+    claimEmails: needsClaim ? emails : [],
   };
 }
 

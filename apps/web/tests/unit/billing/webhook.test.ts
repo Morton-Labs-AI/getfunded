@@ -7,7 +7,7 @@ import { fakeSubscription } from "./stripe-fixtures";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/billing/db", () => ({ appDb: undefined, withUser: async () => { throw new Error("real withUser"); } }));
 
-import { handleStripeEvent } from "@/lib/billing/webhook";
+import { UnknownPriceError, handleStripeEvent } from "@/lib/billing/webhook";
 
 const ENV = {
   STRIPE_PRICE_STARTER: "price_starter",
@@ -67,13 +67,22 @@ describe("handleStripeEvent", () => {
     expect(fake.find("getfunded.apply_subscription(")[0].values[4]).toBeNull();
   });
 
-  it("an active subscription on an unknown price is logged and ignored", async () => {
+  it("an entitled subscription on an unknown price is REFUSED (UnknownPriceError → 500 so Stripe retries) and logged at error level", async () => {
     const fake = doorSql();
-    const log = vi.fn();
-    const out = await handleStripeEvent(event("customer.subscription.updated", fakeSubscription({ priceId: "price_other_product" })), { sql: fake.sql, env: ENV, log });
-    expect(out.outcome).toBe("unknown_price");
+    const logError = vi.fn();
+    const err = (await handleStripeEvent(event("customer.subscription.updated", fakeSubscription({ priceId: "price_other_product" })), {
+      sql: fake.sql,
+      env: ENV,
+      logError,
+    }).catch((e: unknown) => e)) as UnknownPriceError;
+    expect(err).toBeInstanceOf(UnknownPriceError);
+    expect(err).toMatchObject({ code: "unknown_price", eventId: "evt_1", priceId: "price_other_product" });
+    // Nothing was written: a 200 here would have made Stripe forget the event.
     expect(fake.calls).toHaveLength(0);
-    expect(log).toHaveBeenCalledWith("unknown Stripe price; event ignored", expect.objectContaining({ priceId: "price_other_product" }));
+    expect(logError).toHaveBeenCalledWith(
+      expect.stringContaining("unknown Stripe price"),
+      expect.objectContaining({ priceId: "price_other_product", eventId: "evt_1", hint: expect.stringContaining("STRIPE_PRICE_") }),
+    );
   });
 
   it("checkout.session.completed retrieves the subscription and prefers client_reference_id", async () => {

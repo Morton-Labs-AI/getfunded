@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { displayNameFromMetadata } from "@/lib/auth/identity";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { ensureProvisioned } from "@/lib/auth/provision";
+import { SignupRefusedError } from "@/lib/auth/signup-gate";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
 
 /**
@@ -17,6 +18,11 @@ import { createSupabaseServerClient } from "@/lib/auth/supabase";
  *                             verified the code and set the cookies
  * In every case the session is re-read from the auth server, the account is
  * provisioned, and the user lands on `next` (first-timers go to /welcome).
+ *
+ * Sign-up mode (steward flag `signup_mode`) is enforced inside
+ * `ensureProvisioned` (lib/auth/signup-gate.ts). When it refuses a NEW account
+ * the auth session is ended here, so the person is not left half signed in
+ * with no workspace, and /signin explains why.
  */
 
 const EMAIL_OTP_TYPES = new Set(["magiclink", "email", "signup", "invite", "recovery", "email_change"]);
@@ -57,6 +63,16 @@ export async function GET(request: NextRequest) {
     });
     isNew = provisioned.isNew;
   } catch (cause) {
+    if (SignupRefusedError.is(cause)) {
+      // No account was created. End the auth session too: a session with no
+      // workspace behind it would only produce confusing errors under /app.
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        /* the redirect still explains the refusal; the cookie expires on its own */
+      }
+      return fail(cause.code);
+    }
     console.error("[auth/callback] provisioning failed", cause instanceof Error ? cause.message : cause);
     return fail("provisioning_failed");
   }

@@ -18,9 +18,22 @@ describe("decideSteward", () => {
     });
   });
 
-  it("allows a flagged user who is not listed, with no claim", () => {
+  it("refuses a flagged user who is NOT listed while ADMIN_EMAILS is set (the list is the source of truth; no sticky access)", () => {
     const d = decideSteward({ email: "nobody@example.org", flagged: true }, ENV);
-    expect(d).toMatchObject({ allowed: true, listed: false, flagged: true, needsClaim: false, claimEmails: [] });
+    expect(d).toMatchObject({ allowed: false, listed: false, flagged: true, needsClaim: false, claimEmails: [] });
+  });
+
+  it("allows a flagged user only when the operator keeps no ADMIN_EMAILS list at all", () => {
+    expect(decideSteward({ email: "nobody@example.org", flagged: true }, { ADMIN_EMAILS: "" })).toMatchObject({ allowed: true, listed: false, flagged: true });
+    expect(decideSteward({ email: "nobody@example.org", flagged: true }, {})).toMatchObject({ allowed: true });
+    expect(decideSteward({ email: "nobody@example.org", flagged: true }, { ADMIN_EMAILS: " , " })).toMatchObject({ allowed: true });
+  });
+
+  it("someone removed from ADMIN_EMAILS loses access even though claim_steward left their flag set", async () => {
+    const claim = vi.fn(async () => true);
+    const s = await resolveSteward(user("former@example.org"), { readFlag: async () => true, claim, env: ENV });
+    expect(s).toBeNull();
+    expect(claim).not.toHaveBeenCalled();
   });
 
   it("refuses an unlisted, unflagged user and a user with no row", () => {

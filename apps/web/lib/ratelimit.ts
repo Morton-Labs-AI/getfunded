@@ -21,6 +21,13 @@ export const ANON_SEARCH: RateLimitPreset = { name: "search", capacity: 30, refi
 export const USER_SEARCH: RateLimitPreset = { name: "search", capacity: 120, refillPerSec: 120 / 60 };
 /** Public API keys: 60 requests per minute per key. */
 export const API_KEY_REQUESTS: RateLimitPreset = { name: "api", capacity: 60, refillPerSec: 1 };
+/**
+ * Metered AI calls (/api/ai/*): 20 requests per minute per user, counted
+ * BEFORE the credit reservation so a failing or refunded call still costs a
+ * token. Credits bound spend per workspace; this bounds request volume per
+ * person, so one stuck client cannot spin the model (or the ledger) in a loop.
+ */
+export const AI_REQUESTS: RateLimitPreset = { name: "ai", capacity: 20, refillPerSec: 20 / 60 };
 
 const LimitInput = z.object({
   key: z.string().min(1).max(256),

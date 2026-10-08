@@ -13,6 +13,9 @@ import { boundedJson } from "@/lib/security";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 
+/** No model call: one insert. 60 s is the same ceiling as the other quick AI routes. */
+export const maxDuration = 60;
+
 export async function POST(req: Request): Promise<Response> {
   return aiRoute(req, "fit", async ({ ctx }) => {
     const body = await boundedJson(req, FeedbackBody, 64_000);

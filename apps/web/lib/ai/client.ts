@@ -412,8 +412,13 @@ function newSdk(env: Env): Anthropic {
   const workspace = env.ANTHROPIC_WORKSPACE_ID?.trim();
   return new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
-    timeout: 10 * 60 * 1000,
-    maxRetries: 2,
+    // 90 s per attempt, one retry: the worst case (~3 minutes plus the second
+    // step of research) fits inside the route's `maxDuration`, so a hung
+    // request settles or refunds its ledger row instead of being killed with
+    // the row still 'reserved'. The daily reaper (migration 0011) catches what
+    // slips through anyway.
+    timeout: 90 * 1000,
+    maxRetries: 1,
     defaultHeaders: workspace ? { "anthropic-workspace-id": workspace } : undefined,
   });
 }

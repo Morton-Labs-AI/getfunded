@@ -27,9 +27,14 @@ export function renderTemplate(strings: TemplateStringsArray, values: unknown[])
   return out.replace(/\s+/g, " ").trim();
 }
 
+const isTemplate = (value: unknown): value is TemplateStringsArray => Array.isArray(value) && "raw" in value;
+
 export function makeFakeSql(handler: SqlHandler = () => []): FakeSql {
   const calls: SqlCall[] = [];
-  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const fn = (strings: TemplateStringsArray | Record<string, unknown>, ...values: unknown[]) => {
+    // postgres.js helper form, `sql({ col: value })` inside a template: a
+    // fragment, not a query. Recorded as a marker value, never as a call.
+    if (!isTemplate(strings)) return { __helper: strings } as never;
     const call = { text: renderTemplate(strings, values), values };
     calls.push(call);
     return Promise.resolve(handler(call, calls.length - 1)).then((rows) => rows ?? []);

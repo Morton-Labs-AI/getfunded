@@ -6,7 +6,9 @@
  * workspace profile. Same-origin, signed in, plan gate `draft`, metered as
  * 'draft' (2 credits) inside polishDraft(). Every factual claim in the draft
  * cites a package id; a draft that asserts the funder's interest is refused
- * and the credits are refunded (lib/ai/draft-schema.ts).
+ * (lib/ai/draft-schema.ts). The ledger then records the tokens the model
+ * billed: settled when tokens were spent, refunded when none were
+ * (lib/billing/meter.ts failureStatus).
  */
 import { DraftBody, type DraftResponse } from "@/lib/ai/api-schemas";
 import { polishDraft, type DraftFunder } from "@/lib/ai/draft";
@@ -19,6 +21,9 @@ import type { FunderRecord } from "@/lib/queries/corpus/types";
 import { boundedJson } from "@/lib/security";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
+
+/** One fast-model call plus a funder read; a hung call is cut at 60 s and the reaper refunds the row. */
+export const maxDuration = 60;
 
 /** The posture words the draft package expects follow the corpus enum, not the URL spelling. */
 function toDraftFunder(f: FunderRecord): DraftFunder {

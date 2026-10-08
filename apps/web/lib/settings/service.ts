@@ -26,7 +26,7 @@ import {
   type ExportWorkspace,
   type WorkspaceExport,
 } from "./export";
-import { generateInviteToken, inviteExpiry, type GeneratedInviteToken, type InviteRole } from "./invites";
+import { generateInviteToken, inviteExpiry, type GeneratedInviteToken, type InvitePreview, type InviteRole } from "./invites";
 import { canRemoveMember, isMemberRole, seatCheck, type MemberRole } from "./roles";
 
 type Env = Record<string, string | undefined>;
@@ -239,6 +239,24 @@ export async function acceptInvite(sql: Db, token: string): Promise<string> {
   const id = rows[0]?.workspace_id;
   if (!id) throw new SettingsError("invalid", "The invitation could not be accepted.");
   return String(id);
+}
+
+/**
+ * `getfunded.invite_preview(token)` (migration 0011): the invited address,
+ * workspace name, role and status for the signed-in holder of a link, or null
+ * for an unknown token. Lets /invite/<token> say which account must accept.
+ */
+export async function invitePreview(sql: Db, token: string): Promise<InvitePreview | null> {
+  const rows = await sql`select email, workspace_name, role, status from getfunded.invite_preview(${token})`;
+  const r = rows[0];
+  if (!r) return null;
+  const status = String(r.status);
+  return {
+    email: String(r.email),
+    workspaceName: String(r.workspace_name ?? ""),
+    role: r.role === "admin" ? "admin" : "member",
+    status: status === "used" ? "accepted" : status === "expired" ? "expired" : "pending",
+  };
 }
 
 /* ----------------------------------------------------------------------------

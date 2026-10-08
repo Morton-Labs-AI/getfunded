@@ -18,6 +18,11 @@ import { NativeSelect } from "./native-select";
 
 type Parsed = { filename: string; headers: string[]; records: Record<string, string>[] };
 
+/** One line that answers the question most people have: my list is in Excel or Google Sheets. */
+export const CSV_HOW_TO = "Using Excel or Google Sheets? In Excel choose File → Save As and pick CSV. In Sheets choose File → Download → Comma-separated values (.csv).";
+
+const NOT_CSV_RE = /\.(xlsx?|xlsm|numbers|ods|pdf|docx?)$/i;
+
 /**
  * CSV import in three steps, all before anything is written:
  *  1. pick a file (parsed in the browser with papaparse; nothing uploads yet),
@@ -41,6 +46,10 @@ export function ImportWizard() {
       setError("That file is larger than 2 MB. Split it into smaller files.");
       return;
     }
+    if (NOT_CSV_RE.test(file.name)) {
+      setError(`That is not a CSV file. ${CSV_HOW_TO}`);
+      return;
+    }
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: "greedy",
@@ -54,7 +63,7 @@ export function ImportWizard() {
         setParsed({ filename: file.name, headers, records: result.data });
         setColumns(guessColumns(headers));
       },
-      error: () => setError("That file could not be read as a CSV."),
+      error: () => setError(`That file could not be read as a CSV. ${CSV_HOW_TO}`),
     });
   }
 
@@ -82,6 +91,7 @@ export function ImportWizard() {
         <p className="mt-1 text-xs leading-5 text-ink-3">
           {WORKSPACE_COPY.import.columnsHint} Up to {IMPORT_MAX_ROWS} rows per file. Nothing is saved until you press Start.
         </p>
+        <p className="mt-1 text-xs leading-5 text-ink-3">{CSV_HOW_TO}</p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
           <Label htmlFor={fileId} className="sr-only">
             CSV file

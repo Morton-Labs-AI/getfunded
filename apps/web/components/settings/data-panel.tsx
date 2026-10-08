@@ -31,7 +31,7 @@ function ExportCard({ canExport, counts }: { canExport: boolean; counts: { saved
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Export your workspace</CardTitle>
+        <CardTitle as="h2">Export your workspace</CardTitle>
         <CardDescription>
           A ZIP of JSON files: your saved funders with stage and notes, tasks, activities and stage history, plus the
           organization profile and member list. Readable without GetFunded.
@@ -137,13 +137,13 @@ export function DataPanel({
       <ExportCard canExport={canExport} counts={counts} />
       <Card className="border-danger/30">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle as="h2" className="flex items-center gap-2">
             <AlertTriangle className="size-4 text-danger" aria-hidden />
             Delete this workspace
           </CardTitle>
           <CardDescription>
-            The workspace is hidden from everyone right away and removed for good after a grace period. Only the owner
-            can do this.
+            The workspace is hidden from everyone right away. Nothing in it can be reached again, so export first if you
+            want a copy. Only the owner can do this.
           </CardDescription>
         </CardHeader>
         <CardContent>

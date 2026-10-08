@@ -7,6 +7,7 @@ import {
   POSTURE_FILTER_NOTE,
   RATE_LIMITED_NOTE,
   SEMANTIC_UNAVAILABLE_NOTICE,
+  TIMED_OUT_NOTE,
 } from "@/lib/content/copy";
 import type { SearchResult } from "@/lib/queries/corpus/types";
 import type { SearchNotice } from "@/lib/search/sql";
@@ -26,10 +27,12 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
       return GIVING_TO_NOTE;
     case "rate_limited":
       return RATE_LIMITED_NOTE(result.retryAfterSec ?? 2);
+    case "timed_out":
+      return TIMED_OUT_NOTE;
   }
 }
 
-const WARN: ReadonlySet<SearchNotice> = new Set(["semantic_unavailable", "name_too_short", "rate_limited"]);
+const WARN: ReadonlySet<SearchNotice> = new Set(["semantic_unavailable", "name_too_short", "rate_limited", "timed_out"]);
 
 /** Honest notices about what the search did and did not do. */
 export function SearchNotices({ result }: { result: Pick<SearchResult, "notices" | "poolLimit" | "retryAfterSec"> }) {

@@ -16,7 +16,7 @@ export const OUTREACH_COPY = {
   },
   tabHelp: {
     drafts: "Messages you are still working on. Nothing here has been sent.",
-    approved: "Messages you have approved. Email goes out on the next send run. Letters and calls are recorded by hand.",
+    approved: "Messages you have approved. Email goes out when you press Send approved email now. Letters and calls are recorded by hand.",
     sent: "Messages that left your connected Gmail, or that you recorded as sent by hand.",
     replied: "Messages where the funder wrote back. Pending follow-ups to that contact were canceled.",
   },
@@ -45,6 +45,8 @@ export const OUTREACH_COPY = {
     needsPro: "Sending through your own Gmail is part of the Pro plan and above.",
     notConnected: "Connect your Gmail in Outreach settings to send approved email from the app.",
     runNow: "Send approved email now",
+    approvedToast: "It goes out when you press Send approved email now.",
+    retry: "Send again next time",
     checkReplies: "Check Gmail for replies",
     byHand: "Record as sent by hand",
     byHandHelp: "Use this when you sent the message yourself: from your own mail, by post, or by phone.",
@@ -66,5 +68,7 @@ export const OUTREACH_COPY = {
   gmail: {
     scopes: "The app asks Google for two permissions: send email as you, and read message headers (sender, date, subject) so it can see that a reply arrived. It cannot read the text of your mail.",
     disconnect: "Disconnect removes the saved connection and asks Google to revoke it.",
+    notSetUp: "Sending through Gmail is not set up on this server yet. The person who runs it needs to finish the Google setup. Drafting still works.",
+    noSecretsKey: "This server cannot store a mailbox connection safely yet. The person who runs it needs to finish the setup. Drafting still works.",
   },
 } as const;

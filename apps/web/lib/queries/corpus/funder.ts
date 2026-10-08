@@ -5,14 +5,20 @@ import "server-only";
  *   - identity from internal.organizations; EIN from public.org_identifiers
  *   - posture from the latest parsed, non-superseded 990-PF (mv_org_application_posture)
  *   - financials from non-superseded filings only; an amended return replaces its original
- *   - grants exclude rows that belong to a superseded filing
+ *   - grants exclude rows that belong to a superseded filing, through ONE
+ *     predicate (sql-fragments.ts liveGrantEvents) shared by the header
+ *     count, the grants table, the giving profile and the fit evidence, so
+ *     the page shows one "on file" number
  *   - contact values come from public.contact_channels, which only holds
  *     publishability='public' rows; a render bug can show nothing, never a leak
  *   - the Part XV contact name is published only when it is role-based
  *
  * The app role has SELECT on the named internal relations and every public
- * view, and nothing else; raw_files is not among them, so provenance seals
- * carry the dataset, filing id and source link but no content hash yet.
+ * view, plus (migration 0010) the id and sha256 columns of internal.raw_files,
+ * so every filing-derived seal can carry the fingerprint of the file it was
+ * parsed from. Dataset names, URLs and licences still come from the
+ * license-filtered public views. Before 0010 is applied the hash is null and
+ * the seal leaves it out (sql-fragments.ts canReadRawFileHash).
  */
 import { cache } from "react";
 
@@ -23,6 +29,7 @@ import { MAX_GIVING_TO_CHARS } from "@/lib/search/params";
 import { publishableContactName } from "./privacy";
 import { isUuid, toInt } from "./safe";
 import { postureFromDb } from "./search";
+import { canReadRawFileHash, liveGrantEvents, rawFileHash } from "./sql-fragments";
 import type {
   ApplicationInfo,
   ContactChannel,
@@ -49,12 +56,13 @@ function filingProvenance(row: {
   license_name?: string | null;
   object_id?: string | null;
   fy?: number | null;
+  sha256?: string | null;
 }): Provenance {
   return {
     source: datasetLabel(row.source_dataset, "IRS 990 e-file"),
     filingYear: row.fy ?? null,
     objectId: row.object_id ?? null,
-    sha256: null,
+    sha256: row.sha256 ?? null,
     href: row.source_url ?? null,
     license: row.license_name ?? null,
   };
@@ -83,6 +91,7 @@ type FunderRow = {
   org_source_dataset: string | null;
   org_source_url: string | null;
   org_license: string | null;
+  org_sha256: string | null;
   ein_ident: string | null;
   filing_website: string | null;
   filing_website_period: string | null;
@@ -106,6 +115,7 @@ type FunderRow = {
   ap_source_dataset: string | null;
   ap_source_url: string | null;
   ap_license: string | null;
+  ap_sha256: string | null;
   fin_fy: number | null;
   fin_return_type: string | null;
   fin_object_id: string | null;
@@ -152,7 +162,7 @@ function toRecord(r: FunderRow): FunderRecord {
             source: datasetLabel(r.ap_source_dataset, "IRS 990-PF e-file"),
             filingYear: r.ap_fy ?? null,
             objectId: r.ap_object_id,
-            sha256: null,
+            sha256: r.ap_sha256,
             href: r.ap_source_url,
             license: r.ap_license,
           },
@@ -203,10 +213,10 @@ function toRecord(r: FunderRow): FunderRecord {
       revenue: r.bmf_revenue,
       lastVerifiedAt: r.last_verified_at,
       provenance: {
-        source: datasetLabel(r.org_source_dataset, "IRS Exempt Organizations BMF"),
+        source: datasetLabel(r.org_source_dataset, "IRS master file (Exempt Organizations BMF)"),
         filingYear: null,
         objectId: null,
-        sha256: null,
+        sha256: r.org_sha256,
         href: r.org_source_url,
         license: r.org_license,
       },
@@ -228,17 +238,25 @@ function toRecord(r: FunderRow): FunderRecord {
  * One funder's identity, posture, latest financials and grant totals in one
  * round trip. Memoised per request with React cache() so generateMetadata
  * and the page share a single query.
+ *
+ * The grant totals are aggregated here with the same `liveGrantEvents`
+ * predicate the grants table uses, not read from mv_funder_event_stats, so the
+ * header badge and the table footer always agree.
  */
 export const getFunder = cache(async (orgId: string): Promise<FunderRecord | null> => {
   if (!isUuid(orgId)) return null;
-  const rows = await corpusQuery(
-    (sql) => sql<FunderRow[]>`
+  const rows = await corpusQuery(async (sql) => {
+    const sha = await canReadRawFileHash(sql);
+    const orgHash = rawFileHash(sql, sha, "o.raw_file_id", "orf");
+    const postureHash = rawFileHash(sql, sha, "ap.raw_file_id", "aprf");
+    return sql<FunderRow[]>`
       select o.id::text as id, o.canonical_org_id::text as canonical_org_id, o.name, o.legal_name, o.org_type,
              o.street, o.city, o.state, o.zip, o.website as registry_website,
              o.ntee_code, o.ruling_date::text as ruling_date, o.focus_areas,
              o.asset_amount::text as bmf_assets, o.income_amount::text as bmf_income, o.revenue_amount::text as bmf_revenue,
              o.last_verified_at::text as last_verified_at,
              po.source_dataset as org_source_dataset, po.source_url as org_source_url, po.license_name as org_license,
+             ${orgHash.column} as org_sha256,
              (select oi.id_value from public.org_identifiers oi
                where oi.org_id = o.id and oi.id_type = 'ein' limit 1) as ein_ident,
              ow.website as filing_website, ow.tax_period as filing_website_period, ow.return_type as filing_website_return,
@@ -247,6 +265,7 @@ export const getFunder = cache(async (orgId: string): Promise<FunderRecord | nul
              ap.contact_name, ap.app_city, ap.app_state, ap.app_zip, ap.has_email, ap.has_phone,
              ap.form_and_info_txt, ap.submission_deadlines_txt, ap.restrictions_txt, ap.ein::text as ap_ein,
              apf.source_dataset as ap_source_dataset, apf.source_url as ap_source_url, apf.license_name as ap_license,
+             ${postureHash.column} as ap_sha256,
              fin.fy as fin_fy, fin.return_type as fin_return_type, fin.object_id as fin_object_id,
              fin.ein::text as fin_ein, fin.tax_period_end::text as fin_period_end,
              fin.total_revenue::text as total_revenue, fin.total_expenses::text as total_expenses,
@@ -258,6 +277,7 @@ export const getFunder = cache(async (orgId: string): Promise<FunderRecord | nul
              g.n::text as grants_n, g.total::text as grants_total, g.first_fy as grants_first_fy, g.last_fy as grants_last_fy
       from internal.organizations o
       left join public.organizations po on po.id = o.id
+      ${orgHash.join}
       left join lateral (
         select w.website, w.tax_period, w.return_type
         from internal.org_website w
@@ -268,12 +288,19 @@ export const getFunder = cache(async (orgId: string): Promise<FunderRecord | nul
       -- Provenance of the posture filing from public.filings, not from
       -- public.org_application_posture: the two carry the same dataset, url and
       -- licence for that object_id, and public.filings is readable by every
-      -- corpus role (funder_ro is not granted the posture view on all installs).
+      -- corpus role.
       left join public.filings apf on apf.object_id = ap.object_id
+      ${postureHash.join}
       left join internal.mv_org_latest_financials fin on fin.org_id = o.id
-      left join internal.mv_funder_event_stats g on g.org_id = o.id and g.event_type = 'grant'
-      where o.id = ${orgId}::uuid`,
-  );
+      -- Grants on file: the one predicate every grant count on the page uses.
+      left join (
+        select count(*) as n, sum(pe.amount) as total,
+               min(pe.fiscal_year)::int as first_fy, max(pe.fiscal_year)::int as last_fy
+        from public.funding_events pe
+        where ${liveGrantEvents(sql, orgId)}
+      ) g on true
+      where o.id = ${orgId}::uuid`;
+  });
   const row = rows[0];
   return row ? toRecord(row) : null;
 });
@@ -290,6 +317,7 @@ type FinRow = {
   source_dataset: string | null;
   source_url: string | null;
   license_name: string | null;
+  sha256: string | null;
   total_revenue: string | null;
   total_expenses: string | null;
   qualifying_distributions: string | null;
@@ -313,11 +341,12 @@ type FinRow = {
 /** Up to ten fiscal years, oldest first, non-superseded filings only. */
 export async function getFunderFinancials(orgId: string): Promise<FinancialYear[]> {
   if (!isUuid(orgId)) return [];
-  const rows = await corpusQuery(
-    (sql) => sql<FinRow[]>`
+  const rows = await corpusQuery(async (sql) => {
+    const hash = rawFileHash(sql, await canReadRawFileHash(sql), "f.raw_file_id");
+    return sql<FinRow[]>`
       select pf.object_id, pf.return_type, pf.tax_period, pf.tax_period_end::text as tax_period_end,
              nullif(left(pf.tax_period, 4), '')::int as fy, pf.amended_return,
-             pf.source_dataset, pf.source_url, pf.license_name,
+             pf.source_dataset, pf.source_url, pf.license_name, ${hash.column} as sha256,
              ff.total_revenue::text, ff.total_expenses::text,
              ff.qualifying_distributions::text, ff.charitable_disbursements::text,
              ff.contributions_paid::text, ff.total_grants_paid::text, ff.contributions_received::text,
@@ -327,11 +356,13 @@ export async function getFunderFinancials(orgId: string): Promise<FinancialYear[
              ff.total_employees, ff.total_volunteers
       from public.filings pf
       join internal.filing_financials ff on ff.object_id = pf.object_id
+      join internal.filings f on f.object_id = pf.object_id
+      ${hash.join}
       where pf.org_id = ${orgId}::uuid
         and pf.superseded_by_object_id is null
       order by pf.tax_period desc nulls last, pf.object_id desc
-      limit 10`,
-  );
+      limit 10`;
+  });
   return rows
     .map((r) => ({
       fy: r.fy,
@@ -381,10 +412,11 @@ type GrantRowDb = {
   filing_object_id: string | null;
   source_dataset: string | null;
   source_url: string | null;
+  sha256: string | null;
   total: number;
 };
 
-/** One page of grants paid, largest first, with per-row provenance. */
+/** One page of grants paid, largest first, with per-row provenance. `total` counts the same rows as the header badge. */
 export async function getFunderGrants(
   orgId: string,
   opts: { page?: number; q?: string | null; pageSize?: number } = {},
@@ -395,28 +427,22 @@ export async function getFunderGrants(
   const empty: GrantsPage = { rows: [], total: 0, page, pageSize, pageCount: 0, q };
   if (!isUuid(orgId)) return empty;
 
-  const rows = await corpusQuery(
-    (sql) => sql<GrantRowDb[]>`
+  const rows = await corpusQuery(async (sql) => {
+    const hash = rawFileHash(sql, await canReadRawFileHash(sql), "fe.raw_file_id");
+    return sql<GrantRowDb[]>`
       select pe.id::text as id, pe.recipient_name, pe.recipient_org_id::text as recipient_org_id,
              pe.recipient_city, pe.recipient_state, pe.amount::text as amount, pe.fiscal_year,
              pe.event_date::text as event_date, pe.purpose_text, pe.recipient_relationship,
-             pe.filing_object_id, pe.source_dataset, pe.source_url,
+             pe.filing_object_id, pe.source_dataset, pe.source_url, ${hash.column} as sha256,
              count(*) over()::int as total
       from public.funding_events pe
-      where pe.funder_org_id = ${orgId}::uuid
-        and pe.event_type = 'grant'
-        and (pe.filing_object_id is null or not exists (
-              select 1 from internal.filings f
-              where f.object_id = pe.filing_object_id and f.superseded_by_object_id is not null))
-        ${
-          q
-            ? sql`and exists (select 1 from internal.funding_events fe
-                              where fe.id = pe.id and fe.search_tsv @@ websearch_to_tsquery('english', ${q}))`
-            : sql``
-        }
+      join internal.funding_events fe on fe.id = pe.id
+      ${hash.join}
+      where ${liveGrantEvents(sql, orgId)}
+        ${q ? sql`and fe.search_tsv @@ websearch_to_tsquery('english', ${q})` : sql``}
       order by pe.amount desc nulls last, pe.id
-      limit ${pageSize} offset ${(page - 1) * pageSize}`,
-  );
+      limit ${pageSize} offset ${(page - 1) * pageSize}`;
+  });
   const total = rows[0]?.total ?? 0;
   return {
     rows: rows.map(
@@ -435,7 +461,7 @@ export async function getFunderGrants(
           source: datasetLabel(r.source_dataset, "IRS 990-PF e-file"),
           filingYear: r.fiscal_year,
           objectId: r.filing_object_id,
-          sha256: null,
+          sha256: r.sha256,
           href: r.source_url,
           license: null,
         },
@@ -542,8 +568,9 @@ export async function getSimilarFunders(orgId: string, limit = 8): Promise<Simil
 /** Non-superseded filings on record, newest first, for the sources panel. */
 export async function getFunderFilings(orgId: string): Promise<FilingSummary[]> {
   if (!isUuid(orgId)) return [];
-  const rows = await corpusQuery(
-    (sql) => sql<
+  const rows = await corpusQuery(async (sql) => {
+    const hash = rawFileHash(sql, await canReadRawFileHash(sql), "f.raw_file_id");
+    return sql<
       {
         object_id: string;
         return_type: string;
@@ -554,17 +581,20 @@ export async function getFunderFilings(orgId: string): Promise<FilingSummary[]> 
         source_dataset: string | null;
         source_url: string | null;
         license_name: string | null;
+        sha256: string | null;
         xml_zip_url: string | null;
       }[]
     >`
       select pf.object_id, pf.return_type, pf.tax_period, pf.tax_period_end::text as tax_period_end,
              nullif(left(pf.tax_period, 4), '')::int as fy, pf.amended_return,
-             pf.source_dataset, pf.source_url, pf.license_name, pf.xml_zip_url
+             pf.source_dataset, pf.source_url, pf.license_name, pf.xml_zip_url, ${hash.column} as sha256
       from public.filings pf
+      join internal.filings f on f.object_id = pf.object_id
+      ${hash.join}
       where pf.org_id = ${orgId}::uuid and pf.superseded_by_object_id is null
       order by pf.tax_period desc nulls last, pf.object_id desc
-      limit 12`,
-  );
+      limit 12`;
+  });
   return rows.map((r) => ({
     objectId: r.object_id,
     returnType: r.return_type,
@@ -579,31 +609,31 @@ export async function getFunderFilings(orgId: string): Promise<FilingSummary[]> 
 
 /* --------------------------------------------------------- giving profile */
 
-/** What they fund: recipient NTEE groups and states, from matched grant rows. */
+/** What they fund: recipient NTEE groups and states, from the same live grant rows as the header and the table. */
 export async function getFunderGivingProfile(orgId: string): Promise<GivingProfile> {
   const empty: GivingProfile = { focus: [], geography: [], resolvedPct: null };
   if (!isUuid(orgId)) return empty;
   return corpusQuery(async (sql) => {
     const [focus, geography, coverage] = await Promise.all([
       sql<{ major: string; n: number; total: string | null }[]>`
-        select upper(left(ro.ntee_code, 1)) as major, count(*)::int as n, sum(fe.amount)::text as total
-        from internal.funding_events fe
-        join internal.organizations ro on ro.id = fe.recipient_org_id
-        where fe.funder_org_id = ${orgId}::uuid and fe.event_type = 'grant' and ro.ntee_code is not null
+        select upper(left(ro.ntee_code, 1)) as major, count(*)::int as n, sum(pe.amount)::text as total
+        from public.funding_events pe
+        join internal.organizations ro on ro.id = pe.recipient_org_id
+        where ${liveGrantEvents(sql, orgId)} and ro.ntee_code is not null
         group by 1
-        order by sum(fe.amount) desc nulls last, count(*) desc
+        order by sum(pe.amount) desc nulls last, count(*) desc
         limit 6`,
       sql<{ state: string; n: number; total: string | null }[]>`
-        select coalesce(fe.recipient_state, '??') as state, count(*)::int as n, sum(fe.amount)::text as total
-        from internal.funding_events fe
-        where fe.funder_org_id = ${orgId}::uuid and fe.event_type = 'grant'
+        select coalesce(pe.recipient_state, '??') as state, count(*)::int as n, sum(pe.amount)::text as total
+        from public.funding_events pe
+        where ${liveGrantEvents(sql, orgId)}
         group by 1
-        order by sum(fe.amount) desc nulls last, count(*) desc
+        order by sum(pe.amount) desc nulls last, count(*) desc
         limit 8`,
       sql<{ pct: number | null }[]>`
-        select round(100.0 * count(*) filter (where fe.recipient_org_id is not null) / nullif(count(*), 0))::int as pct
-        from internal.funding_events fe
-        where fe.funder_org_id = ${orgId}::uuid and fe.event_type = 'grant'`,
+        select round(100.0 * count(*) filter (where pe.recipient_org_id is not null) / nullif(count(*), 0))::int as pct
+        from public.funding_events pe
+        where ${liveGrantEvents(sql, orgId)}`,
     ]);
     return {
       focus: focus.map((f) => ({ major: f.major, label: nteeMajorLabel(f.major) ?? f.major, n: f.n, total: f.total })),

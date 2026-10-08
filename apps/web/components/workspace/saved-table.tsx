@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, Ellipsis, Info, ListPlus, LoaderCircle } from "lucide-react";
+import { Archive, Ellipsis, Info, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Missing } from "@/components/data/missing";
@@ -46,6 +46,9 @@ import { NativeSelect } from "./native-select";
  */
 
 type Patch = SavedPatch;
+
+/** After this many days without contact a row says "quiet" in words, not only in colour. */
+export const QUIET_AFTER_DAYS = 30;
 
 function daysAgo(iso: string | null): number | null {
   if (!iso) return null;
@@ -154,14 +157,14 @@ export function SavedTable({
         <Table className="min-w-[1180px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">
+              <TableHead className="sticky left-0 z-10 w-10 bg-card">
                 <Checkbox
                   aria-label="Select all funders on this page"
                   checked={allSelected ? true : selectedVisible.length > 0 ? "indeterminate" : false}
                   onCheckedChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))}
                 />
               </TableHead>
-              <TableHead className="min-w-[16rem]">Funder</TableHead>
+              <TableHead className="sticky left-10 z-10 min-w-[16rem] bg-card shadow-[1px_0_0_0_var(--border)]">Funder</TableHead>
               <TableHead>Stage</TableHead>
               <TableHead>Tier</TableHead>
               <TableHead>Owner</TableHead>
@@ -181,14 +184,14 @@ export function SavedTable({
               const key = `${row.id}:${row.version}`;
               return (
                 <TableRow key={row.id} data-state={selected.has(row.id) ? "selected" : undefined} className={cn("align-top", busy && "opacity-70")}>
-                  <TableCell>
+                  <TableCell className="sticky left-0 z-10 bg-card">
                     <Checkbox
                       aria-label={`Select ${row.snapshot.name}`}
                       checked={selected.has(row.id)}
                       onCheckedChange={() => toggle(row.id)}
                     />
                   </TableCell>
-                  <TableCell className="max-w-[20rem] whitespace-normal">
+                  <TableCell className="sticky left-10 z-10 max-w-[20rem] bg-card whitespace-normal shadow-[1px_0_0_0_var(--border)]">
                     <div className="flex items-start gap-1.5">
                       <div className="min-w-0 flex-1">
                         <Link
@@ -320,8 +323,12 @@ export function SavedTable({
                   </TableCell>
                   <TableCell className="text-sm">
                     {row.lastTouchAt ? (
-                      <span className={cn("tnum", quiet !== null && quiet >= 30 ? "text-warning" : "text-ink-2")} title={formatDate(row.lastTouchAt, "long")}>
+                      <span
+                        className={cn("tnum", quiet !== null && quiet >= QUIET_AFTER_DAYS ? "font-medium text-warning" : "text-ink-2")}
+                        title={`Last contact ${formatDate(row.lastTouchAt, "long")}${quiet !== null && quiet >= QUIET_AFTER_DAYS ? `. No contact in ${QUIET_AFTER_DAYS} days.` : ""}`}
+                      >
                         {quiet === 0 ? "Today" : `${quiet}d ago`}
+                        {quiet !== null && quiet >= QUIET_AFTER_DAYS ? " · quiet" : ""}
                       </span>
                     ) : (
                       <span className="text-ink-3">Never</span>
@@ -377,6 +384,18 @@ function WhyOnList({ detail, name }: { detail: string | null; name: string }) {
   );
 }
 
+/** A visible label over one bulk control. */
+function BulkField({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex flex-col gap-0.5">
+      <label htmlFor={id} className="text-[11px] font-medium text-ink-3">
+        {label}
+      </label>
+      {children}
+    </span>
+  );
+}
+
 /** Bulk actions for the selected rows: set stage, tier or owner, or add to a list. */
 function BulkBar({
   ids,
@@ -396,6 +415,8 @@ function BulkBar({
   const [owner, setOwner] = React.useState("");
   const [list, setList] = React.useState("");
   const [newList, setNewList] = React.useState("");
+  const baseId = React.useId();
+  const id = (name: string) => `${baseId}-${name}`;
 
   const dirty = Boolean(stage || tier || owner || list || newList.trim());
 
@@ -447,18 +468,21 @@ function BulkBar({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-yours-border bg-yours-tint px-3 py-2" role="region" aria-label="Bulk actions">
-      <span className="text-sm font-medium text-yours">{ids.length} selected</span>
-      <NativeSelect aria-label="Set stage" className="w-[10rem]" value={stage} onChange={(e) => setStage(e.target.value)}>
-        <option value="">Stage…</option>
+    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-yours-border bg-yours-tint px-3 py-2" role="region" aria-label="Bulk actions">
+      <span className="self-center text-sm font-medium text-yours">{ids.length} selected</span>
+      <BulkField id={id("stage")} label="Set stage">
+      <NativeSelect id={id("stage")} className="w-[10rem]" value={stage} onChange={(e) => setStage(e.target.value)}>
+        <option value="">Keep as is</option>
         {STAGES.map((s) => (
           <option key={s} value={s}>
             {STAGE_LABELS[s]}
           </option>
         ))}
       </NativeSelect>
-      <NativeSelect aria-label="Set tier" className="w-[7rem]" value={tier} onChange={(e) => setTier(e.target.value)}>
-        <option value="">Tier…</option>
+      </BulkField>
+      <BulkField id={id("tier")} label="Set tier">
+      <NativeSelect id={id("tier")} className="w-[7rem]" value={tier} onChange={(e) => setTier(e.target.value)}>
+        <option value="">Keep as is</option>
         {TIERS.map((t) => (
           <option key={t} value={t}>
             {TIER_LABELS[t]}
@@ -466,8 +490,10 @@ function BulkBar({
         ))}
         <option value="none">Clear tier</option>
       </NativeSelect>
-      <NativeSelect aria-label="Set owner" className="w-[9rem]" value={owner} onChange={(e) => setOwner(e.target.value)}>
-        <option value="">Owner…</option>
+      </BulkField>
+      <BulkField id={id("owner")} label="Set owner">
+      <NativeSelect id={id("owner")} className="w-[9rem]" value={owner} onChange={(e) => setOwner(e.target.value)}>
+        <option value="">Keep as is</option>
         {members.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name}
@@ -475,26 +501,30 @@ function BulkBar({
         ))}
         <option value="none">Clear owner</option>
       </NativeSelect>
-      <span className="inline-flex items-center gap-1">
-        <ListPlus className="size-4 text-ink-3" aria-hidden />
+      </BulkField>
+      <span className="inline-flex items-end gap-2">
         {collections.length > 0 ? (
-          <NativeSelect aria-label="Add to list" className="w-[9rem]" value={list} onChange={(e) => setList(e.target.value)}>
-            <option value="">Add to list…</option>
+          <BulkField id={id("list")} label="Add to list">
+          <NativeSelect id={id("list")} className="w-[9rem]" value={list} onChange={(e) => setList(e.target.value)}>
+            <option value="">None</option>
             {collections.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </NativeSelect>
+          </BulkField>
         ) : null}
+        <BulkField id={id("newList")} label="New list">
         <Input
-          aria-label="New list name"
+          id={id("newList")}
           className="h-8 w-[10rem] text-[13px]"
-          placeholder="New list name"
+          placeholder="Name it"
           value={newList}
           maxLength={120}
           onChange={(e) => setNewList(e.target.value)}
         />
+        </BulkField>
       </span>
       <Button size="sm" onClick={apply} disabled={pending || !dirty}>
         {pending ? <LoaderCircle className="animate-spin" aria-hidden /> : null}

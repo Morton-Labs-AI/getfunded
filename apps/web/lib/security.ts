@@ -147,15 +147,36 @@ function normalizeIp(value: string): string | null {
 }
 
 /**
- * The client address for rate limiting: the first hop of `X-Forwarded-For`
- * (what Vercel and most proxies set), then `X-Real-IP`, else `"unknown"`.
- * Only ever used as a bucket key, never as an identity.
+ * True when the forwarding headers can be believed: on Vercel (the platform
+ * sets them and strips what the client sent) or when the operator has set
+ * `TRUST_PROXY=true` behind their own reverse proxy. Anywhere else a client
+ * can write `X-Forwarded-For` itself, which would let it pick its own rate
+ * limit bucket, so the headers are ignored.
  */
-export function clientIp(req: Request): string {
+export function trustsProxyHeaders(env: Env = process.env): boolean {
+  const flag = env.TRUST_PROXY?.trim().toLowerCase();
+  if (flag === "true" || flag === "1" || flag === "yes") return true;
+  if (flag === "false" || flag === "0" || flag === "no") return false;
+  return Boolean(env.VERCEL?.trim());
+}
+
+/**
+ * The client address for rate limiting, or `"unknown"`. Only read from
+ * `X-Forwarded-For` (right-most valid hop: the one the trusted proxy appended,
+ * so a spoofed left-most entry is ignored) and then `X-Real-IP`, and only
+ * when `trustsProxyHeaders()` says the deployment sits behind a proxy that
+ * sets them. `"unknown"` is still a bucket key (callers share one bucket for
+ * it), never a bypass. Only ever used as a bucket key, never as an identity.
+ */
+export function clientIp(req: Request, env: Env = process.env): string {
+  if (!trustsProxyHeaders(env)) return "unknown";
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) {
-    const first = normalizeIp(forwarded.split(",")[0] ?? "");
-    if (first) return first;
+    const hops = forwarded.split(",");
+    for (let i = hops.length - 1; i >= 0; i--) {
+      const ip = normalizeIp(hops[i] ?? "");
+      if (ip) return ip;
+    }
   }
   const real = req.headers.get("x-real-ip");
   if (real) {

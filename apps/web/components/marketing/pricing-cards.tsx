@@ -16,6 +16,16 @@ import { FEATURE_COPY, PLAN_COPY, PLAN_ORDER } from "./copy";
 
 type PublicPlanId = Exclude<PlanId, "unlimited">;
 
+/** Paid plans start free: sign in, then land on Billing to upgrade. */
+export const UPGRADE_HREF = "/signin?next=/app/settings/billing";
+
+/** The knowledge base is on every plan; what grows with the plan is how many people share it. */
+function knowledgeText(plan: Plan): string {
+  if (plan.members === null) return "Shared across every seat";
+  if (plan.members === 1) return "Included";
+  return `Shared across ${formatNumber(plan.members)} seats`;
+}
+
 function limit(v: number | null, unit?: string): string {
   if (v === null) return "Unlimited";
   return unit ? `${formatNumber(v)} ${unit}` : formatNumber(v);
@@ -32,7 +42,8 @@ function exportText(plan: Plan): string {
 
 function outreachText(plan: Plan): string {
   if (plan.features.dedicated_outreach) return "Dedicated outreach: managed campaigns, sender domains, deliverability, onboarding, SLA";
-  if (plan.features.sequences) return "Send through your own Gmail, each message approved by you, plus sequences and a shared knowledge base";
+  if (plan.features.sequences)
+    return "Send through your own Gmail, each message approved by you, plus follow-ups that stop when a funder replies";
   if (plan.features.send_gmail) return "Send through your own Gmail, each message approved by you";
   return "Drafts only (uses credits)";
 }
@@ -90,13 +101,17 @@ export function PlanCards() {
                 <Button variant="outline" className="w-full" asChild>
                   <Link href="/contact">Contact us</Link>
                 </Button>
-              ) : (
-                <Button variant={isFree ? "default" : "outline"} className="w-full" asChild>
+              ) : isFree ? (
+                <Button className="w-full" asChild>
                   <Link href="/signin">Start free</Link>
+                </Button>
+              ) : (
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href={UPGRADE_HREF}>Start free, then upgrade to {plan.name}</Link>
                 </Button>
               )}
               {!isFree && !isEnterprise ? (
-                <p className="mt-2 text-center text-xs text-ink-3">Upgrade from Settings once you are in.</p>
+                <p className="mt-2 text-center text-xs text-ink-3">You upgrade from Settings → Billing after you sign in.</p>
               ) : null}
             </div>
           </div>
@@ -158,19 +173,19 @@ export function PlanCompareTable() {
     { label: "Price per month", cell: (p) => <span className="font-mono">{formatPlanPrice(p)}</span> },
     { label: "Members", cell: (p) => limit(p.members) },
     { label: "AI credits per month", cell: (p) => (p.monthly_credits === null ? "Unlimited" : formatNumber(p.monthly_credits)) },
-    { label: "Daily soft cap", cell: (p) => (p.daily_credits === null ? "None" : formatNumber(p.daily_credits)) },
-    { label: "Daily cap can be turned off", cell: (p) => (p.can_disable_daily_cap ? <Yes /> : <No />) },
+    { label: "Most AI credits you can use in one day", cell: (p) => (p.daily_credits === null ? "No limit" : formatNumber(p.daily_credits)) },
+    { label: "Daily limit can be turned off", cell: (p) => (p.can_disable_daily_cap ? <Yes /> : <No />) },
     { label: "Saved funders", cell: (p) => limit(p.saved_funders_limit) },
     { label: "Pipelines", cell: (p) => limit(p.pipelines_limit) },
     { label: "Export", cell: (p) => exportText(p) },
     { label: "Funder search and profiles", cell: () => <Yes /> },
-    { label: "Fit analysis, research, Ask", cell: (p) => (p.features.fit && p.features.research && p.features.ask ? <Yes /> : <No />) },
+    { label: "Fit analysis, research and Ask the analyst", cell: (p) => (p.features.fit && p.features.research && p.features.ask ? <Yes /> : <No />) },
     { label: "Outreach drafts", cell: (p) => (p.features.draft ? <Yes /> : <No />) },
     { label: "Send through your own Gmail", cell: (p) => (p.features.send_gmail ? <Yes /> : <No />) },
     { label: "Reports", cell: (p) => (p.features.reports ? <Yes /> : <No />) },
     { label: "API", cell: (p) => (p.features.api ? <Yes /> : <No />) },
-    { label: "Sequences", cell: (p) => (p.features.sequences ? <Yes /> : <No />) },
-    { label: "Shared knowledge base", cell: (p) => (p.features.shared_knowledge ? <Yes /> : <No />) },
+    { label: "Follow-ups that stop when a funder replies", cell: (p) => (p.features.sequences ? <Yes /> : <No />) },
+    { label: "Knowledge base", cell: (p) => knowledgeText(p) },
     { label: "Dedicated outreach and SLA", cell: (p) => (p.features.dedicated_outreach ? <Yes /> : <No />) },
   ];
 

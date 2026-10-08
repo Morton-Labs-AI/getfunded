@@ -96,9 +96,9 @@ export default function PrivacyPage() {
 
           <H id="security">Security</H>
           <p>
-            Row Level Security is enabled and forced on every workspace table, so a query can only return rows of
-            workspaces you belong to. The app&rsquo;s database role cannot write the public corpus. Integration tokens are
-            encrypted at rest. Details are on the{" "}
+            The database itself checks every request. You can only read rows that belong to a workspace you are a member
+            of, even if the app had a bug. The app&rsquo;s database account cannot change the public filing data. The token
+            that connects your Gmail is stored encrypted. Details are on the{" "}
             <Link href="/docs/security-and-privacy" className="font-medium text-primary underline underline-offset-4">
               security and privacy guide
             </Link>

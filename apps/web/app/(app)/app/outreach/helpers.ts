@@ -61,15 +61,15 @@ export type GmailNotice = { tone: "success" | "error"; text: string };
 
 const GMAIL_REASONS: Record<string, string> = {
   plan: "Sending through Gmail is part of the Pro plan and above. Your plan does not include it yet.",
-  unconfigured: "Gmail is not set up on this server. The operator needs to add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
-  secrets_key: "This server has no SECRETS_KEY, so a mailbox connection cannot be stored safely. The operator needs to set it.",
+  unconfigured: "Sending through Gmail is not set up on this server yet. The person who runs it needs to finish the Google setup.",
+  secrets_key: "This server cannot store a mailbox connection safely yet. The person who runs it needs to finish the setup.",
   denied: "You did not allow the permissions at Google, so nothing was connected. Try again when you are ready.",
   google: "Google returned an error before the connection finished. Try again in a minute.",
   missing_code: "Google did not send the code the app needs. Try the connection again.",
   bad_state: "The link back from Google was not valid or had expired. Start the connection again from this page.",
   wrong_user: "The link back from Google was for a different account or workspace. Start the connection again from this page.",
   no_refresh_token: "Google did not give the app a lasting connection. Remove GetFunded from your Google account's connected apps, then connect again.",
-  scope: "Google did not grant both permissions. Try again and allow send and metadata access.",
+  scope: "Google did not grant both permissions. Try again and allow both: send email as you, and read message headers.",
   reconnect: "Google no longer accepts this connection. Connect Gmail again.",
   upstream: "Google did not answer as expected. Try again in a minute.",
   rate: "Google is rate-limiting this mailbox. Wait a minute and try again.",

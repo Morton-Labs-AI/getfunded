@@ -5,10 +5,14 @@
  * Same-origin, signed in. A member disconnects their own mailbox; an owner or
  * admin may disconnect any mailbox in the workspace. Revokes at Google (best
  * effort), deletes the sealed token, marks the identity disconnected.
+ *
+ * A signed-out caller gets 401 JSON; `requireWorkspace()` (which redirects by
+ * throwing) runs outside the try so its redirect is never turned into a 500.
  */
 import { connection } from "next/server";
 import { z } from "zod";
 
+import { getUserOrNull } from "@/lib/auth/session";
 import { disconnectGmail, getSenderIdentity, mySenderIdentity } from "@/lib/outreach/senders";
 import { assertSameOrigin, boundedJson, jsonError } from "@/lib/security";
 import { requireWorkspace } from "@/lib/workspace/context";
@@ -19,7 +23,13 @@ export async function POST(req: Request): Promise<Response> {
   await connection();
   try {
     assertSameOrigin(req);
-    const { user, workspace } = await requireWorkspace();
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
+  }
+  if (!(await getUserOrNull())) return jsonError(401, "sign_in_required", "Sign in to manage your mailbox.");
+  const { user, workspace } = await requireWorkspace();
+  try {
     const ctx = { userId: user.id, workspaceId: workspace.id };
     const body = await boundedJson(req, Body, 2_000);
     const identity = body.senderIdentityId ? await getSenderIdentity(ctx, body.senderIdentityId) : await mySenderIdentity(ctx);

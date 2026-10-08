@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowUpRight, Bug, FileWarning, Mail, MessageSquare, ShieldAlert } from "lucide-react";
+import { ArrowUpRight, Bug, Building2, FileWarning, Mail, MessageSquare, ShieldAlert } from "lucide-react";
 
 import { CONTACT, LINKS, mailto } from "@/components/marketing/links";
 import { Note, PageHero, Section } from "@/components/marketing/section";
@@ -31,8 +31,15 @@ const CHANNELS: Channel[] = [
   {
     icon: Mail,
     title: "Hosted-service and account matters",
-    body: "Billing, deletion requests, Enterprise. Write from the address on your account.",
+    body: "Billing and deletion requests. Write from the address on your account.",
     href: mailto(CONTACT.general),
+    label: CONTACT.general,
+  },
+  {
+    icon: Building2,
+    title: "Enterprise plans",
+    body: "You do not need an account to ask. Tell us about your team and what you send today. A person replies.",
+    href: mailto(CONTACT.general, "Enterprise plan"),
     label: CONTACT.general,
   },
   {

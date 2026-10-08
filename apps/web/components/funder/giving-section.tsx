@@ -31,16 +31,18 @@ export function GivingSection({ profile }: { profile: GivingProfile }) {
               {profile.focus.map((f) => {
                 const total = toNumber(f.total) ?? 0;
                 return (
-                  <li key={f.major} className="flex items-center gap-3 text-[13px]">
-                    <span className="w-40 shrink-0 truncate text-ink-2" title={f.label}>
-                      {f.label}
+                  <li key={f.major} className="flex flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:gap-3">
+                    <span className="flex items-baseline justify-between gap-3 sm:contents">
+                      <span className="min-w-0 truncate text-ink-2 sm:w-40 sm:shrink-0" title={f.label}>
+                        {f.label}
+                      </span>
+                      <span className="tnum shrink-0 text-right text-ink-3 sm:order-last sm:w-24">
+                        {f.total ? formatMoneyCompact(f.total) : <Missing bare />} · {formatNumber(f.n)}
+                      </span>
                     </span>
-                    <div className="h-5 flex-1 overflow-hidden rounded-sm bg-inset">
+                    <div className="h-5 w-full flex-1 overflow-hidden rounded-sm bg-inset sm:w-auto">
                       <div className="h-full rounded-sm" style={{ width: `${Math.max(total > 0 ? 6 : 2, (total / max) * 100)}%`, background: "var(--chart-1)" }} />
                     </div>
-                    <span className="tnum w-24 shrink-0 text-right text-ink-3">
-                      {f.total ? formatMoneyCompact(f.total) : <Missing bare />} · {formatNumber(f.n)}
-                    </span>
                   </li>
                 );
               })}

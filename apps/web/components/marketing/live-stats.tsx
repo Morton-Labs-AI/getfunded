@@ -41,7 +41,7 @@ export async function ProofPoints() {
           </li>
           <li className="flex gap-2">
             <FileCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
-            Application posture read from Part XV of each foundation&rsquo;s latest 990-PF.
+            Whether each foundation says it accepts applications, from its latest Form 990-PF.
           </li>
         </ul>
         <p className="mt-3 text-xs text-ink-3">
@@ -72,7 +72,7 @@ export async function ProofPoints() {
         <StatTile
           label="Foundations that accept applications"
           value={formatNumber(stats.posture.open)}
-          hint="Stated in Part XV of their latest 990-PF"
+          hint="As stated on each foundation's latest Form 990-PF"
           icon={FileCheck}
           href="/search"
         />
@@ -139,13 +139,13 @@ export async function CoverageTable() {
       <div className="flex flex-col gap-6">
         <div className="rounded-lg border bg-card shadow-card">
           <div className="border-b px-4 py-3">
-            <h3 className="font-semibold text-foreground">Foundations by application posture</h3>
-            <p className="text-xs text-ink-3">From the latest parsed 990-PF of each private foundation.</p>
+            <h3 className="font-semibold text-foreground">Do foundations accept applications?</h3>
+            <p className="text-xs text-ink-3">What each private foundation says on its latest Form 990-PF.</p>
           </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Posture</TableHead>
+                <TableHead>What the filing says</TableHead>
                 <TableHead className="text-right">Foundations</TableHead>
               </TableRow>
             </TableHeader>
@@ -169,7 +169,7 @@ export async function CoverageTable() {
           <StatTile
             label="Public contact channels"
             value={formatNumber(stats.publicContacts)}
-            hint="Role inboxes and phones with publishability = public"
+            hint="Shared inboxes and office phone numbers the filing lets us publish"
           />
         </div>
       </div>

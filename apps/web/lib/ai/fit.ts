@@ -14,7 +14,7 @@ import "server-only";
 import { z } from "zod";
 import { aiMode, modelsFromEnv } from "@/lib/ai/client";
 import { addUsage, type AiClient, type AiRequest, type MessageParam, type Usage } from "@/lib/ai/types";
-import { withUser } from "@/lib/billing/db";
+import { withUser, type Db } from "@/lib/billing/db";
 import { meter, type MeterDeps } from "@/lib/billing/meter";
 import { insertAnalysis, insertFeedback, latestAnalysis, latestFeedback, type AnalysisRow, type FeedbackVerdict } from "./analyses";
 import { fingerprintOf, normalizeToolInput, packageIds, type EvidenceItem } from "./evidence";
@@ -33,9 +33,27 @@ import {
   type FitAnalysis,
   type ModelFitOutput,
 } from "./fit-schema";
-import { AiOutputRejectedError, EvidenceTooThinError } from "./http";
+import { AiFeatureError, AiOutputRejectedError, EvidenceTooThinError } from "./http";
 
 export type FitContext = { userId: string; workspaceId: string };
+
+type Runner = <T>(userId: string | null, fn: (sql: Db) => Promise<T>) => Promise<T>;
+
+/**
+ * `savedFunderId` comes from the client. It must be a saved funder of THIS
+ * workspace: the analysis row and the activity row would otherwise be written
+ * against a stranger's list. Checked before any credit is reserved. RLS hides
+ * foreign rows from this SELECT, so "not found" covers both cases.
+ */
+export async function assertOwnsSavedFunder(wu: Runner, ctx: FitContext, savedFunderId: string): Promise<void> {
+  const owned = await wu(ctx.userId, async (sql) => {
+    const rows = await sql`
+      select 1 as ok from getfunded.saved_funders
+      where id = ${savedFunderId}::uuid and workspace_id = ${ctx.workspaceId}::uuid`;
+    return rows.length > 0;
+  });
+  if (!owned) throw new AiFeatureError("saved_funder_not_found", 404, "That saved funder is not on this workspace's list.", { savedFunderId });
+}
 
 const RunFitInput = z.object({
   orgId: z.uuid(),
@@ -124,6 +142,8 @@ export async function runFit(ctx: FitContext, inputIn: RunFitInput, deps: FitDep
   const env = deps.env ?? process.env;
   const wu = deps.withUser ?? withUser;
   const { isMock, model } = modelTagFor(env);
+
+  if (input.savedFunderId) await assertOwnsSavedFunder(wu, ctx, input.savedFunderId);
 
   const pkg = await buildFitEvidence({ orgId: input.orgId, workspaceId: ctx.workspaceId, userId: ctx.userId }, { corpus: deps.corpus, withUser: wu });
   if (pkg.thin) throw new EvidenceTooThinError();

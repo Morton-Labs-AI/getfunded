@@ -260,7 +260,8 @@ describe("getfunded_0009_steward", () => {
       expect(outcome).toEqual({ outcome: "failed", provider_payload: { reason: "stale_sending", reconciled_by: "cron:daily" } });
 
       const cron = await db.one<{ props: unknown }>("select props from getfunded.events where name = 'cron:daily' order by id desc limit 1");
-      expect(cron!.props).toEqual({ events_pruned: 2, sends_failed: 1 });
+      // ledger_reaped joined the props in 0011; the reservations made above are minutes old, so none is reaped here.
+      expect(cron!.props).toEqual({ events_pruned: 2, sends_failed: 1, ledger_reaped: 0 });
     });
 
     it("refuses a retention under 30 days or a stale window under 5 minutes", async () => {

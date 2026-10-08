@@ -13,6 +13,11 @@ import type { FeedbackVerdict } from "@/lib/ai/analyses";
 
 import { AiErrorNotice } from "./ai-error-notice";
 
+/** "Uses 5 credits." in words, never an abbreviation. */
+export function creditsLabel(credits: number): string {
+  return `Uses ${credits} credit${credits === 1 ? "" : "s"}.`;
+}
+
 /**
  * "Analyze fit" / "Re-analyze": a client-driven long fetch with staged
  * progress copy (a timer, not token streaming: the artifact is validated
@@ -89,10 +94,10 @@ export function AnalyzeButton({
           {AI_COPY.fit.running[stage]}
         </span>
       ) : (
-        <Button variant="ai" size="sm" onClick={run} title={`Uses ${credits} credit${credits === 1 ? "" : "s"}`}>
+        <Button variant="ai" size="sm" onClick={run}>
           <Sparkles aria-hidden />
           {hasAnalysis ? AI_COPY.fit.reanalyze : AI_COPY.fit.analyze}
-          <span className="tnum text-[11px] font-normal opacity-80">{credits} cr</span>
+          <span className="tnum text-[11px] font-normal opacity-80">{creditsLabel(credits)}</span>
         </Button>
       )}
       {error ? <AiErrorNotice error={error} className="max-w-sm" /> : null}

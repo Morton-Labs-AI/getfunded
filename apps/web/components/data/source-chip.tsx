@@ -18,7 +18,7 @@ function ProvenancePopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className="rounded-sm text-left" aria-label={`${label}. Show provenance`}>
+        <button type="button" className="rounded-sm text-left" aria-label={`${label}. Show where this came from`}>
           {children}
         </button>
       </PopoverTrigger>

@@ -16,6 +16,13 @@ import { boundedJson } from "@/lib/security";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 
+/**
+ * Two model steps (deep model with web search, then a fast structuring call),
+ * each 90 s per attempt with one retry (lib/ai/client.ts): 300 s covers the
+ * worst case so the ledger row is settled or refunded, never left 'reserved'.
+ */
+export const maxDuration = 300;
+
 export async function POST(req: Request): Promise<Response> {
   return aiRoute(req, "research", async ({ ctx }) => {
     const body = await boundedJson(req, ResearchBody, 4_000);

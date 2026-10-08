@@ -44,3 +44,6 @@ next-env.d.ts
 # Playwright run artifacts
 test-results/
 playwright-report/
+
+# build-time copies
+content/generated/

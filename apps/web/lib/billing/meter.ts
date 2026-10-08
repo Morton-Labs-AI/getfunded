@@ -8,7 +8,9 @@ import "server-only";
  *   3. `getfunded.reserve_credits(...)` inside `withUser()` writes a `reserved` ledger row
  *      or raises `quota_exceeded`, which becomes a `QuotaExceededError`
  *   4. the model call runs with the single `AiClient`
- *   5. the row is settled with real tokens, model and latency, or refunded when the call threw
+ *   5. the row is settled with real tokens, model and latency; when the call threw it is
+ *      refunded if no tokens were spent, or settled (charged, `meta.failed = true`) when the
+ *      error carries the tokens the model billed (see `failureStatus`)
  *
  * Feature code never touches the ledger or the SDK directly.
  */
@@ -223,13 +225,30 @@ export async function meter<T>(ctxIn: MeterContext, run: MeterRun<T>, deps: Mete
     return result;
   } catch (err) {
     const usage = usageFromError(err);
+    const status = failureStatus(usage);
     const extraMeta: Record<string, unknown> = {
       error: err instanceof Error ? `${err.name}: ${err.message}`.slice(0, 500) : String(err).slice(0, 500),
     };
+    if (status === "settled") extraMeta.failed = true;
     if (ai.mode === "mock") extraMeta.mock = true;
-    await settle(wu, ctx.userId, reservation.ledgerId, { status: "refunded", usage, latencyMs: Date.now() - started, extraMeta }, deps.log);
+    await settle(wu, ctx.userId, reservation.ledgerId, { status, usage, latencyMs: Date.now() - started, extraMeta }, deps.log);
     throw err;
   }
+}
+
+/**
+ * How a failed call is booked. Tokens were billed by the model whether or not
+ * the output was usable (a refusal, a rejected tool call, a schema failure
+ * after the retry), so a failure that carries usage with tokens > 0 is
+ * SETTLED: the feature's credits are charged and the tokens recorded, which
+ * keeps the cost report honest and stops failed calls from being free and
+ * unbounded. A failure with no spent tokens (network error before the model
+ * answered, a thrown error with no usage) is refunded as before.
+ */
+export function failureStatus(usage: Usage | null): "settled" | "refunded" {
+  if (!usage) return "refunded";
+  const spent = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+  return spent > 0 ? "settled" : "refunded";
 }
 
 export type UsageSummary = {

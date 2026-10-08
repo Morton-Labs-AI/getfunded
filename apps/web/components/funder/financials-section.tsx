@@ -11,11 +11,11 @@ import {
   NO_FINANCIALS_NOTE,
 } from "@/lib/content/copy";
 import { filingSourceLabel, returnTypeLabel } from "@/lib/content/labels";
-import { formatMoneyCompact, toNumber } from "@/lib/format";
+import { toNumber } from "@/lib/format";
 import { positive } from "@/lib/queries/corpus/safe";
 import type { FinancialYear, FunderRecord } from "@/lib/queries/corpus/types";
 
-import { FyBars, SplitBar } from "./fy-bars";
+import { FyBars, SplitBar, type SplitSegment } from "./fy-bars";
 import { ProfileSection } from "./profile-section";
 import { SourceWithSeal } from "./provenance";
 
@@ -34,9 +34,9 @@ export function FinancialsSection({ funder, years }: { funder: FunderRecord; yea
       <ProfileSection id="financials" title="Financials" note={hasBmf ? BMF_SNAPSHOT_NOTE : undefined}>
         {hasBmf ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatTile label="Assets" value={positive(bmf.assets) ? <Money value={bmf.assets} compact /> : null} hint="IRS BMF snapshot" />
-            <StatTile label="Income" value={positive(bmf.income) ? <Money value={bmf.income} compact /> : null} hint="IRS BMF snapshot" />
-            <StatTile label="Revenue" value={positive(bmf.revenue) ? <Money value={bmf.revenue} compact /> : null} hint="IRS BMF snapshot" />
+            <StatTile label="Assets" value={positive(bmf.assets) ? <Money value={bmf.assets} compact /> : null} hint="IRS master file" />
+            <StatTile label="Income" value={positive(bmf.income) ? <Money value={bmf.income} compact /> : null} hint="IRS master file" />
+            <StatTile label="Revenue" value={positive(bmf.revenue) ? <Money value={bmf.revenue} compact /> : null} hint="IRS master file" />
           </div>
         ) : (
           <p className="text-sm">
@@ -53,11 +53,12 @@ export function FinancialsSection({ funder, years }: { funder: FunderRecord; yea
   const seriesGiving = years.map((y) => ({ label: `FY${y.fy ?? "?"}`, caption: y.fy ? `'${String(y.fy).slice(2)}` : "?", value: num(y.giving ?? y.contributionsPaid) }));
   const seriesAssets = years.map((y) => ({ label: `FY${y.fy ?? "?"}`, caption: y.fy ? `'${String(y.fy).slice(2)}` : "?", value: num(y.assets ?? y.fmvAssets) }));
 
-  const splitSegments = isCharity
+  // A null line stays null: the bar leaves it out and the legend says "not available", never 0%.
+  const splitSegments: SplitSegment[] | null = isCharity
     ? [
-        { label: "Program services", value: num(latest.programServices) ?? 0, color: "var(--chart-1)" },
-        { label: "Management and general", value: num(latest.management) ?? 0, color: "var(--chart-3)" },
-        { label: "Fundraising", value: num(latest.fundraising) ?? 0, color: "var(--chart-4)" },
+        { label: "Program services", value: num(latest.programServices), color: "var(--chart-1)" },
+        { label: "Management and general", value: num(latest.management), color: "var(--chart-3)" },
+        { label: "Fundraising", value: num(latest.fundraising), color: "var(--chart-4)" },
       ]
     : null;
 
@@ -99,7 +100,7 @@ export function FinancialsSection({ funder, years }: { funder: FunderRecord; yea
       {splitSegments ? (
         <div className="mt-5">
           <p className="eyebrow mb-2 text-muted-foreground">Where the money went · FY{latest.fy ?? "?"}</p>
-          <SplitBar segments={splitSegments} ariaLabel={`Expense split for FY${latest.fy ?? "?"}: ${splitSegments.map((s) => `${s.label} ${formatMoneyCompact(s.value)}`).join(", ")}`} />
+          <SplitBar segments={splitSegments} ariaLabel={`Expense split for FY${latest.fy ?? "?"}`} />
           <p className="mt-2 text-xs text-ink-3">{EXPENSE_SPLIT_NOTE}</p>
         </div>
       ) : null}

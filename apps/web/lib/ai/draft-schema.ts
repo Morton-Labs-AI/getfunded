@@ -6,6 +6,9 @@
  *   - every claim cites an id from the package (validateClaimRefs),
  *   - the body never asserts the funder's interest (findInterestAssertions),
  *   - no leftover placeholders like [Name].
+ * A draft that still fails after the one retry is refused. The tokens the
+ * model billed are charged all the same (meter() settles the ledger row with
+ * `meta.failed = true`); only a call that spent no tokens is refunded.
  */
 import { z } from "zod";
 import type { Tool } from "@/lib/ai/types";

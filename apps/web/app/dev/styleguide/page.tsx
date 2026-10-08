@@ -46,6 +46,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkipLink } from "@/components/ui/skip-link";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -456,6 +457,18 @@ export default function StyleguidePage() {
               <Button size="icon-sm" variant="outline" aria-label="Search">
                 <Search />
               </Button>
+            </div>
+          </Demo>
+
+          <Demo title="Skip link">
+            <p className="mb-3 text-sm text-muted-foreground">
+              The first thing a keyboard user tabs to on every shell page. It is visually hidden until focused; shown
+              here in its focused look. Every shell renders it before the sidebar and points it at{" "}
+              <code>&lt;main id=&quot;main&quot; tabIndex=&#123;-1&#125;&gt;</code>.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <SkipLink href="#primitives" className="not-sr-only static rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-overlay" />
+              <span className="text-xs text-muted-foreground">Tab from the page top to see the real one appear.</span>
             </div>
           </Demo>
 

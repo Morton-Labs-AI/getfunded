@@ -57,9 +57,11 @@ We never copy a named person's email from a filing into your workspace. Only rol
 
 Add an email address or a whole domain to the suppression list. Suppressed addresses are checked when you approve and again when the message is sent. Use it for anyone who asked not to be contacted, and for funders that say they do not accept inquiries.
 
-## Sequences (Team and above)
+## Follow-ups
 
-A sequence is a planned series of messages to one contact: a first message and follow-ups spaced by days. Each message in a sequence still needs its own approval before it is sent. A reply cancels the rest of the sequence.
+After a message is sent, open it and choose **Write a follow-up**. The follow-up is a new draft linked to the first message, so a reply threads correctly. Each follow-up needs its own approval before it is sent. When a reply is recorded, every pending follow-up to that contact is cancelled.
+
+**Planned for Team and above, not built yet:** planning a series of follow-ups in advance, spaced by days, that stops on its own when the funder replies. Until it ships, you write each follow-up yourself.
 
 ## Dedicated outreach (Enterprise)
 

@@ -33,12 +33,12 @@ The same search as the app. Query parameters match the search page URL.
 | Parameter | Meaning |
 |---|---|
 | `q` | Name, EIN, or a sentence about your work |
-| `type` | `private_foundation`, `public_charity`, `company`, `investment_adviser`, `fund`, `gov_agency` |
+| `type` | `private_foundation`, `public_charity`, `company`, `gov_agency` (or `all`, the default) |
 | `state` | Two-letter state |
 | `posture` | `open`, `preselected`, `unknown` |
 | `page` | 1-based page number |
 
-Returns a page of funder summaries: id, name, EIN, type, city, state, posture, latest assets and latest grants paid, each with a `source` object.
+Returns a page of funder summaries: id, name, EIN, type, city, state, posture, latest assets and latest giving, each with a `source` object. Grant counts and totals count the same rows the funder page shows: grants paid, excluding any row from a filing that a later amended return replaced.
 
 ### `GET /api/v1/funders/{id}`
 
@@ -70,7 +70,7 @@ Errors look like:
 
 ## Limits
 
-- 60 requests a minute per key, refilling at one a second.
+- 600 requests a minute per key, refilling at ten a second. `Retry-After` says how long to wait.
 - Responses carry `Cache-Control: no-store`. Cache on your side if you need to.
 - The API reads the same read-only corpus role as the app. It cannot write the corpus.
 

@@ -105,6 +105,19 @@ describe("docs loader", () => {
     }
   });
 
+  it("promises only what is built: no Sequences section, knowledge base on every plan, no proration", () => {
+    const outreach = getDoc("outreach")!.body;
+    expect(outreach).not.toMatch(/^##.*Sequences/m);
+    expect(outreach).toContain("## Follow-ups");
+    expect(outreach).toMatch(/not built yet/i);
+    const workspace = getDoc("workspace")!.body;
+    expect(workspace).toMatch(/Every plan can keep a small knowledge base/);
+    expect(workspace).not.toMatch(/Pro and above can keep a small knowledge base/);
+    for (const meta of listDocs()) {
+      expect(getDoc(meta.slug)!.body, meta.slug).not.toMatch(/prorat/i);
+    }
+  });
+
   it("keeps the credit table in the AI guide in step with lib/plans.ts", () => {
     const doc = getDoc("ai-and-credits")!;
     expect(doc.body).toContain(`| Free | ${PLANS.free.monthly_credits} | ${PLANS.free.daily_credits} |`);

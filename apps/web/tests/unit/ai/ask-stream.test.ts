@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { askStreamResponse, errorEventFor } from "@/lib/ai/ask-stream";
+import { askStream, askStreamResponse, errorEventFor } from "@/lib/ai/ask-stream";
 import { AiNotConfiguredError, AiOutputRejectedError } from "@/lib/ai/http";
 import { parseSseFrames, type AskEvent } from "@/lib/ai/sse";
 import { AiDisabledError } from "@/lib/ai/types";
@@ -130,6 +130,39 @@ describe("askStreamResponse", () => {
     await tick();
     await tick();
     expect(finished).toBe(true);
+  });
+
+  it("askStream hands back a settled promise that resolves only after the run has finished", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    let finished = false;
+    const { response, settled } = await askStream(async (emit) => {
+      emit({ type: "phase", phase: "write" });
+      await gate;
+      finished = true;
+      emit({ type: "done" });
+    });
+    expect(response.status).toBe(200);
+    let settledSeen = false;
+    void settled.then(() => {
+      settledSeen = true;
+    });
+    await tick();
+    expect(settledSeen).toBe(false);
+    release();
+    await settled;
+    expect(finished).toBe(true);
+    expect(settledSeen).toBe(true);
+  });
+
+  it("askStream's settled promise never rejects, even for a failure before the first event", async () => {
+    const { response, settled } = await askStream(async () => {
+      throw new AiDisabledError();
+    });
+    expect(response.status).toBe(503);
+    await expect(settled).resolves.toBeUndefined();
   });
 
   it("errorEventFor maps unknown errors to a generic message", () => {

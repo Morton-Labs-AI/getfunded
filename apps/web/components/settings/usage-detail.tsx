@@ -9,7 +9,7 @@ const FEATURE_LABELS: Record<Feature, string> = {
   ask: "Ask the analyst (one question)",
   draft: "Outreach draft polish",
   fit: "Fit analysis (one funder)",
-  research: "Research dossier (one funder)",
+  research: "Research on the web (one funder)",
 };
 
 function Meter({

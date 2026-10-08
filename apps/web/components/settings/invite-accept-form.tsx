@@ -22,7 +22,7 @@ export function InviteAcceptForm({ token, email }: { token: string; email: strin
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">You have been invited to a workspace</CardTitle>
+        <CardTitle as="h1" className="text-xl">You have been invited to a workspace</CardTitle>
         <CardDescription>
           You are signed in as <span className="font-medium text-foreground">{email}</span>. Joining adds this workspace
           to your account; you keep your own workspace too.

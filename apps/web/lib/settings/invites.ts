@@ -70,12 +70,13 @@ export function inviteUrl(appUrl: string | null | undefined, token: string): str
   return `${base}/invite/${encodeURIComponent(token)}`;
 }
 
-export type AcceptInviteFailure = "invalid" | "used" | "expired" | "not_signed_in" | "unknown";
+export type AcceptInviteFailure = "invalid" | "used" | "expired" | "wrong_email" | "not_signed_in" | "unknown";
 
 /**
  * Map the error `getfunded.accept_invite()` raises to a reason the page can
  * explain. The door raises plain messages (`invite_invalid`, `invite_used`,
- * `invite_expired`) and SQLSTATE 28000 when `app.user_id` is unset.
+ * `invite_expired`, `invite_wrong_email` since migration 0011) and SQLSTATE
+ * 28000 when `app.user_id` is unset.
  */
 export function acceptInviteFailure(error: unknown): AcceptInviteFailure {
   const e = (error ?? {}) as { message?: unknown; code?: unknown; cause?: unknown };
@@ -86,6 +87,7 @@ export function acceptInviteFailure(error: unknown): AcceptInviteFailure {
     .join(" ")
     .toLowerCase();
   if (code === "28000" || message.includes("not signed in")) return "not_signed_in";
+  if (message.includes("invite_wrong_email")) return "wrong_email";
   if (message.includes("invite_used")) return "used";
   if (message.includes("invite_expired")) return "expired";
   if (message.includes("invite_invalid")) return "invalid";
@@ -96,6 +98,21 @@ export const ACCEPT_INVITE_COPY: Record<AcceptInviteFailure, string> = {
   invalid: "This invitation link is not valid. Ask the person who invited you for a new one.",
   used: "This invitation was already used. If that was you, the workspace is in your workspace list.",
   expired: "This invitation has expired. Invitations last 7 days. Ask for a new one.",
+  wrong_email: "This invitation was sent to a different email address. Sign out, then sign in with the address it was sent to.",
   not_signed_in: "Sign in first, then open the invitation link again.",
   unknown: "We could not accept this invitation. Try again in a moment.",
 };
+
+/** What `getfunded.invite_preview(token)` shows the signed-in holder of a link. */
+export type InvitePreview = {
+  /** The address the invitation was sent to; only that account can accept it. */
+  email: string;
+  workspaceName: string;
+  role: InviteRole;
+  status: InviteStatus;
+};
+
+/** Case-insensitive, trimmed: the same comparison `accept_invite` makes on citext. */
+export function inviteMatchesEmail(preview: Pick<InvitePreview, "email">, signedInEmail: string): boolean {
+  return preview.email.trim().toLowerCase() === signedInEmail.trim().toLowerCase();
+}

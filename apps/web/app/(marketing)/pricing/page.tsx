@@ -8,6 +8,7 @@ import { CreditTable, PlanCards, PlanCompareTable } from "@/components/marketing
 import { Note, PageHero, Section, SectionHeading } from "@/components/marketing/section";
 import { formatNumber } from "@/lib/format";
 import { PLANS, formatPlanPrice } from "@/lib/plans";
+import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -17,11 +18,11 @@ export const metadata: Metadata = {
 };
 
 const HOW_LIMITS_WORK: string[] = [
-  "Every model call goes through one server function that reserves credits before the call and refunds them if it fails.",
+  "Before the AI runs, the app sets aside the credits. If the AI call fails, you get them back.",
   "The monthly period starts on your billing day. Free workspaces reset on the first of the month.",
   "When a workspace reaches its limit the call is refused with a clear message and an upgrade link. There is no silent overage.",
-  "A daily soft cap of one third of the monthly credits spreads use across the month. Team and Enterprise can turn it off.",
-  "Plan changes take effect at once. Credits are prorated on upgrade. Cancel any time from Settings; your data stays.",
+  "A daily limit of one third of the monthly credits spreads use across the month. Team and Enterprise can turn it off.",
+  "Plan changes take effect at once. The new plan's allowance applies from your next request; unused credits do not carry over. Cancel any time from Settings; your data stays.",
 ];
 
 export default function PricingPage() {
@@ -33,9 +34,9 @@ export default function PricingPage() {
         title="Search is free. Credits pay for the AI."
         lede={
           <>
-            Every plan includes unlimited funder search, profiles with provenance and application posture. Only calls to a
-            language model cost credits. The free plan is free for good, with {formatNumber(free.monthly_credits)} credits a
-            month.
+            Every plan includes unlimited funder search and full profiles: where every fact came from, and whether the funder
+            says it accepts applications. Only calls to a language model cost credits. The free plan is free for good, with{" "}
+            {formatNumber(free.monthly_credits)} credits a month.
           </>
         }
       />
@@ -43,8 +44,8 @@ export default function PricingPage() {
       <Section id="plans" className="py-10 sm:py-14">
         <PlanCards />
         <p className="mt-6 text-sm text-ink-3">
-          Prices are per workspace per month in US dollars. Hosted at getfunded.ai by the project steward. Self-install is
-          free with no plan limits;{" "}
+          Prices are per workspace per month in US dollars. Hosted at getfunded.ai by {site.builtBy.name}, who maintain the
+          project. Self-install is free with no plan limits;{" "}
           <Link href="/docs/self-install" className="underline underline-offset-4 hover:text-foreground">
             read how
           </Link>
@@ -57,7 +58,7 @@ export default function PricingPage() {
           <SectionHeading
             eyebrow="What a credit buys"
             title="One credit is a small, metered amount of model work."
-            lede="About 4,000 input tokens and 1,000 output tokens on a mid-size model. The app records the real token counts on every call, so the price of a feature can be tuned without surprising you."
+            lede="About 4,000 input tokens and 1,000 output tokens on a mid-size model. A token is about three quarters of a word, so one credit is roughly 3,000 words read and 750 words written. The app records the real token counts on every call, so the price of a feature can be tuned without surprising you."
           />
           <div className="rounded-lg border bg-card shadow-card">
             <CreditTable />
@@ -72,7 +73,7 @@ export default function PricingPage() {
         </div>
         <p className="mt-4 text-sm text-ink-3">
           {PLANS.enterprise.name} is {formatPlanPrice(PLANS.enterprise)} a month and pays for a person&rsquo;s time, not just
-          compute: managed campaigns, sender domains and warm-up, deliverability monitoring, onboarding and an SLA.
+          software: managed campaigns, sender domains and warm-up, deliverability monitoring, onboarding and an SLA.
         </p>
       </Section>
 
@@ -89,8 +90,8 @@ export default function PricingPage() {
           ))}
         </ol>
         <Note className="mt-6 max-w-2xl">
-          Anonymous search is rate limited to 30 requests a minute per IP address, signed-in search to 120 a minute per
-          user. A kill switch can disable all model calls for everyone during an incident; nothing is charged while it is on.
+          Search without an account is limited to 30 searches a minute. Signed-in search is limited to 120 a minute. If we
+          ever have to pause the AI for everyone, nothing is charged while it is paused.
         </Note>
       </Section>
 

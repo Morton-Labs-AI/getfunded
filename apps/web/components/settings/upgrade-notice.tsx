@@ -16,19 +16,19 @@ const COPY: Record<UpgradeFeature, { title: string; what: string }> = {
   nl_filter: { title: "Natural-language search", what: "Describe the funder you want in a sentence and get filters back." },
   ask: { title: "Ask the analyst", what: "Ask a question and get an answer backed by one read-only query." },
   fit: { title: "Fit analysis", what: "A scored, cited fit analysis for a funder." },
-  research: { title: "Research dossier", what: "A sourced dossier built from web search." },
+  research: { title: "Research on the web", what: "The AI searches the public web and writes a report on one funder, with every source listed." },
   draft: { title: "Draft polish", what: "Rewrite an outreach template with dossier facts only." },
   send_gmail: { title: "Send through Gmail", what: "Send approved messages from your own Gmail, one at a time." },
   api: { title: "Public API", what: "API keys for the /api/v1 endpoints: search, funders and saved lists." },
-  sequences: { title: "Sequences", what: "Follow-up steps that stop as soon as a funder replies." },
-  shared_knowledge: { title: "Shared knowledge base", what: "Approved facts and boilerplate the whole team can draft from." },
+  sequences: { title: "Follow-ups that stop when a funder replies", what: "Plan follow-up messages after a first one. Each still needs your approval, and a reply cancels the rest." },
+  shared_knowledge: { title: "Knowledge base shared across the team", what: "Approved facts and boilerplate that every seat can draft from." },
   dedicated_outreach: { title: "Dedicated outreach", what: "Managed campaigns, sender domains and deliverability monitoring." },
   reports: { title: "Reports", what: "Pipeline and funder reports you can share with your board." },
   members: { title: "More seats", what: "Invite more people to this workspace." },
   saved_funders: { title: "More saved funders", what: "Save more funders to your list." },
   pipelines: { title: "More pipelines", what: "Run more than one pipeline at a time." },
   export: { title: "Full export", what: "Export every row, not the first 100." },
-  daily_cap: { title: "Daily cap off", what: "Spend the month's AI credits on any day you choose." },
+  daily_cap: { title: "Daily limit off", what: "Spend the month's AI credits on any day you choose." },
 };
 
 function targetPlan(feature: UpgradeFeature, seats?: number) {

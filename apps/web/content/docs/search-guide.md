@@ -26,7 +26,7 @@ Type a sentence about your work. For example: "mobile dental clinics for rural f
 
 Search reads the funder's own filings: the purpose of each grant it paid, what it says about its program, and where it gives. It finds funders whose record looks like your work, even when they never use your words.
 
-This mode covers private foundations, companies, investment advisers and federal programs. It does not cover public charities, because public charities do not file the detailed form this search reads.
+This mode reads giving records, so it covers private foundations, companies, federal programs, and the public charities that report the grants they make (Schedule I of Form 990). A public charity that reports no grants has no giving record to read; you can still find it by name or EIN.
 
 When the semantic index is not available, search falls back to keywords and shows a notice.
 
@@ -34,11 +34,11 @@ When the semantic index is not available, search falls back to keywords and show
 
 | Filter | What it does |
 |---|---|
-| Type | Private foundation, public charity, company, investment adviser, fund, government agency |
+| Type | Private foundation, public charity, company, government agency |
 | State | The funder's state, from its filing address |
 | Application posture | See below |
 | Size | Latest assets or latest grants paid |
-| Focus | NTEE major group, from the IRS master file |
+| Focus area | The IRS category (NTEE major group) from the IRS master file, the IRS's list of tax-exempt organizations |
 
 Filters change the URL, so you can share or bookmark a search.
 
@@ -65,6 +65,6 @@ With an account you can type a sentence like "foundations in Texas that accept a
 ## Limits you should know
 
 - Search is rate limited: 30 searches a minute without an account, 120 a minute with one.
-- Grants-paid totals come from 990-PF filings, so they cover private foundations only.
+- The "Gives per year" filter and the "Most giving" sort read the giving lines of Form 990-PF (qualifying distributions, else charitable disbursements), so in name, EIN and browse searches they cover private foundations only. Describe-the-work search also counts a public charity's reported grants, averaged per year, so grantmaking charities are not dropped there. On a profile, a public charity's "Grants paid" comes from its Form 990, and grant lists include Schedule I grants from public charities as well as 990-PF grants.
 - At any time, tens of thousands of filed returns have not yet been published by the IRS. They appear with no detail until the IRS publishes them.
 - See [Data sources and license](/docs/data-sources-and-license) for the full list of known limits.

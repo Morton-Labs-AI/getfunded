@@ -70,7 +70,7 @@ export function WelcomeForm({
     <Card>
       <CardHeader>
         <p className="eyebrow text-primary">Step 1 of 1</p>
-        <CardTitle className="text-2xl font-semibold tracking-tight">
+        <CardTitle as="h1" className="text-2xl font-semibold tracking-tight">
           {greetingName ? `Welcome, ${greetingName.split(/\s+/)[0]}.` : "Welcome."}
         </CardTitle>
         <CardDescription>
@@ -113,7 +113,7 @@ export function WelcomeForm({
                 className="font-mono tnum"
               />
             ))}
-            {field("website", "Website", "We only read it when you ask for a research dossier.", (props) => (
+            {field("website", "Website", "We only read it when you ask the AI to research this funder on the web.", (props) => (
               <Input {...props} defaultValue={p.website ?? ""} type="url" inputMode="url" placeholder="https://example.org" />
             ))}
           </div>

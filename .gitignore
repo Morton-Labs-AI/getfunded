@@ -24,3 +24,6 @@ __pycache__/
 playwright-report/
 test-results/
 coverage/
+
+# local editor/agent launch config (machine-specific)
+.claude/

@@ -219,10 +219,34 @@ async function lockMessage(sql: Tx, workspaceId: string, id: string): Promise<Me
 
 const STALE = "This message was changed somewhere else. Reload the page and try again.";
 
+export const FOREIGN_FUNDER = "That funder is not on this workspace's list.";
+export const FOREIGN_CONTACT = "That contact does not belong to this workspace.";
+
+/**
+ * The client names a saved funder and a contact by id. Both must belong to the
+ * caller's workspace: RLS would hide a stranger's rows from a SELECT, but an
+ * INSERT of a foreign id into our own row is not a read and would succeed, so
+ * the check is explicit. Same rule as addContact / createTask in lib/workspace.
+ */
+async function ownsFunder(sql: Tx, workspaceId: string, savedFunderId: string): Promise<boolean> {
+  const rows = await sql`
+    select 1 as ok from getfunded.saved_funders where id = ${savedFunderId}::uuid and workspace_id = ${workspaceId}::uuid`;
+  return rows.length > 0;
+}
+
+async function ownsContact(sql: Tx, workspaceId: string, contactId: string): Promise<boolean> {
+  const rows = await sql`
+    select 1 as ok from getfunded.contacts where id = ${contactId}::uuid and workspace_id = ${workspaceId}::uuid`;
+  return rows.length > 0;
+}
+
 /** Insert or update a draft. Editing an approved message returns it to draft: the approved text is gone. */
 export async function saveDraft(ctx: Ctx, input: DraftInput): Promise<MoveResult> {
   return withUser(ctx.userId, async (sql) => {
     const subject = input.channel === "email" ? input.subject : input.subject || null;
+    if (input.contactId && !(await ownsContact(sql, ctx.workspaceId, input.contactId))) {
+      return { ok: false, error: FOREIGN_CONTACT };
+    }
     if (input.id) {
       const current = await lockMessage(sql, ctx.workspaceId, input.id);
       if (!current) return { ok: false, error: "That message no longer exists." };
@@ -243,6 +267,7 @@ export async function saveDraft(ctx: Ctx, input: DraftInput): Promise<MoveResult
       if (input.draftSource === "ai" && input.claims?.length) await recordClaims(sql, ctx, String(r.id), input.claims);
       return { ok: true, id: String(r.id), version: num(r.version, 1), status: r.status as MessageStatus };
     }
+    if (!(await ownsFunder(sql, ctx.workspaceId, input.savedFunderId))) return { ok: false, error: FOREIGN_FUNDER };
     const rows = await sql`
       insert into getfunded.messages
         (workspace_id, saved_funder_id, contact_id, channel, subject, body, draft_source, thread_id, status, created_by)

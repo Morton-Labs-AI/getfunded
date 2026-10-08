@@ -97,7 +97,10 @@ export default function TermsPage() {
               When a workspace reaches its monthly or daily credit limit, further AI calls are refused until the next period or
               an upgrade. There is no overage charge.
             </li>
-            <li>Paid plans are billed monthly through Stripe. Plan changes take effect at once; credits are prorated on upgrade.</li>
+            <li>
+              Paid plans are billed monthly through Stripe. Plan changes take effect at once. The new plan&rsquo;s allowance
+              applies from your next request; unused credits do not carry over.
+            </li>
             <li>
               You can cancel any time from Settings. The plan runs to the end of the paid period and then drops to Free. Your
               data stays.

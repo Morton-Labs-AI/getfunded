@@ -19,6 +19,7 @@ import { meter, type MeterDeps } from "@/lib/billing/meter";
 import { corpusQuery } from "@/lib/db/corpus";
 import { insertAnalysis, latestAnalysis, type AnalysisRow } from "./analyses";
 import { EvidenceBuilder, clip, fingerprintOf, normalizeToolInput, renderPackage, type EvidenceItem } from "./evidence";
+import { assertOwnsSavedFunder } from "./fit";
 import { addFunderEvidence, loadApplicant, type CorpusRunner } from "./fit-evidence";
 import { AiOutputRejectedError } from "./http";
 import {
@@ -69,10 +70,12 @@ export async function researchNotes(ai: AiClient, input: { funderName: string; f
     userId: input.userId,
   };
   const res = await ai.deep(req);
+  // Both failures carry the usage: the model billed these tokens (web searches
+  // included), so meter() settles the row instead of refunding a spent call.
   if (!res.text.trim() && res.stopReason === "pause_turn") {
-    throw new AiError("ai_research_paused", 502, "The web research paused before writing any notes. Please try again.");
+    throw new AiError("ai_research_paused", 502, "The web research paused before writing any notes. Please try again.", { usage: res.usage });
   }
-  if (!res.text.trim()) throw new AiError("ai_no_notes", 502, "The research model returned no notes.");
+  if (!res.text.trim()) throw new AiError("ai_no_notes", 502, "The research model returned no notes.", { usage: res.usage });
   return { text: res.text, usage: res.usage };
 }
 
@@ -113,6 +116,9 @@ export async function runResearch(ctx: ResearchContext, inputIn: RunResearchInpu
   const corpus = deps.corpus ?? corpusQuery;
   const now = deps.now?.() ?? new Date();
   const { isMock, model } = modelTag(env);
+
+  // A client-supplied saved funder id must belong to this workspace (404 otherwise), before any credit moves.
+  if (input.savedFunderId) await assertOwnsSavedFunder(wu, ctx, input.savedFunderId);
 
   if (!input.force) {
     const latest = await wu(ctx.userId, (sql) => latestAnalysis(sql, { workspaceId: ctx.workspaceId, orgId: input.orgId, kind: "research", isMock }));

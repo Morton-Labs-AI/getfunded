@@ -8,9 +8,11 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/billing/db", () => ({ appDb: undefined, withUser: async () => { throw new Error("real withUser"); } }));
 
 import {
+  AlreadySubscribedError,
   BillingWorkspaceError,
   ENTITLED_STATUSES,
   StripeNotConfiguredError,
+  checkoutIdempotencyKey,
   createCheckoutSession,
   createPortalSession,
   ensureCustomer,
@@ -61,7 +63,9 @@ describe("subscription mapping", () => {
     expect(mapSubscriptionStatus("trialing")).toBe("trialing");
     expect(mapSubscriptionStatus("incomplete")).toBe("unpaid");
     expect(mapSubscriptionStatus("incomplete_expired")).toBe("canceled");
-    expect(mapSubscriptionStatus("paused")).toBe("past_due");
+    // paused = a trial that ended with no payment method: nothing is being paid, so NOT entitled.
+    expect(mapSubscriptionStatus("paused")).toBe("unpaid");
+    expect(ENTITLED_STATUSES.has(mapSubscriptionStatus("paused"))).toBe(false);
     expect(mapSubscriptionStatus("made_up")).toBe("unpaid");
     expect(ENTITLED_STATUSES.has("past_due")).toBe(true);
     expect(ENTITLED_STATUSES.has("canceled")).toBe(false);
@@ -91,11 +95,12 @@ describe("subscription mapping", () => {
   });
 });
 
-function fakeStripeClient() {
+function fakeStripeClient(existing: Array<{ id: string; status: string }> = []) {
   const customers = { create: vi.fn(async () => ({ id: "cus_new" })), del: vi.fn(async () => ({})) };
   const checkout = { sessions: { create: vi.fn(async () => ({ id: "cs_1", url: "https://checkout.stripe.test/cs_1" })) } };
   const billingPortal = { sessions: { create: vi.fn(async () => ({ url: "https://portal.stripe.test/p" })) } };
-  return { customers, checkout, billingPortal } as unknown as Stripe;
+  const subscriptions = { list: vi.fn(async () => ({ data: existing })) };
+  return { customers, checkout, billingPortal, subscriptions } as unknown as Stripe;
 }
 
 describe("ensureCustomer", () => {
@@ -180,7 +185,33 @@ describe("createCheckoutSession / createPortalSession", () => {
         metadata: { workspace_id: WS, plan: "team" },
         subscription_data: { metadata: { workspace_id: WS, plan: "team" } },
       }),
+      expect.objectContaining({ idempotencyKey: expect.stringMatching(new RegExp(`^checkout:${WS}:team:\\d+$`)) }),
     );
+    // Stripe was asked about live subscriptions for the customer first.
+    expect(s.subscriptions.list).toHaveBeenCalledWith({ customer: "cus_existing", status: "all", limit: 20 });
+  });
+
+  it("the idempotency key is stable within an hour and changes across hours", () => {
+    const t0 = new Date("2026-10-07T10:05:00Z");
+    expect(checkoutIdempotencyKey(WS, "pro", t0)).toBe(checkoutIdempotencyKey(WS, "pro", new Date("2026-10-07T10:59:00Z")));
+    expect(checkoutIdempotencyKey(WS, "pro", t0)).not.toBe(checkoutIdempotencyKey(WS, "pro", new Date("2026-10-07T11:00:00Z")));
+    expect(checkoutIdempotencyKey(WS, "pro", t0)).not.toBe(checkoutIdempotencyKey(WS, "team", t0));
+  });
+
+  it("refuses a second checkout (409 AlreadySubscribedError) when Stripe already holds a live or pending subscription", async () => {
+    const fake = makeFakeSql(() => [{ stripe_customer_id: "cus_existing", name: "Food Bank" }]);
+    const { withUser } = makeFakeWithUser(fake);
+    const base = { workspace: { id: WS }, plan: "pro" as const, userEmail: "a@b.co", userId: USER, successUrl: "https://x.test/a", cancelUrl: "https://x.test/b" };
+    for (const status of ["active", "trialing", "past_due", "incomplete"]) {
+      const s = fakeStripeClient([{ id: "sub_live", status }]);
+      const err = (await createCheckoutSession(base, { stripe: s, env: ENV, withUser }).catch((e: unknown) => e)) as AlreadySubscribedError;
+      expect(err, status).toBeInstanceOf(AlreadySubscribedError);
+      expect(err).toMatchObject({ code: "already_subscribed", status: 409, subscriptionId: "sub_live", subscriptionStatus: status });
+      expect(s.checkout.sessions.create).not.toHaveBeenCalled();
+    }
+    // Canceled, unpaid and incomplete_expired subscriptions do not block a fresh checkout.
+    const s = fakeStripeClient([{ id: "sub_old", status: "canceled" }, { id: "sub_older", status: "unpaid" }, { id: "sub_x", status: "incomplete_expired" }]);
+    await expect(createCheckoutSession(base, { stripe: s, env: ENV, withUser })).resolves.toMatchObject({ id: "cs_1" });
   });
 
   it("rejects a non-purchasable plan and bad urls", async () => {
