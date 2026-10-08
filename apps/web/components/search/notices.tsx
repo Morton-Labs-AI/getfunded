@@ -9,6 +9,7 @@ import {
   SEMANTIC_UNAVAILABLE_NOTICE,
   TIMED_OUT_NOTE,
 } from "@/lib/content/copy";
+import { STANDING_FILTER_NOTE, STANDING_FILTER_UNAVAILABLE_NOTE } from "@/lib/content/irs-standing-copy";
 import type { SearchResult } from "@/lib/queries/corpus/types";
 import type { SearchNotice } from "@/lib/search/sql";
 import { cn } from "@/lib/utils";
@@ -29,10 +30,14 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
       return RATE_LIMITED_NOTE(result.retryAfterSec ?? 2);
     case "timed_out":
       return TIMED_OUT_NOTE;
+    case "standing_filter":
+      return STANDING_FILTER_NOTE;
+    case "standing_unavailable":
+      return STANDING_FILTER_UNAVAILABLE_NOTE;
   }
 }
 
-const WARN: ReadonlySet<SearchNotice> = new Set(["semantic_unavailable", "name_too_short", "rate_limited", "timed_out"]);
+const WARN: ReadonlySet<SearchNotice> = new Set(["semantic_unavailable", "name_too_short", "rate_limited", "timed_out", "standing_unavailable"]);
 
 /** Honest notices about what the search did and did not do. */
 export function SearchNotices({ result }: { result: Pick<SearchResult, "notices" | "poolLimit" | "retryAfterSec"> }) {

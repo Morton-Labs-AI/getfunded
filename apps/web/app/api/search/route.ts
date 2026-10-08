@@ -1,5 +1,8 @@
 /**
- * GET /api/search?q=&mode=&type=&state=&posture=&min_distributions=&min_assets=&ntee=&giving_to=&sort=&page=&view=
+ * GET /api/search?q=&mode=&type=&state=&posture=&min_distributions=&min_assets=&ntee=&giving_to=&standing=&sort=&page=&view=
+ *
+ * `standing=hide_revoked` leaves out organizations the IRS automatically
+ * revoked; without it nothing is hidden (lib/search/standing-filter.ts).
  *
  * The same SearchResult the page renders, as JSON. No account needed; rate
  * limited per IP (30/min) or per user (120/min) when a session cookie is

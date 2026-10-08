@@ -18,6 +18,8 @@ import { PAGE_SIZE, nameQuery, type SearchParams } from "@/lib/search/params";
 import { buildSearchSql, type RanMode } from "@/lib/search/sql";
 
 import { positive, toInt } from "./safe";
+import { canReadIrsStanding, readStandingsByOrg } from "./standing";
+import type { IrsStanding } from "./standing-types";
 import type { GivingToEvidence, SearchHit, SearchResult } from "./types";
 
 export type SearchDeps = {
@@ -94,7 +96,7 @@ function givingToOf(row: Row): GivingToEvidence | null {
   };
 }
 
-export function rowToHit(row: Row, ran: RanMode, p: SearchParams): SearchHit {
+export function rowToHit(row: Row, ran: RanMode, p: SearchParams, irsStanding: IrsStanding | null = null): SearchHit {
   const filing = row.fin_fy && row.fin_object_id ? { fy: row.fin_fy, returnType: row.fin_return_type ?? "990", objectId: row.fin_object_id } : null;
   const distributions = positive(row.qualifying_distributions) ?? positive(row.charitable_disbursements);
   const filingAssets = positive(row.total_assets_eoy);
@@ -123,6 +125,7 @@ export function rowToHit(row: Row, ran: RanMode, p: SearchParams): SearchHit {
     grantsTotal: positive(row.grants_total),
     grantsLastFy: row.grants_last_fy ?? null,
     sourceLabel: filing ? filingSourceLabel(filing.returnType, filing.fy) : IRS_MASTER_FILE_LABEL,
+    irsStanding,
     match: { kind: ran, reason: reasonFor(ran, p, row), snippet: row.snippet, givingTo: givingToOf(row) },
     snapshot: {
       orgId: row.id,
@@ -169,10 +172,31 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {})
   const wantsVector = Boolean(params.q && !params.ein && params.mode === "thesis");
   const vec = wantsVector && params.q ? await embed(params.q) : null;
 
-  const built = buildSearchSql(params, { vec });
-  if (built.text === null) return emptyResult(params, { notices: built.notices });
+  // Pure first pass: it tells us whether a query runs at all (a name that is
+  // too short does not), before any connection is opened.
+  const first = buildSearchSql(params, { vec });
+  if (first.text === null) return emptyResult(params, { notices: first.notices });
 
-  const rows = await run((sql) => sql.unsafe<Row[]>(built.text, built.values as never[]));
+  const { built, rows, standings } = await run(async (sql) => {
+    // The IRS standing view is readable only after corpus 0028 and web 0013.
+    // The probe cannot raise, and a "yes" is remembered for the process.
+    const standingReadable = await canReadIrsStanding(sql);
+    const second = params.standing && standingReadable ? buildSearchSql(params, { vec, standingReadable }) : first;
+    const built = second.text === null ? first : second;
+    const rows = await sql.unsafe<Row[]>(built.text, built.values as never[]);
+    // One more small read for the rows on this page, so a card can say when
+    // the IRS automatically revoked an organization. Under a savepoint: if it
+    // fails, the search result still stands and the cards carry no chip.
+    let standings: Record<string, IrsStanding> = {};
+    if (standingReadable && rows.length > 0) {
+      try {
+        standings = (await sql.savepoint((s) => readStandingsByOrg(s, rows.map((row) => row.id)))) as Record<string, IrsStanding>;
+      } catch (err) {
+        console.warn("[corpus] irs standing for search results unavailable:", err instanceof Error ? err.message : err);
+      }
+    }
+    return { built, rows, standings };
+  });
   const total = rows[0]?.total ?? 0;
   const poolSize = rows[0]?.pool_size ?? 0;
   const notices = [...built.notices];
@@ -181,7 +205,7 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {})
 
   return {
     params,
-    hits: rows.map((row) => rowToHit(row, built.ran, params)),
+    hits: rows.map((row) => rowToHit(row, built.ran, params, standings[row.id] ?? null)),
     page: params.page,
     pageSize: PAGE_SIZE,
     total,

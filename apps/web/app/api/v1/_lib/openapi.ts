@@ -71,12 +71,23 @@ export function buildOpenApiDocument(baseUrl: string): Record<string, unknown> {
           description:
             "Takes the same query parameters as the public /api/search endpoint and returns the same JSON. " +
             "Typical parameters: `q` (words or a sentence), `type` (org type), `state`, `posture` " +
-            "(`open`, `preselected_only`, `unknown`), `min_distributions`, `page`.",
+            "(`open`, `preselected_only`, `unknown`), `min_distributions`, `standing`, `page`.",
           parameters: [
             { name: "q", in: "query", schema: { type: "string" }, description: "Name, EIN, or a description of the work you do." },
             { name: "type", in: "query", schema: { type: "string" }, description: "Organization type filter.", style: "form", explode: true },
             { name: "state", in: "query", schema: { type: "string", minLength: 2, maxLength: 2 }, description: "Two-letter state." },
             { name: "posture", in: "query", schema: { type: "string", enum: ["open", "preselected_only", "unknown"] } },
+            {
+              name: "standing",
+              in: "query",
+              schema: { type: "string", enum: ["hide_revoked"] },
+              description:
+                "IRS standing filter. Leave it out to hide nothing (the default). `hide_revoked` leaves out organizations that " +
+                "are on the IRS Automatic Revocation of Exemption List (tax-exempt status revoked for filing no return for three " +
+                "years in a row), that the list does not show as reinstated, and that are on no other IRS list we hold. " +
+                "Organizations where the IRS lists disagree stay in the results. Each hit carries `irsStanding` (the standing, " +
+                "the dates and the IRS file it came from), or null when the IRS lists do not cover it.",
+            },
             { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
           ],
           responses: {

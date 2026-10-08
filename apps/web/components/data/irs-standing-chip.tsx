@@ -15,6 +15,7 @@ import {
   IRS_TEOS_URL,
   hasCorrectedRevocationDate,
   irsDecidingFileDate,
+  irsListsDisagreeApplyNote,
   irsRevokedApplyNote,
   irsStandingChipLabel,
   irsStandingStatement,
@@ -75,7 +76,7 @@ function IrsFileSeal({ standing }: { standing: IrsStanding }) {
       {p.sha256 ? (
         <>
           <Dot />
-          <span className="tnum font-mono text-ink-3" title={`sha256 of the file we read: ${p.sha256}`}>
+          <span className="tnum font-mono text-ink-3" title={`Full fingerprint of the file we read: ${p.sha256}`}>
             file fingerprint {shaPrefix(p.sha256)}
           </span>
         </>
@@ -240,11 +241,14 @@ export function IrsStandingChip({
 export function IrsRevokedNotice({
   standing,
   fy,
+  hasDetails = true,
   className,
 }: {
   standing: IrsStanding | null | undefined;
   /** Fiscal year of the return the application details come from. */
   fy?: number | null;
+  /** False when the section shows no application details, so the note does not point at them. */
+  hasDetails?: boolean;
   className?: string;
 }) {
   if (!standing || standing.standing !== "revoked") return null;
@@ -255,7 +259,55 @@ export function IrsRevokedNotice({
       className={cn("flex items-start gap-2 rounded-md bg-danger-tint px-3 py-2 text-sm leading-relaxed text-ink-2", className)}
     >
       <ShieldAlert className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />
-      <span>{irsRevokedApplyNote(standing, fy)}</span>
+      <span>{irsRevokedApplyNote(standing, fy, hasDetails)}</span>
     </p>
+  );
+}
+
+/**
+ * The same place, when the IRS lists disagree: one list shows an automatic
+ * revocation and another still names the organization. Both facts with their
+ * dates; the page does not choose. Renders nothing for every other standing.
+ */
+export function IrsListsDisagreeNotice({
+  standing,
+  fy,
+  hasDetails = true,
+  className,
+}: {
+  standing: IrsStanding | null | undefined;
+  fy?: number | null;
+  hasDetails?: boolean;
+  className?: string;
+}) {
+  if (!standing || standing.standing !== "lists_disagree") return null;
+  return (
+    <p
+      role="note"
+      data-slot="irs-lists-disagree-notice"
+      className={cn("flex items-start gap-2 rounded-md bg-warning-tint px-3 py-2 text-sm leading-relaxed text-ink-2", className)}
+    >
+      <Scale className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      <span>{irsListsDisagreeApplyNote(standing, fy, hasDetails)}</span>
+    </p>
+  );
+}
+
+/**
+ * The dated IRS sentence for "Can I apply?": the revoked notice, the
+ * lists-disagree notice, or nothing. One element for both branches of the
+ * section, so the two cannot drift.
+ */
+export function IrsApplyNotice(props: {
+  standing: IrsStanding | null | undefined;
+  fy?: number | null;
+  hasDetails?: boolean;
+  className?: string;
+}) {
+  return (
+    <>
+      <IrsRevokedNotice {...props} />
+      <IrsListsDisagreeNotice {...props} />
+    </>
   );
 }

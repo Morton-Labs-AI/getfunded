@@ -9,23 +9,46 @@ import { CodeBlock } from "@/components/marketing/code-block";
 import { CtaBand } from "@/components/marketing/cta";
 import {
   FOUNDATION_LIST_FILES,
+  GRANTS_READING_RULES,
   READING_RULES,
   REBUILD_GUIDE_PATH,
   REBUILD_STEPS,
+  columnsInRelease,
+  listFile,
+  type ListFile,
 } from "@/components/marketing/foundations/columns";
 import { Downloads } from "@/components/marketing/foundations/downloads";
 import { StateGrid } from "@/components/marketing/foundations/state-grid";
 import { LINKS, repoFile } from "@/components/marketing/links";
 import { PageHero, Section, SectionHeading } from "@/components/marketing/section";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatYearRange, getDataRelease } from "@/lib/data-release";
+import { formatYearRange, getDataRelease, type DataRelease } from "@/lib/data-release";
 import { searchHref } from "@/lib/search/params";
 
 const TITLE = "The Open Foundation List";
 
 const SUMMARY =
   "Every U.S. private foundation that files Form 990-PF electronically, with what it gave, what it holds, and whether it says it accepts applications.";
+
+/** What the files are, for the column section. Stated without a count of files: a release has one grants file for each fiscal year. */
+const FILES_LEDE =
+  "Two list files and a set of grants files. The first list has one row per foundation. The second has one row per foundation per fiscal year. " +
+  "The grants files, one for each fiscal year, have one row per grant whose recipient we matched to an organization record.";
+
+/**
+ * The column names the current release recorded for a dictionary entry, or
+ * null when there is no release or it recorded none. For the grants entry it
+ * is the list of the newest grants file; every grants file has the same columns.
+ */
+function publishedColumns(release: DataRelease, entry: ListFile): string[] | null {
+  if (!release.published) return null;
+  const files = release.files.filter((file) => listFile(file.name) === entry && file.columns !== null);
+  if (files.length === 0) return null;
+  const newest = files.reduce((a, b) => (a.name > b.name ? a : b));
+  return newest.columns;
+}
 
 export function generateMetadata(): Metadata {
   const release = getDataRelease();
@@ -140,51 +163,60 @@ export default function FoundationsPage() {
         <SectionHeading
           eyebrow="The columns"
           title="What is in the list."
-          lede="Two files. The first has one row per foundation. The second has one row per foundation per fiscal year."
+          lede={FILES_LEDE}
         />
         <div className="mt-8 grid items-start gap-6 lg:grid-cols-2">
-          {FOUNDATION_LIST_FILES.map((file) => (
-            <div key={file.name} className="rounded-lg border bg-card shadow-card">
-              <div className="border-b px-3 py-3 sm:px-4">
-                <h3 className="font-mono text-sm font-semibold break-all text-foreground">{file.name}</h3>
-                <p className="mt-0.5 text-xs text-ink-3">
-                  {file.rowIs}. <span className="tnum">{file.columns.length}</span> columns.
-                </p>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-3 sm:px-4">Column</TableHead>
-                    <TableHead className="px-3 sm:px-4">What it means</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {file.columns.map((column) => (
-                    <TableRow key={column.name}>
-                      <TableCell className="px-3 align-top font-mono text-[13px] leading-6 whitespace-normal text-foreground sm:px-4 sm:whitespace-nowrap">
-                        <ColumnName name={column.name} />
-                      </TableCell>
-                      <TableCell className="px-3 align-top leading-6 whitespace-normal text-ink-2 sm:min-w-56 sm:px-4">
-                        {column.meaning}
-                        {column.values ? (
-                          <ul className="mt-1.5 space-y-1">
-                            {column.values.map((item) => (
-                              <li key={item.value} className="flex flex-wrap items-baseline gap-x-2">
-                                <code className="rounded-sm border bg-inset px-1 font-mono text-[0.85em] text-foreground">
-                                  {item.value}
-                                </code>
-                                <span>{item.meaning}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </TableCell>
+          {FOUNDATION_LIST_FILES.map((file) => {
+            // With a release: the columns its files really have. Without one: the whole dictionary, optional columns marked.
+            const columns = columnsInRelease(file, publishedColumns(release, file));
+            return (
+              <div key={file.name} className="rounded-lg border bg-card shadow-card">
+                <div className="border-b px-3 py-3 sm:px-4">
+                  <h3 className="font-mono text-sm font-semibold break-all text-foreground">{file.name}</h3>
+                  <p className="mt-0.5 text-xs text-ink-3">
+                    {file.rowIs}. <span className="tnum">{columns.length}</span> columns.
+                  </p>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-3 sm:px-4">Column</TableHead>
+                      <TableHead className="px-3 sm:px-4">What it means</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ))}
+                  </TableHeader>
+                  <TableBody>
+                    {columns.map((column) => (
+                      <TableRow key={column.name}>
+                        <TableCell className="px-3 align-top font-mono text-[13px] leading-6 whitespace-normal text-foreground sm:px-4 sm:whitespace-nowrap">
+                          <ColumnName name={column.name} />
+                          {column.optional ? (
+                            <Badge variant="outline" className="mt-1 block w-fit font-sans font-normal">
+                              Not in every release
+                            </Badge>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="px-3 align-top leading-6 whitespace-normal text-ink-2 sm:min-w-56 sm:px-4">
+                          {column.meaning}
+                          {column.values ? (
+                            <ul className="mt-1.5 space-y-1">
+                              {column.values.map((item) => (
+                                <li key={item.value} className="flex flex-wrap items-baseline gap-x-2">
+                                  <code className="rounded-sm border bg-inset px-1 font-mono text-[0.85em] text-foreground">
+                                    {item.value}
+                                  </code>
+                                  <span>{item.meaning}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            );
+          })}
         </div>
       </Section>
 
@@ -213,6 +245,22 @@ export default function FoundationsPage() {
             <Missing />
           </span>
         </p>
+
+        <h3 id="grants-rules" className="mt-10 font-semibold text-foreground">
+          More rules for the grants files
+        </h3>
+        <p className="mt-1 max-w-2xl text-sm text-pretty text-muted-foreground">
+          The grants files name recipients, so they need more care. Read these before you count, add up or share rows from them.
+        </p>
+        <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {GRANTS_READING_RULES.map((rule, i) => (
+            <li key={rule.title} className="rounded-lg border bg-card p-4 shadow-card">
+              <p className="tnum font-mono text-xs font-semibold text-primary">{String(READING_RULES.length + i + 1).padStart(2, "0")}</p>
+              <h4 className="mt-1 font-semibold text-foreground">{rule.title}</h4>
+              <p className="mt-1 text-sm text-pretty text-muted-foreground">{rule.body}</p>
+            </li>
+          ))}
+        </ol>
       </Section>
 
       <Section id="browse">

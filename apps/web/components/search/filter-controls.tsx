@@ -10,6 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GIVING_TO_PLACEHOLDER } from "@/lib/content/copy";
+import {
+  STANDING_FILTER_FIELD_LABEL,
+  STANDING_FILTER_LABEL,
+  STANDING_FILTER_OPTION_ANY,
+  STANDING_FILTER_OPTION_HIDE_REVOKED,
+} from "@/lib/content/irs-standing-copy";
 import { NTEE_FILTER_GROUPS, NTEE_MAJOR, ORG_TYPE_LABELS, US_STATES } from "@/lib/content/labels";
 import { formatMoneyCompact } from "@/lib/format";
 import {
@@ -24,12 +30,18 @@ import {
   type SearchType,
   type SearchView,
 } from "@/lib/search/params";
+import { STANDING_FILTERS, type StandingFilter } from "@/lib/search/standing-filter";
 import { cn } from "@/lib/utils";
 
 const ANY = "any";
 
 export const DISTRIBUTION_PRESETS = [100_000, 500_000, 1_000_000, 5_000_000, 25_000_000] as const;
 export const ASSET_PRESETS = [1_000_000, 10_000_000, 100_000_000, 1_000_000_000] as const;
+
+/** The words for each IRS standing choice. "Any" (no filter) is the default and hides nothing. */
+const STANDING_OPTION_LABELS: Record<StandingFilter, string> = {
+  hide_revoked: STANDING_FILTER_OPTION_HIDE_REVOKED,
+};
 
 const SORT_LABELS: Record<SearchSort, string> = {
   relevance: "Best match",
@@ -157,6 +169,22 @@ export function FilterControls({ current, base }: { current: SearchParams; base:
               {NTEE_FILTER_GROUPS.map((k) => (
                 <SelectItem key={k} value={k}>
                   {NTEE_MAJOR[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field id={id("standing")} label={STANDING_FILTER_FIELD_LABEL}>
+          <Select value={current.standing ?? ANY} onValueChange={(v) => set({ standing: v === ANY ? null : (v as StandingFilter) })}>
+            <SelectTrigger id={id("standing")} className={selectClass} title={STANDING_FILTER_LABEL}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>{STANDING_FILTER_OPTION_ANY}</SelectItem>
+              {STANDING_FILTERS.map((v) => (
+                <SelectItem key={v} value={v}>
+                  {STANDING_OPTION_LABELS[v]}
                 </SelectItem>
               ))}
             </SelectContent>

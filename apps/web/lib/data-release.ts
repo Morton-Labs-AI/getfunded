@@ -24,8 +24,16 @@ import { site } from "@/lib/site";
  *     "licence": "CC BY 4.0",
  *     "attribution": "…",
  *     "release_url": "https://…" | null,
- *     "files": [{ "name", "url", "bytes", "sha256", "rows", "description" }]
+ *     "files": [{ "name", "url", "bytes", "sha256", "rows", "description", "columns" }],
+ *     "sample_limit": 300              only on a test build; never on a release
  *   }
+ *
+ * The file is written by `funderdb export foundations --tag … --release-json …`
+ * (corpus/src/funderdb/export_foundations.py). A release has two list files
+ * (`foundations.csv.gz`, `foundation_years.csv.gz`) and one grants file for
+ * each fiscal year (`foundation_grants_<year>.csv.gz`). `files[].columns` is
+ * the list of column names that file really has, so the page can leave out an
+ * optional column the build did not include.
  *
  * Honesty rules:
  *  - `tag: null` or `files: []` means there is no release yet. The page says
@@ -35,6 +43,8 @@ import { site } from "@/lib/site";
  *    download link is worse than no link.
  *  - `bytes: 0`, `rows: 0` and a `sha256` that is not 64 hex characters are
  *    placeholders, not facts. They become null and render "Not available".
+ *  - A file with `sample_limit` describes a small test build, not the list.
+ *    It is never shown as a release: the page says "being prepared".
  */
 
 export type DataReleaseFile = {
@@ -50,6 +60,8 @@ export type DataReleaseFile = {
   rows: number | null;
   /** One plain sentence about the file. May be empty. */
   description: string;
+  /** The column names the file really has, in file order, or null when the release did not record them. */
+  columns: string[] | null;
 };
 
 export type DataRelease = {
@@ -130,6 +142,13 @@ const fileSchema = z.object({
     .string()
     .nullish()
     .transform((v) => (v ?? "").trim()),
+  columns: z
+    .array(z.string())
+    .nullish()
+    .transform((v) => {
+      const names = (v ?? []).map((name) => name.trim()).filter((name) => name !== "");
+      return names.length > 0 ? names : null;
+    }),
 });
 
 const releaseSchema = z.object({
@@ -141,6 +160,8 @@ const releaseSchema = z.object({
   attribution: optionalText,
   release_url: z.union([httpsUrl, z.literal("")]).nullish(),
   files: z.array(fileSchema).nullish(),
+  /** Written only by a test build made with `--limit`. Its presence means: this is not a release. */
+  sample_limit: z.number().nullish(),
 });
 
 function validDateOrNull(value: string | null): string | null {
@@ -151,18 +172,25 @@ function validDateOrNull(value: string | null): string | null {
 /**
  * Validate the raw JSON. Never throws: anything that does not match the
  * contract returns the empty release, so the page shows "being prepared"
- * instead of a broken or wrong download.
+ * instead of a broken or wrong download. `source` names the input in the
+ * log line (the styleguide parses a placeholder release).
  */
-export function parseDataRelease(raw: unknown): DataRelease {
+export function parseDataRelease(raw: unknown, source = "content/data-release.json"): DataRelease {
   const parsed = releaseSchema.safeParse(raw);
   if (!parsed.success) {
     console.error(
-      "[data-release] content/data-release.json does not match the contract; the page will show no downloads.",
+      `[data-release] ${source} does not match the contract; the page will show no downloads.`,
       parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`),
     );
     return EMPTY_DATA_RELEASE;
   }
   const r = parsed.data;
+  if (typeof r.sample_limit === "number" && r.sample_limit > 0) {
+    console.error(
+      `[data-release] ${source} describes a test build of ${r.sample_limit} foundations (sample_limit), not a release; the page will show no downloads.`,
+    );
+    return EMPTY_DATA_RELEASE;
+  }
   const files = r.files ?? [];
   const tag = r.tag;
   const published = tag !== null && files.length > 0;

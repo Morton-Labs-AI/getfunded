@@ -15,6 +15,8 @@ Every fact in GetFunded comes from a public government record. Every published f
 |---|---|---|---|
 | Form 990 / 990-PF e-file index and XML | Internal Revenue Service | Filings spine; 990-PF officers, grants paid, financial lines, Schedule B, Part XV application info; Form 990 Schedule I grants, core financials, Part IX split, Part VII compensation; filer-stated websites | US government work, public domain |
 | Exempt Organizations Business Master File | Internal Revenue Service | Organization identity: name, EIN, address, subsection, foundation code, NTEE code, ruling date, asset/income/revenue amounts | Public domain |
+| Automatic Revocation of Exemption List | Internal Revenue Service | Per EIN: revocation date, the date the IRS posted it, and the reinstatement date when there is one. Automatic revocations only (no return or notice filed for three years in a row) | Public domain |
+| Publication 78 data | Internal Revenue Service | Per EIN: the IRS deductibility codes (the class of organization for tax-deductible gifts) | Public domain |
 | Form ADV (IAPD) | US Securities and Exchange Commission | Adviser identity, CRD and SEC file numbers, offices, assets under management, private-fund schedules | Public domain |
 | Form D | US Securities and Exchange Commission | Exempt-offering notices: issuer, offering amounts, related persons as filed | Public domain |
 | SBIR/STTR awards | US Small Business Administration | Award records: agency, program, phase, amount, awardee | Public domain |
@@ -54,7 +56,8 @@ Full description: [corpus/docs/PROVENANCE.md](https://github.com/Morton-Labs-AI/
 ## Known limits
 
 - **Entity resolution is not applied.** Records of the same fund from different SEC sources are separate organizations. People are per-source. `people` and `relationships` stay out of the export until resolution certifies.
-- **Not ingested:** 990-EZ, 990-N, 990-T, paper returns, Publication 78, auto-revocations and determination letters.
+- **Not ingested:** 990-EZ, 990-N, 990-T, paper returns and determination letters.
+- **IRS standing has a date and a narrow meaning.** It is read from the IRS master file, Publication 78 data and the Automatic Revocation of Exemption List, each as of the date shown with it. The revocation list holds automatic revocations only; an organization that lost its status in another way is not on it.
 - **Grants-paid totals are 990-PF only.** Giving-ranked views cover private foundations.
 - **The IRS backlog.** At any time tens of thousands of indexed returns have no published XML. They sit in the filings spine with nothing attached until a later run.
 - **Back-year 990-PF grant rows** are loaded for the newest index years only.

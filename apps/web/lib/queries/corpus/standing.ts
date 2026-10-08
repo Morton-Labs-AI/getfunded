@@ -17,8 +17,15 @@ import "server-only";
  *   - The dataset name, URL and licence of the deciding file come through the
  *     view (it runs with its owner's rights). The file fingerprint comes from
  *     internal.raw_files (id, sha256), the same way every other seal gets it.
+ *   - `readFunderStanding(sql, orgId)` is the same read inside a transaction
+ *     the caller already holds (the fit evidence package uses it).
+ *   - `readStandingsByOrg(sql, orgIds)` reads one page of search results in a
+ *     single statement, so a result card can carry the chip.
+ *   - `getIrsStandingVintage()` returns the date of each IRS list for the
+ *     data page. It is cached for hours and never throws.
  */
 import { cache } from "react";
+import { cacheLife } from "next/cache";
 import type postgres from "postgres";
 
 import { corpusQuery } from "@/lib/db/corpus";
@@ -144,35 +151,150 @@ export function toIrsStanding(r: StandingRow): IrsStanding | null {
 }
 
 /**
+ * One organization's IRS standing, read on a connection the caller already
+ * holds. Returns null when the view cannot be read, when the organization has
+ * no row, or when a list is not loaded. Index lookups only (see the view).
+ */
+export async function readFunderStanding(sql: Sql, orgId: string): Promise<IrsStanding | null> {
+  if (!isUuid(orgId)) return null;
+  if (!(await canReadIrsStanding(sql))) return null;
+  const sha = await canReadRawFileHash(sql);
+  const hash = rawFileHash(sql, sha, "s.raw_file_id", "irsrf");
+  const rows = await sql<StandingRow[]>`
+    select s.org_id::text as org_id, s.ein, s.standing,
+           s.in_bmf, s.bmf_as_of::text as bmf_as_of, s.bmf_as_of_kind,
+           s.bmf_ruling_date::text as bmf_ruling_date, s.master_file_as_of::text as master_file_as_of,
+           s.on_pub78, s.pub78_codes,
+           s.revocation_date::text as revocation_date,
+           s.effective_revocation_date::text as effective_revocation_date,
+           s.posting_date::text as posting_date,
+           s.reinstatement_date::text as reinstatement_date, s.reinstated,
+           s.revocation_list_as_of::text as revocation_list_as_of, s.revocation_list_as_of_kind,
+           s.pub78_as_of::text as pub78_as_of, s.pub78_as_of_kind,
+           s.source_dataset, s.source_url, s.source_record_locator, s.license_name,
+           ${hash.column} as sha256
+    from internal.org_irs_standing s
+    ${hash.join}
+    where s.org_id = ${orgId}::uuid
+    order by s.ein
+    limit 1`;
+  const row = rows[0];
+  return row ? toIrsStanding(row) : null;
+}
+
+/**
  * One organization's IRS standing, with the dates and the deciding file.
- * Index lookups only (see the view). Memoised per request with React cache()
- * so the header chip, the apply section and "The basics" share one query.
+ * Memoised per request with React cache() so the header chip, the apply
+ * section and "The basics" share one query.
  */
 export const getFunderStanding = cache(async (orgId: string): Promise<IrsStanding | null> => {
   if (!isUuid(orgId)) return null;
-  const rows = await corpusQuery(async (sql) => {
-    if (!(await canReadIrsStanding(sql))) return [] as StandingRow[];
-    const sha = await canReadRawFileHash(sql);
-    const hash = rawFileHash(sql, sha, "s.raw_file_id", "irsrf");
-    return sql<StandingRow[]>`
-      select s.org_id::text as org_id, s.ein, s.standing,
-             s.in_bmf, s.bmf_as_of::text as bmf_as_of, s.bmf_as_of_kind,
-             s.bmf_ruling_date::text as bmf_ruling_date, s.master_file_as_of::text as master_file_as_of,
-             s.on_pub78, s.pub78_codes,
-             s.revocation_date::text as revocation_date,
-             s.effective_revocation_date::text as effective_revocation_date,
-             s.posting_date::text as posting_date,
-             s.reinstatement_date::text as reinstatement_date, s.reinstated,
-             s.revocation_list_as_of::text as revocation_list_as_of, s.revocation_list_as_of_kind,
-             s.pub78_as_of::text as pub78_as_of, s.pub78_as_of_kind,
-             s.source_dataset, s.source_url, s.source_record_locator, s.license_name,
-             ${hash.column} as sha256
-      from internal.org_irs_standing s
-      ${hash.join}
-      where s.org_id = ${orgId}::uuid
-      order by s.ein
-      limit 1`;
-  });
-  const row = rows[0];
-  return row ? toIrsStanding(row) : null;
+  return corpusQuery((sql) => readFunderStanding(sql, orgId));
 });
+
+/** Most organizations one call reads (a search page holds 20). */
+export const STANDINGS_MAX_ORGS = 100;
+
+/**
+ * IRS standing for a page of organizations, keyed by organization id, in one
+ * statement. Organizations with no row (a company, an agency, no EIN) are
+ * simply absent. Returns {} when the view cannot be read or no list is loaded.
+ * An organization with two EINs gets the row of its first EIN, the same row
+ * `readFunderStanding` returns.
+ */
+export async function readStandingsByOrg(sql: Sql, orgIds: readonly string[]): Promise<Record<string, IrsStanding>> {
+  const ids = [...new Set(orgIds.filter(isUuid))].slice(0, STANDINGS_MAX_ORGS);
+  if (ids.length === 0) return {};
+  if (!(await canReadIrsStanding(sql))) return {};
+  const sha = await canReadRawFileHash(sql);
+  const hash = rawFileHash(sql, sha, "s.raw_file_id", "irsrf");
+  const rows = await sql<StandingRow[]>`
+    select distinct on (s.org_id)
+           s.org_id::text as org_id, s.ein, s.standing,
+           s.in_bmf, s.bmf_as_of::text as bmf_as_of, s.bmf_as_of_kind,
+           s.bmf_ruling_date::text as bmf_ruling_date, s.master_file_as_of::text as master_file_as_of,
+           s.on_pub78, s.pub78_codes,
+           s.revocation_date::text as revocation_date,
+           s.effective_revocation_date::text as effective_revocation_date,
+           s.posting_date::text as posting_date,
+           s.reinstatement_date::text as reinstatement_date, s.reinstated,
+           s.revocation_list_as_of::text as revocation_list_as_of, s.revocation_list_as_of_kind,
+           s.pub78_as_of::text as pub78_as_of, s.pub78_as_of_kind,
+           s.source_dataset, s.source_url, s.source_record_locator, s.license_name,
+           ${hash.column} as sha256
+    from internal.org_irs_standing s
+    ${hash.join}
+    where s.org_id = any(${ids}::uuid[])
+    order by s.org_id, s.ein`;
+  const out: Record<string, IrsStanding> = {};
+  for (const row of rows) {
+    const standing = toIrsStanding(row);
+    if (standing) out[row.org_id] = standing;
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------------- vintage */
+
+/** The date of one IRS list as this database holds it. */
+export type IrsListDate = {
+  /** `YYYY-MM-DD` (UTC). */
+  asOf: string;
+  /** "irs_file_date": the IRS server dated the file. "retrieved": the day we fetched it. */
+  kind: IrsDateKind;
+  /** Rows loaded from that file, or null when the count is not on record. */
+  rows: number | null;
+};
+
+/** The two IRS lists behind IRS standing. A null list has never been loaded. */
+export type IrsStandingVintage = {
+  revocationList: IrsListDate | null;
+  pub78: IrsListDate | null;
+};
+
+type VintageRow = {
+  revocation_list_as_of: string | null;
+  revocation_list_as_of_kind: string | null;
+  revocation_list_rows: string | null;
+  pub78_as_of: string | null;
+  pub78_as_of_kind: string | null;
+  pub78_rows: string | null;
+};
+
+function listDate(asOf: string | null, kind: string | null, rows: string | null): IrsListDate | null {
+  if (!asOf) return null;
+  const n = rows === null ? NaN : Number(rows);
+  return { asOf, kind: dateKind(kind), rows: Number.isFinite(n) && n > 0 ? n : null };
+}
+
+/**
+ * The date of each IRS list, from internal.irs_standing_vintage (one row,
+ * NULL dates until a list is loaded). For pages that name the lists as
+ * sources. Cached for hours. Never throws: null means the dates could not be
+ * read (no database at build time, the migration or the grant is missing),
+ * and the page then says "Not available".
+ */
+export async function getIrsStandingVintage(): Promise<IrsStandingVintage | null> {
+  "use cache";
+  cacheLife("hours");
+
+  try {
+    return await corpusQuery(async (sql) => {
+      const rows = await sql<VintageRow[]>`
+        select v.revocation_list_as_of::text as revocation_list_as_of, v.revocation_list_as_of_kind,
+               v.revocation_list_rows::text as revocation_list_rows,
+               v.pub78_as_of::text as pub78_as_of, v.pub78_as_of_kind,
+               v.pub78_rows::text as pub78_rows
+        from internal.irs_standing_vintage v
+        limit 1`;
+      const r = rows[0];
+      if (!r) return { revocationList: null, pub78: null };
+      return {
+        revocationList: listDate(r.revocation_list_as_of, r.revocation_list_as_of_kind, r.revocation_list_rows),
+        pub78: listDate(r.pub78_as_of, r.pub78_as_of_kind, r.pub78_rows),
+      };
+    });
+  } catch {
+    return null;
+  }
+}

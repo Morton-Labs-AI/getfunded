@@ -19,8 +19,9 @@ export const POSTURE_LABELS: Record<PostureValue, string> = {
   unknown: "Not stated in filings",
 };
 
+/** "The latest filing", not "these filings": an earlier return of the same foundation may have stated an answer. */
 export const POSTURE_UNKNOWN_EXPLAINER =
-  "These filings carry no statement about applications. That is not the same as closed: " +
+  "The latest filing we hold carries no statement about applications. That is not the same as closed: " +
   "public-charity 990s have no field for it, so most large grantmaking charities show this.";
 
 export function Posture({ value, className }: { value: PostureValue | null | undefined; className?: string }) {

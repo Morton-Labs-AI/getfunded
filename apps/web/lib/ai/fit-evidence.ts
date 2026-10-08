@@ -16,11 +16,30 @@ import "server-only";
  * "closed" never appears. Grant rows are the same live rows the funder page
  * counts (lib/queries/corpus/sql-fragments.ts liveGrantEvents): a superseded
  * filing's grants are never cited.
+ *
+ * Two more sourced items, both optional and both built from the same words
+ * the funder page prints:
+ *   - `standing`: what the IRS lists say about the organization, with each
+ *     list's date (lib/content/irs-standing-copy.ts). Absent until both IRS
+ *     lists are loaded. It never counts toward `thin`: a funder with identity
+ *     and standing only is still too thin to analyse.
+ *   - `application_history`: how the foundation answered the application
+ *     question across its Form 990-PF returns (counts of returns only). The
+ *     recipient counts from the same feature are NOT added: they say nothing
+ *     about a new request, and governance rule 5 forbids reading interest
+ *     into them.
+ * Adding them changed what an analysis is built from, so FIT_PROMPT_VERSION
+ * (lib/ai/fit-schema.ts) was raised with them.
  */
 import type postgres from "postgres";
 import { withUser, type Db } from "@/lib/billing/db";
+import { APPLICATION_HISTORY_EVIDENCE_LABEL, applicationHistoryEvidenceText } from "@/lib/content/application-history-copy";
+import { IRS_STANDING_TITLE, irsDecidingFileDate, irsStandingStatement } from "@/lib/content/irs-standing-copy";
 import { corpusQuery } from "@/lib/db/corpus";
+import { readFunderPostureHistory } from "@/lib/queries/corpus/application-history";
+import { historyMatchesBadge, postureHistoryCase, type HistoryPosture } from "@/lib/queries/corpus/application-history-types";
 import { liveGrantEvents } from "@/lib/queries/corpus/sql-fragments";
+import { readFunderStanding } from "@/lib/queries/corpus/standing";
 import { addApplicantEvidence, readProfile, type Applicant, type KnowledgeItem } from "./applicant";
 import { EvidenceBuilder, clip, moneyForModel, type EvidenceItem } from "./evidence";
 import { FunderNotFoundError } from "./http";
@@ -45,6 +64,13 @@ export const POSTURE_WORDS: Record<string, string> = {
   open: "Accepts applications",
   preselected_only: "Funds preselected organizations only",
   unknown: "Not stated in filings",
+};
+
+/** The same three answers, keyed the way the application-history shapes name them. */
+const HISTORY_POSTURE_WORDS: Record<HistoryPosture, string> = {
+  open: POSTURE_WORDS.open,
+  preselected: POSTURE_WORDS.preselected_only,
+  unknown: POSTURE_WORDS.unknown,
 };
 
 export const ORG_TYPE_WORDS: Record<string, string> = {
@@ -165,6 +191,17 @@ export async function addFunderEvidence(
     href: str(org.source_url),
   });
 
+  // What the IRS lists say today, each with its date. Null (no item) until
+  // both IRS lists are loaded and readable. Not counted in corpusItems.
+  const standing = await soft(null, (s) => readFunderStanding(s, orgId));
+  if (standing) {
+    // The chip names the IRS file the answer came from and that file's date; the text names every list it used.
+    b.add("standing", "source", "standing", `${IRS_STANDING_TITLE}: ${irsStandingStatement(standing).join(" ")}`, {
+      label: `${standing.provenance.source} · ${irsDecidingFileDate(standing)}`,
+      href: standing.provenance.href,
+    });
+  }
+
   let corpusItems = 0;
 
   // Website stated on the latest non-superseded filing (BMF has none for most foundations).
@@ -234,7 +271,7 @@ export async function addFunderEvidence(
 
   // Application posture + Part XV text (990-PF filers only).
   const postureRows = await soft([] as Rows, async (s) => (await s`
-    select fy, application_posture, form_and_info_txt, submission_deadlines_txt, restrictions_txt,
+    select fy, object_id, application_posture, form_and_info_txt, submission_deadlines_txt, restrictions_txt,
            app_city, app_state, source_dataset, source_url
     from public.org_application_posture
     where org_id = ${orgId}::uuid
@@ -260,6 +297,24 @@ export async function addFunderEvidence(
       href: str(posture.source_url),
     });
     corpusItems++;
+
+    // The answer across the foundation's Form 990-PF returns. Added only when
+    // the history row was read from the same return as the posture item above
+    // and gives the same answer, the rule the funder page uses, so the two
+    // items can never contradict each other. Counts of returns only.
+    const historyPosture: HistoryPosture = key === "open" ? "open" : key === "preselected_only" ? "preselected" : "unknown";
+    const history = await soft(null, (s) => readFunderPostureHistory(s, orgId));
+    if (historyMatchesBadge(history, historyPosture, str(posture.object_id))) {
+      const c = postureHistoryCase(history);
+      if (c.kind !== "none") {
+        b.add("application_history", "source", "application_history", applicationHistoryEvidenceText(history, c, HISTORY_POSTURE_WORDS), {
+          label: APPLICATION_HISTORY_EVIDENCE_LABEL(history.latestFy),
+          dataset: str(posture.source_dataset),
+          fy: history.latestFy,
+          href: history.provenance?.href ?? null,
+        });
+      }
+    }
   }
 
   // Grant statistics, over the same live rows as the funder page header.

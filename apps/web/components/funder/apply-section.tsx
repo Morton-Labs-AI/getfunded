@@ -1,3 +1,4 @@
+import { IrsApplyNotice } from "@/components/data/irs-standing-chip";
 import { Missing } from "@/components/data/missing";
 import { Posture, POSTURE_LABELS } from "@/components/data/posture";
 import { SourceValue } from "@/components/data/source-chip";
@@ -9,9 +10,13 @@ import {
   HOW_TO_APPLY_NOTE,
   PART_XV_FREE_TEXT_NOTE,
   POSTURE_EXPLAINERS,
+  POSTURE_UNKNOWN_EARLIER_ANSWER_EXPLAINER,
 } from "@/lib/content/copy";
+import { historyMatchesBadge, postureHistoryCase, type ApplicationHistory } from "@/lib/queries/corpus/application-history-types";
+import type { IrsStanding } from "@/lib/queries/corpus/standing-types";
 import type { FunderRecord } from "@/lib/queries/corpus/types";
 
+import { ApplicationHistoryBlock } from "./application-history";
 import { ProfileSection } from "./profile-section";
 import { Seal } from "./provenance";
 
@@ -24,14 +29,34 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** "Can I apply?" from Part XV of the latest 990-PF, as filed. */
-export function ApplySection({ funder }: { funder: FunderRecord }) {
+/**
+ * "Can I apply?" from Part XV of the latest 990-PF, as filed.
+ *
+ * Two sourced additions sit around the filer's own words, and neither is
+ * advice:
+ *   - `standing`: when the IRS automatically revoked the organization, or
+ *     when the IRS lists disagree, one dated sentence from the IRS lists is
+ *     shown above the explanation of the answer;
+ *   - `history`: how the foundation answered across its Form 990-PF returns,
+ *     under the answer ("What its returns show").
+ * Both render nothing when their data is not there.
+ */
+export function ApplySection({
+  funder,
+  standing,
+  history,
+}: {
+  funder: FunderRecord;
+  standing?: IrsStanding | null;
+  history?: ApplicationHistory | null;
+}) {
   const app = funder.application;
   const posture = funder.posture ?? "unknown";
 
   if (!app) {
     return (
       <ProfileSection id="apply" title={CAN_I_APPLY_TITLE} aside={<Posture value="unknown" />} note={POSTURE_EXPLAINERS.unknown}>
+        <IrsApplyNotice standing={standing} fy={null} hasDetails={false} className="mb-3" />
         <p className="text-sm text-ink-2">
           {funder.orgType === "public_charity"
             ? "This organization files Form 990, which has no section for application policy. Its filings cannot say either way."
@@ -44,6 +69,16 @@ export function ApplySection({ funder }: { funder: FunderRecord }) {
   const hasGuidance = Boolean(app.howToApply || app.deadlines || app.restrictions || app.contactName || app.contactNameWithheld);
   const seal = <Seal p={app.provenance} />;
 
+  // The latest return is silent, and an earlier return of the same foundation
+  // did state an answer (the history block below shows it). The general
+  // sentence would then be wrong for this foundation, so a narrower one is used.
+  // The test is the same one the history block uses to print its line.
+  const postureHistory = history?.history ?? null;
+  const earlierAnswer =
+    posture === "unknown" &&
+    historyMatchesBadge(postureHistory, posture, app.objectId) &&
+    postureHistoryCase(postureHistory).kind === "latest-silent";
+
   return (
     <ProfileSection
       id="apply"
@@ -55,7 +90,8 @@ export function ApplySection({ funder }: { funder: FunderRecord }) {
         </>
       }
     >
-      <p className="mb-3 text-sm text-ink-2">{POSTURE_EXPLAINERS[posture]}</p>
+      <IrsApplyNotice standing={standing} fy={app.fy ?? null} className="mb-3" />
+      <p className="mb-3 text-sm text-ink-2">{earlierAnswer ? POSTURE_UNKNOWN_EARLIER_ANSWER_EXPLAINER : POSTURE_EXPLAINERS[posture]}</p>
 
       {hasGuidance ? (
         <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -104,7 +140,10 @@ export function ApplySection({ funder }: { funder: FunderRecord }) {
         </dl>
       ) : (
         <p className="text-sm">
-          <Missing kind="no-public-data" /> <span className="text-ink-3">The return states a posture but gives no instructions.</span>
+          <Missing kind="no-public-data" />{" "}
+          <span className="text-ink-3">
+            {posture === "unknown" ? "The return gives no application instructions." : "The return states a posture but gives no instructions."}
+          </span>
         </p>
       )}
 
@@ -112,6 +151,8 @@ export function ApplySection({ funder }: { funder: FunderRecord }) {
         Application policy: {POSTURE_LABELS[posture]}
         {app.fy ? `, as stated on the FY${app.fy} return.` : ", as stated on the return."}
       </p>
+
+      <ApplicationHistoryBlock history={history} posture={posture} applicationObjectId={app.objectId} />
     </ProfileSection>
   );
 }

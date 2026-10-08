@@ -12,6 +12,9 @@ import "server-only";
  *   - contact values come from public.contact_channels, which only holds
  *     publishability='public' rows; a render bug can show nothing, never a leak
  *   - the Part XV contact name is published only when it is role-based
+ *   - a grant row whose link rests on other filers' returns says so: the
+ *     grants query reads the alias link through recipient-aliases.ts, and a
+ *     row with no such link carries no explanation
  *
  * The app role has SELECT on the named internal relations and every public
  * view, plus (migration 0010) the id and sha256 columns of internal.raw_files,
@@ -27,6 +30,7 @@ import { datasetLabel, nteeMajorLabel, orgTypeLabel, returnTypeLabel } from "@/l
 import { MAX_GIVING_TO_CHARS } from "@/lib/search/params";
 
 import { publishableContactName } from "./privacy";
+import { aliasMatchFragment, aliasMatchFromRow, canReadAliasLinks, type AliasMatchColumns } from "./recipient-aliases";
 import { isUuid, toInt } from "./safe";
 import { postureFromDb } from "./search";
 import { canReadRawFileHash, liveGrantEvents, rawFileHash } from "./sql-fragments";
@@ -414,7 +418,7 @@ type GrantRowDb = {
   source_url: string | null;
   sha256: string | null;
   total: number;
-};
+} & AliasMatchColumns;
 
 /** One page of grants paid, largest first, with per-row provenance. `total` counts the same rows as the header badge. */
 export async function getFunderGrants(
@@ -429,15 +433,21 @@ export async function getFunderGrants(
 
   const rows = await corpusQuery(async (sql) => {
     const hash = rawFileHash(sql, await canReadRawFileHash(sql), "fe.raw_file_id");
+    // Why a row is linked, when the link rests on other filers' returns. The
+    // two left joins are on primary keys and add no row; until web migration
+    // getfunded_0012 is applied the fragment is eight null columns.
+    const alias = aliasMatchFragment(sql, await canReadAliasLinks(sql));
     return sql<GrantRowDb[]>`
       select pe.id::text as id, pe.recipient_name, pe.recipient_org_id::text as recipient_org_id,
              pe.recipient_city, pe.recipient_state, pe.amount::text as amount, pe.fiscal_year,
              pe.event_date::text as event_date, pe.purpose_text, pe.recipient_relationship,
              pe.filing_object_id, pe.source_dataset, pe.source_url, ${hash.column} as sha256,
+             ${alias.columns},
              count(*) over()::int as total
       from public.funding_events pe
       join internal.funding_events fe on fe.id = pe.id
       ${hash.join}
+      ${alias.join}
       where ${liveGrantEvents(sql, orgId)}
         ${q ? sql`and fe.search_tsv @@ websearch_to_tsquery('english', ${q})` : sql``}
       order by pe.amount desc nulls last, pe.id
@@ -465,6 +475,7 @@ export async function getFunderGrants(
           href: r.source_url,
           license: null,
         },
+        aliasMatch: aliasMatchFromRow(r.id, r),
       }),
     ),
     total,

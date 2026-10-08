@@ -14,6 +14,8 @@
  *   min_assets        floor on assets (USD)
  *   ntee              NTEE major group letter
  *   giving_to         keywords matched against the funder's grant recipients
+ *   standing          hide_revoked leaves out organizations the IRS automatically
+ *                     revoked (lib/search/standing-filter.ts). Absent = hide nothing.
  *   sort              relevance | distributions | assets | name
  *   page              1-based, bounded
  *   view              cards | table
@@ -21,6 +23,7 @@
 import { z } from "zod";
 
 import { detectEin, unquote } from "./ein";
+import { STANDING_PARAM, standingParamSchema, type StandingFilter } from "./standing-filter";
 
 export const SEARCH_MODES = ["name", "keyword", "thesis"] as const;
 export type SearchMode = (typeof SEARCH_MODES)[number];
@@ -58,6 +61,8 @@ export type SearchParams = {
   minAssets: number | null;
   ntee: string | null;
   givingTo: string | null;
+  /** IRS standing filter. Null hides nothing, and null is the default. */
+  standing: StandingFilter | null;
   sort: SearchSort;
   page: number;
   view: SearchView;
@@ -76,6 +81,7 @@ export const DEFAULT_SEARCH_PARAMS: SearchParams = {
   minAssets: null,
   ntee: null,
   givingTo: null,
+  standing: null,
   sort: "relevance",
   page: 1,
   view: "cards",
@@ -119,6 +125,7 @@ const RawSchema = z.object({
     .optional()
     .catch(undefined),
   giving_to: text(MAX_GIVING_TO_CHARS),
+  standing: standingParamSchema,
   sort: z.enum(SEARCH_SORTS).optional().catch(undefined),
   page: z.coerce.number().int().min(1).max(MAX_PAGE).optional().catch(undefined),
   view: z.enum(SEARCH_VIEWS).optional().catch(undefined),
@@ -162,6 +169,7 @@ export function parseSearchParams(raw: RawSearchParams | URLSearchParams | null 
     minAssets: r.min_assets && r.min_assets > 0 ? r.min_assets : null,
     ntee: r.ntee ?? null,
     givingTo: r.giving_to && r.giving_to.length > 0 ? r.giving_to : null,
+    standing: r.standing ?? null,
     sort: r.sort ?? "relevance",
     page: r.page ?? 1,
     view: r.view ?? "cards",
@@ -184,6 +192,7 @@ export function toQueryString(p: Partial<SearchParams>): string {
   if (p.minAssets) sp.set("min_assets", String(p.minAssets));
   if (p.ntee) sp.set("ntee", p.ntee);
   if (p.givingTo) sp.set("giving_to", p.givingTo);
+  if (p.standing) sp.set(STANDING_PARAM, p.standing);
   if (p.sort && p.sort !== "relevance") sp.set("sort", p.sort);
   if (p.page && p.page > 1) sp.set("page", String(p.page));
   if (p.view && p.view !== "cards") sp.set("view", p.view);
@@ -206,9 +215,9 @@ export function withParams(current: SearchParams, patch: Partial<SearchParams>):
   return next;
 }
 
-export type FilterKey = "q" | "state" | "type" | "posture" | "minDistributions" | "minAssets" | "ntee" | "givingTo";
+export type FilterKey = "q" | "state" | "type" | "posture" | "minDistributions" | "minAssets" | "ntee" | "givingTo" | "standing";
 
-export const FILTER_KEYS: readonly FilterKey[] = ["q", "givingTo", "type", "state", "posture", "minDistributions", "minAssets", "ntee"];
+export const FILTER_KEYS: readonly FilterKey[] = ["q", "givingTo", "type", "state", "posture", "minDistributions", "minAssets", "ntee", "standing"];
 
 export function removeFilter(current: SearchParams, key: FilterKey): SearchParams {
   const patch: Partial<SearchParams> = key === "type" ? { type: "all" } : { [key]: null };

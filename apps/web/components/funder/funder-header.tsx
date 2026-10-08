@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ArrowUpRight, Globe, MapPin } from "lucide-react";
 
+import { IrsStandingChip } from "@/components/data/irs-standing-chip";
 import { Missing } from "@/components/data/missing";
 import { Posture } from "@/components/data/posture";
 import { SourceChip } from "@/components/data/source-chip";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { IRS_MASTER_FILE_FULL_NAME, IRS_MASTER_FILE_LABEL, WEBSITE_FROM_FILING, WEBSITE_FROM_REGISTRY } from "@/lib/content/copy";
 import { filingSourceLabel } from "@/lib/content/labels";
 import { formatEin, formatMoneyCompact, formatNumber } from "@/lib/format";
+import type { IrsStanding } from "@/lib/queries/corpus/standing-types";
 import type { FunderRecord } from "@/lib/queries/corpus/types";
 
 import { Seal } from "./provenance";
@@ -16,7 +18,16 @@ function websiteHref(site: string): string {
   return /^https?:\/\//i.test(site) ? site : `https://${site}`;
 }
 
-export function FunderHeader({ funder, actions }: { funder: FunderRecord; actions?: React.ReactNode }) {
+export function FunderHeader({
+  funder,
+  standing,
+  actions,
+}: {
+  funder: FunderRecord;
+  /** What the IRS lists say. Null when the lists are not loaded; the header then shows no chip. */
+  standing?: IrsStanding | null;
+  actions?: React.ReactNode;
+}) {
   const location = funder.city && funder.state ? `${funder.city}, ${funder.state}` : (funder.state ?? funder.city);
   const websiteTitle =
     funder.websiteSource === "filing" ? WEBSITE_FROM_FILING(funder.websiteFy, funder.websiteReturnType ?? "990") : WEBSITE_FROM_REGISTRY;
@@ -63,6 +74,8 @@ export function FunderHeader({ funder, actions }: { funder: FunderRecord; action
 
       <div className="flex flex-wrap items-center gap-2">
         <Posture value={funder.posture ?? "unknown"} />
+        {/* "On no list" is an absence, not a finding: it stays in "The basics" and is not raised to the header. */}
+        {standing && standing.standing !== "not_listed" ? <IrsStandingChip standing={standing} /> : null}
         {funder.nteeLabel ? <Badge variant="secondary">{funder.nteeLabel}</Badge> : null}
         {funder.grants.n && funder.grants.n > 0 ? (
           <Badge variant="outline" className="tnum">

@@ -168,6 +168,28 @@ export const IRS_REVOKED_SCOPE_NOTE =
   "This list covers automatic revocation only, and the IRS updates it about once a month. " +
   "An organization can ask the IRS to reinstate it.";
 
+/**
+ * For "lists_disagree": one dated fact that often explains the disagreement.
+ * When the IRS posted the revocation AFTER the date of every file that still
+ * names the organization, our copy of that file is simply older than the
+ * revocation. We say so with the dates and still do not choose. Empty when
+ * the posting date is not on record or a naming file is as new as the posting.
+ */
+export function irsOlderCopyNote(s: IrsStanding): string {
+  if (s.standing !== "lists_disagree" || !s.postingDate) return "";
+  const namedIn: Array<[name: string, asOf: string | null]> = [];
+  if (s.inBmf) namedIn.push([IRS_MASTER_FILE_NAME, s.bmfAsOf]);
+  if (s.onPub78) namedIn.push([IRS_PUB78_NAME, s.pub78AsOf]);
+  if (namedIn.length === 0) return "";
+  // Dates are `YYYY-MM-DD` strings, so they compare as text.
+  if (!namedIn.every(([, asOf]) => asOf !== null && asOf < (s.postingDate as string))) return "";
+  const files =
+    namedIn.length === 1
+      ? `The copy of ${namedIn[0][0] === IRS_MASTER_FILE_NAME ? "the " : ""}${namedIn[0][0]} we hold is`
+      : `The copies of the ${IRS_MASTER_FILE_NAME} and ${IRS_PUB78_NAME} we hold are`;
+  return `The IRS posted this revocation to its list on ${formatDate(s.postingDate)}. ${files} older than that.`;
+}
+
 function revokedSentence(s: IrsStanding): string {
   return (
     `The IRS automatically revoked this organization's tax-exempt status on ${formatDate(s.effectiveRevocationDate)}, ` +
@@ -239,6 +261,8 @@ export function irsStandingStatement(s: IrsStanding): string[] {
       out.push(
         `The ${revocationListRef(s)} shows an automatic revocation on ${formatDate(s.effectiveRevocationDate)} and no reinstatement after it.`,
       );
+      const older = irsOlderCopyNote(s);
+      if (older) out.push(older);
       out.push(IRS_LISTS_DISAGREE_CLOSING);
       return out;
     }
@@ -297,18 +321,46 @@ export const IRS_STANDING_EVIDENCE_LABEL = "IRS automatic revocation list / Publ
 /* ---------------------------------------------------------- apply section */
 
 /**
- * The sentence above the posture explainer in "Can I apply?" when the standing
- * is "revoked". `fy` is the fiscal year of the return the application details
- * come from (funder.application.fy).
+ * Which return the application details in the section come from. `fy` is the
+ * fiscal year of that return (funder.application.fy). Empty when the section
+ * shows no application details at all, so the note never points at nothing.
  */
-export function irsRevokedApplyNote(s: IrsStanding, fy: number | null | undefined): string {
+function applicationDetailsFrom(fy: number | null | undefined, hasDetails: boolean): string {
+  if (!hasDetails) return "";
+  return fy ? ` The application details below come from its FY${fy} return.` : " The application details below come from its latest return on file.";
+}
+
+/**
+ * The sentence above the posture explainer in "Can I apply?" when the standing
+ * is "revoked". It states the IRS record and its date, and nothing else: it
+ * does not say what the reader should do. Pass `hasDetails = false` when the
+ * section has no application details to point at.
+ */
+export function irsRevokedApplyNote(s: IrsStanding, fy: number | null | undefined, hasDetails = true): string {
   const first =
     `The IRS automatically revoked this organization's tax-exempt status on ${formatDate(s.effectiveRevocationDate)} ` +
     `(${revocationListRef(s)}).`;
-  const second = fy
-    ? `The application details below come from its FY${fy} return.`
-    : "The application details below come from its latest return on file.";
-  return `${first} ${second}`;
+  return `${first}${applicationDetailsFrom(fy, hasDetails)}`;
+}
+
+/**
+ * The same place, when the IRS lists disagree: one list shows an automatic
+ * revocation with no reinstatement after it, and another list still names the
+ * organization. Both facts, each with its list and that list's date. We do
+ * not choose between them.
+ */
+export function irsListsDisagreeApplyNote(s: IrsStanding, fy: number | null | undefined, hasDetails = true): string {
+  const listedOn =
+    s.inBmf && s.onPub78
+      ? `The ${masterFileRef(s)} and ${pub78Ref(s)} list this organization.`
+      : s.inBmf
+        ? `The ${masterFileRef(s)} lists this organization.`
+        : `${pub78Ref(s)} lists this organization.`;
+  const older = irsOlderCopyNote(s);
+  const first =
+    `The IRS lists disagree about this organization. The ${revocationListRef(s)} shows an automatic revocation on ` +
+    `${formatDate(s.effectiveRevocationDate)} and no reinstatement after it. ${listedOn} ${older ? `${older} ` : ""}${IRS_LISTS_DISAGREE_CLOSING}`;
+  return `${first}${applicationDetailsFrom(fy, hasDetails)}`;
 }
 
 /* ------------------------------------------------------------- the basics */
@@ -365,15 +417,28 @@ export function pub78ClassText(s: IrsStanding): string {
 
 /* ----------------------------------------------------------- search filter */
 
+/** The visible label over the control. */
+export const STANDING_FILTER_FIELD_LABEL = IRS_STANDING_TITLE;
+
+/** The two choices. "Any" is the default: nothing is hidden unless the reader asks. */
+export const STANDING_FILTER_OPTION_ANY = "Any";
+export const STANDING_FILTER_OPTION_HIDE_REVOKED = "Hide automatically revoked";
+
+/** The long form of the second choice, for a screen reader or a tooltip. */
 export const STANDING_FILTER_LABEL = "Hide organizations the IRS automatically revoked";
 
 /** The removable chip a search shows while the filter is on. */
 export const STANDING_FILTER_CHIP = "Automatically revoked: hidden";
 
+/** Shown above the results while the filter is on: what was left out, and what was kept. */
 export const STANDING_FILTER_NOTE =
   "This hides organizations that the IRS automatically revoked for filing no return for three years, that the IRS list " +
   "does not show as reinstated, and that are on no other IRS list we hold. Organizations where the IRS lists disagree " +
   "stay in the results, with both facts shown.";
+
+/** Shown when the reader asked for the filter and the IRS lists cannot be read. Nothing was hidden, and we say so. */
+export const STANDING_FILTER_UNAVAILABLE_NOTE =
+  "The IRS standing filter is not available right now, so no organization was hidden.";
 
 /* ------------------------------------------------------------- popover ui */
 

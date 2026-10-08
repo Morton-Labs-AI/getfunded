@@ -1,6 +1,6 @@
 ---
 title: Search guide
-description: The two search modes, the filters, and what "application posture" means.
+description: The two search modes, the filters, what "application posture" means, and the IRS standing filter.
 group: nonprofits
 order: 2
 ---
@@ -39,6 +39,7 @@ When the semantic index is not available, search falls back to keywords and show
 | Application posture | See below |
 | Size | Latest assets or latest grants paid |
 | Focus area | The IRS category (NTEE major group) from the IRS master file, the IRS's list of tax-exempt organizations |
+| IRS standing | "Any" (the default) or "Hide automatically revoked". See [The IRS standing filter](#the-irs-standing-filter) |
 
 Filters change the URL, so you can share or bookmark a search.
 
@@ -57,6 +58,37 @@ We read that section and show one of three values:
 **"Not stated" is not "closed."** Form 990 (the form public charities file) has no Part XV. So every grantmaking public charity, and many foundations, show "Not stated in filings". They may well accept applications. Look at the website or call.
 
 We never show the word "closed". A missing statement is not a closed door.
+
+## The IRS standing filter
+
+The **IRS standing** filter has two choices.
+
+| Choice | What it does |
+|---|---|
+| **Any** | Hides nothing. This is the default. |
+| **Hide automatically revoked** | Leaves out organizations that the IRS automatically revoked. |
+
+An organization is left out only when all three of these are true:
+
+1. It is on the IRS Automatic Revocation of Exemption List. The IRS puts an organization on that list when it files no annual return or notice for three years in a row. The list holds no other kind of revocation.
+2. The list shows no reinstatement after that revocation.
+3. It is on no other IRS list we hold (the IRS master file and IRS Publication 78 data).
+
+The filter keeps these organizations in your results:
+
+- organizations where the IRS lists disagree. The profile shows both facts.
+- organizations that were revoked once and are recognized again.
+- organizations that are on none of the IRS lists. Being on no list is not a finding.
+- companies and agencies. The IRS lists do not cover them.
+
+When you do not use the filter, nothing is hidden. A result that the IRS automatically revoked shows a chip that says so. Click the chip to read the IRS statement and the date of the list it came from.
+
+Two things to know:
+
+- Search ranks a limited set of top matches for each search. The filter removes the automatically revoked organizations from that set, so the count can go down by the number that was removed.
+- The lists have a date. The IRS replaces them about once a month. See [IRS standing](/docs/funder-profiles#irs-standing) for how to read a standing.
+
+In a link, the filter is `standing=hide_revoked`. The [API](/docs/api) takes the same parameter.
 
 ## Natural-language filters (signed in)
 

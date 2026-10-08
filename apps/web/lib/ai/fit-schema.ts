@@ -15,7 +15,13 @@ import type { Tool } from "@/lib/ai/types";
 import { unknownRefs, type EvidenceItem } from "./evidence";
 
 export const FIT_SCHEMA_VERSION = 1;
-export const FIT_PROMPT_VERSION = "fit-p1";
+/**
+ * fit-p2 (2026-10-08): the evidence package gained the `standing` item (what
+ * the IRS lists say, with dates) and the `application_history` item (the
+ * answer across Form 990-PF returns), and the system prompt gained one rule
+ * for each. Raising the version makes every fit-p1 analysis read as stale.
+ */
+export const FIT_PROMPT_VERSION = "fit-p2";
 
 export const FIT_DIMENSIONS = [
   "mission_alignment",

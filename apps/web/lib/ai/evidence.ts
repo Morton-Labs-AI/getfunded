@@ -19,6 +19,10 @@ export type EvidenceKind =
   | "financials"
   | "series"
   | "posture"
+  /** How the foundation answered the application question across its Form 990-PF returns (counts of returns only). */
+  | "application_history"
+  /** What the IRS lists say about the organization today, with each list's date. */
+  | "standing"
   | "grant_stats"
   | "grant"
   | "geography"

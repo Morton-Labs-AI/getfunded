@@ -1,6 +1,8 @@
 /**
  * Decode tables for corpus codes. Pure data; safe to import anywhere.
  */
+import { IRS_PUB78_NAME, IRS_REVOCATION_LIST_FULL_NAME } from "./irs-standing-copy";
+import { RECIPIENT_ALIAS_DATASET_LABEL } from "./recipient-alias-copy";
 
 export const ORG_TYPE_LABELS: Record<string, string> = {
   private_foundation: "Private foundation",
@@ -81,6 +83,9 @@ export const DATASET_LABELS: Record<string, string> = {
   seed_federal_programs: "Federal program list",
   resolve_funds: "Fund matching",
   resolve_recipients: "Recipient matching",
+  resolve_aliases: RECIPIENT_ALIAS_DATASET_LABEL,
+  irs_auto_revocation: IRS_REVOCATION_LIST_FULL_NAME,
+  irs_pub78: IRS_PUB78_NAME,
 };
 
 export function datasetLabel(name: string | null | undefined, fallback = "Public filing"): string {

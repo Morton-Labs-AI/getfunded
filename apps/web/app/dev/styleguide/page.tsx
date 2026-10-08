@@ -6,12 +6,15 @@ import { Logo } from "@/components/brand/logo";
 import { AiBadge, AiCard } from "@/components/data/ai-badge";
 import { Missing } from "@/components/data/missing";
 import { Money } from "@/components/data/money";
-import { IrsRevokedNotice, IrsStandingChip } from "@/components/data/irs-standing-chip";
+import { IrsListsDisagreeNotice, IrsRevokedNotice, IrsStandingChip } from "@/components/data/irs-standing-chip";
 import { Posture } from "@/components/data/posture";
 import { ProvenanceSeal } from "@/components/data/provenance-seal";
 import { SourceChip, SourceValue } from "@/components/data/source-chip";
 import { StatTile } from "@/components/data/stat-tile";
 import { YoursBlock, YoursTag } from "@/components/data/yours-tag";
+import { ApplicationHistoryBlock } from "@/components/funder/application-history";
+import { RecipientMatchNote } from "@/components/funder/recipient-match-note";
+import { Downloads } from "@/components/marketing/foundations/downloads";
 import { AppShell } from "@/components/shell/app-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -53,8 +56,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { POSTURE_UNKNOWN_EARLIER_ANSWER_EXPLAINER } from "@/lib/content/copy";
+import { parseDataRelease } from "@/lib/data-release";
 import { formatEin } from "@/lib/format";
+import type { ApplicationHistory } from "@/lib/queries/corpus/application-history-types";
+import type { RecipientAliasMatch } from "@/lib/queries/corpus/recipient-alias-types";
 import type { IrsStanding } from "@/lib/queries/corpus/standing-types";
+import type { Provenance } from "@/lib/queries/corpus/types";
 
 import { CommandDemo, ToastDemo } from "./demos";
 
@@ -372,9 +380,217 @@ function HonestyStates() {
           ))}
         </div>
         <IrsRevokedNotice standing={IRS_STANDING_DEMOS[1]} fy={2022} className="mt-3" />
+        <IrsListsDisagreeNotice standing={IRS_STANDING_DEMOS[3]} fy={2022} className="mt-3" />
         <p className="mt-3 text-xs text-muted-foreground">
           Click a chip for the dated IRS statement. The sixth chip has no data and renders nothing: until both IRS lists are loaded the
-          page says nothing, never &quot;listed&quot;. The last state is a neutral outline, not a warning. Placeholder EINs and dates.
+          page says nothing, never &quot;listed&quot;. The last state is a neutral outline, not a warning. The two notices are the
+          sentences &quot;Can I apply?&quot; shows for a revoked foundation and for one where the lists disagree. Placeholder EINs and dates.
+        </p>
+      </Demo>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------------
+   Sourced blocks: placeholder fixtures (no real foundation, filing or file)
+---------------------------------------------------------------------------- */
+
+const PLACEHOLDER_FILING = "000000000000000001";
+const PLACEHOLDER_EARLIER_FILING = "000000000000000002";
+
+const HISTORY_SEAL: Provenance = {
+  source: "IRS 990-PF e-file",
+  filingYear: 2023,
+  objectId: PLACEHOLDER_FILING,
+  sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  href: null,
+  license: "U.S. Government public domain",
+};
+const EARLIER_SEAL: Provenance = { ...HISTORY_SEAL, filingYear: 2022, objectId: PLACEHOLDER_EARLIER_FILING };
+
+/** Every return gives the same answer, plus the recipient line. */
+const HISTORY_SAME: ApplicationHistory = {
+  history: {
+    nReturns: 5,
+    nOpen: 0,
+    nPreselected: 5,
+    nNotStated: 0,
+    firstFy: 2019,
+    lastFy: 2023,
+    latestPosture: "preselected",
+    latestFy: 2023,
+    latestObjectId: PLACEHOLDER_FILING,
+    provenance: HISTORY_SEAL,
+    other: null,
+    restrictivePhrase: null,
+  },
+  turnover: [
+    {
+      fy: 2023,
+      nRecipients: 10,
+      nNew: 4,
+      nSeenSimilar: 1,
+      windowFirstFy: 2020,
+      windowLastFy: 2022,
+      nRows: 13,
+      nUnnamedRows: 1,
+      windowUnnamedRows: 0,
+      objectId: PLACEHOLDER_FILING,
+      ruleVersion: "turnover-v1",
+      provenance: HISTORY_SEAL,
+    },
+  ],
+};
+
+/** The answers changed, and the newest instructions carry words that read like a limit. */
+const HISTORY_MIXED: ApplicationHistory = {
+  history: {
+    nReturns: 5,
+    nOpen: 3,
+    nPreselected: 2,
+    nNotStated: 0,
+    firstFy: 2019,
+    lastFy: 2023,
+    latestPosture: "open",
+    latestFy: 2023,
+    latestObjectId: PLACEHOLDER_FILING,
+    provenance: HISTORY_SEAL,
+    other: { posture: "preselected", fy: 2022, objectId: PLACEHOLDER_EARLIER_FILING, provenance: EARLIER_SEAL },
+    restrictivePhrase: "by invitation",
+  },
+  turnover: [],
+};
+
+/** The newest return is silent; an earlier one stated an answer. */
+const HISTORY_LATEST_SILENT: ApplicationHistory = {
+  history: {
+    nReturns: 3,
+    nOpen: 1,
+    nPreselected: 1,
+    nNotStated: 1,
+    firstFy: 2021,
+    lastFy: 2023,
+    latestPosture: "unknown",
+    latestFy: 2023,
+    latestObjectId: PLACEHOLDER_FILING,
+    provenance: HISTORY_SEAL,
+    other: { posture: "open", fy: 2022, objectId: PLACEHOLDER_EARLIER_FILING, provenance: EARLIER_SEAL },
+    restrictivePhrase: null,
+  },
+  turnover: [],
+};
+
+const ALIAS_MATCH: RecipientAliasMatch = {
+  eventId: "00000000-0000-4000-8000-000000000010",
+  nFilers: 5,
+  status: "unanimous",
+  firstFy: 2021,
+  lastFy: 2023,
+  countedOn: "2026-01-01",
+  linkedOn: "2026-01-01",
+  sourceDataset: "resolve_aliases",
+  license: "cc_by",
+};
+
+/** A placeholder release in the shape the export writes: two list files and one grants file for each of eight fiscal years. */
+const PLACEHOLDER_RELEASE_BASE = "https://example.com/placeholder-release";
+const PLACEHOLDER_GRANT_YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+const PLACEHOLDER_RELEASE_JSON = {
+  tag: "data-placeholder",
+  vintage: "00000000T000000Z",
+  published_at: "2026-01-01T00:00:00+00:00",
+  index_years: [2020, 2021, 2022, 2023, 2024, 2025, 2026],
+  licence: "CC BY 4.0",
+  attribution: "Placeholder attribution line",
+  release_url: PLACEHOLDER_RELEASE_BASE,
+  files: [
+    {
+      name: "foundations.csv.gz",
+      url: `${PLACEHOLDER_RELEASE_BASE}/foundations.csv.gz`,
+      bytes: 1234567,
+      sha256: "1".repeat(64),
+      rows: 1000,
+      description: "Placeholder: one row for each foundation.",
+      columns: ["getfunded_id", "ein", "name"],
+    },
+    {
+      name: "foundation_years.csv.gz",
+      url: `${PLACEHOLDER_RELEASE_BASE}/foundation_years.csv.gz`,
+      bytes: 2345678,
+      sha256: "2".repeat(64),
+      rows: 5000,
+      description: "Placeholder: one row for each foundation and fiscal year.",
+      columns: ["ein", "getfunded_id", "fiscal_year"],
+    },
+    ...PLACEHOLDER_GRANT_YEARS.map((year, i) => ({
+      name: `foundation_grants_${year}.csv.gz`,
+      url: `${PLACEHOLDER_RELEASE_BASE}/foundation_grants_${year}.csv.gz`,
+      // The first year shows the missing state: a zero is a placeholder, never a fact.
+      bytes: i === 0 ? 0 : 100000 + i * 11111,
+      sha256: i === 0 ? "" : String(i + 2).repeat(64).slice(0, 64),
+      rows: i === 0 ? 0 : 1000 + i * 111,
+      description: `Placeholder: grants reported for fiscal year ${year}.`,
+      columns: ["funder_ein", "recipient_ein", "amount"],
+    })),
+  ],
+};
+
+function SourcedBlocks() {
+  const release = parseDataRelease(PLACEHOLDER_RELEASE_JSON, "the styleguide placeholder release");
+  return (
+    <div className="grid gap-6">
+      <Demo title="What its returns show (under “Can I apply?”)">
+        <div className="grid gap-6 md:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Same answer on every return, with the recipient line</p>
+            <ApplicationHistoryBlock history={HISTORY_SAME} posture="preselected" applicationObjectId={PLACEHOLDER_FILING} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Answers changed, and the instructions carry words that read like a limit</p>
+            <ApplicationHistoryBlock history={HISTORY_MIXED} posture="open" applicationObjectId={PLACEHOLDER_FILING} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Latest return silent, an earlier one answered</p>
+            <p className="mt-2 text-sm text-ink-2">{POSTURE_UNKNOWN_EARLIER_ANSWER_EXPLAINER}</p>
+            <ApplicationHistoryBlock history={HISTORY_LATEST_SILENT} posture="unknown" applicationObjectId={PLACEHOLDER_FILING} />
+          </div>
+        </div>
+        {/* Two renders that must stay empty: no row at all, and a history row read from another return than the badge. */}
+        <div data-slot="application-history-empty-demo">
+          <ApplicationHistoryBlock history={null} posture="open" applicationObjectId={PLACEHOLDER_FILING} />
+          <ApplicationHistoryBlock history={HISTORY_MIXED} posture="open" applicationObjectId="another-filing" />
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Counts from past returns, each with the seal of its return. No score, no advice. With no row, or with a history row read
+          from another return than the badge, the block renders nothing (two empty renders sit above this line). Placeholder years
+          and filing ids.
+        </p>
+      </Demo>
+
+      <Demo title="Matched recipient line (grants table)">
+        <p className="text-sm">
+          <span className="font-medium text-foreground">PLACEHOLDER RECIPIENT NAME</span>
+          <RecipientMatchNote match={ALIAS_MATCH} />
+          <span className="block text-xs text-ink-3">Placeholder City, ZZ</span>
+        </p>
+        {/* Three renders that must stay empty: too few filers, filers that do not all agree, and no link. */}
+        <div data-slot="recipient-match-empty-demo">
+          <RecipientMatchNote match={{ ...ALIAS_MATCH, nFilers: 2 }} />
+          <RecipientMatchNote match={{ ...ALIAS_MATCH, status: "dominant" }} />
+          <RecipientMatchNote match={null} />
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Shown only for a row linked through other filers&rsquo; returns with three or more filers that all agree. Fewer filers,
+          filers that do not all agree, or no link render nothing (three empty renders sit above this line).
+        </p>
+      </Demo>
+
+      <Demo title="Open Foundation List downloads (grants files share one card)">
+        <Downloads release={release} />
+        <p className="mt-4 text-xs text-muted-foreground">
+          A placeholder release parsed by the site&rsquo;s own parser, in the shape the export writes: two list files and eight grants
+          files. The grants files share one card, newest year first. The first year has no row count, size or fingerprint on record
+          and reads &quot;Not available&quot;. The links go nowhere real.
         </p>
       </Demo>
     </div>
@@ -514,6 +730,15 @@ export default function StyleguidePage() {
       {/* Honesty */}
       <Section id="honesty" title="Honesty states" description="Primitives that make the honest answer the easy one.">
         <HonestyStates />
+      </Section>
+
+      {/* Sourced feature blocks */}
+      <Section
+        id="sourced-blocks"
+        title="Sourced blocks"
+        description="Facts from public filings that sit next to an answer: the application history, the matched-recipient line and the open data downloads. None is written by a model, so none carries an AI marking."
+      >
+        <SourcedBlocks />
       </Section>
 
       {/* Stats & provenance */}

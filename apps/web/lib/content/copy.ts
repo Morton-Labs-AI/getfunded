@@ -8,6 +8,8 @@
  *  - a number that drifts (counts, percentages) is never hard-coded here.
  */
 
+import { GRANTS_ALIAS_LINKS_NOTE } from "./recipient-alias-copy";
+
 /* ----------------------------------------------------------------- search */
 
 export const SEARCH_TITLE = "Search funders";
@@ -90,9 +92,20 @@ export const POSTURE_EXPLAINERS = {
     "The funder's latest Form 990-PF says it gives only to organizations it has already chosen and does not accept unsolicited requests. " +
     "An introduction is usually the only route.",
   unknown:
-    "These filings carry no statement about applications. That is not the same as closed: public-charity Form 990s have no field for it, " +
+    "The latest filing we hold carries no statement about applications. That is not the same as closed: public-charity Form 990s have no field for it, " +
     "and many foundations leave the section blank.",
 } as const;
+
+/**
+ * For a foundation whose latest Form 990-PF is silent while an earlier return
+ * of the same foundation did state an answer. The general sentence above
+ * would be wrong for it, because not all of its filings are silent. The
+ * earlier answer itself is shown by the "What its returns show" lines in the
+ * same section (components/funder/application-history.tsx).
+ */
+export const POSTURE_UNKNOWN_EARLIER_ANSWER_EXPLAINER =
+  "The latest Form 990-PF we hold carries no statement about applications. An earlier return from this foundation did state an answer; " +
+  "it is shown below with its fiscal year. A blank section is not a refusal, and it does not tell us whether the earlier answer still holds.";
 
 export const CAN_I_APPLY_TITLE = "Can I apply?";
 
@@ -154,6 +167,16 @@ export const GRANTS_EMPTY_NOTE =
 export const GRANTS_AS_REPORTED_NOTE =
   "Recipients are shown as the funder wrote them on the return. A recipient with a link was matched to an organization record; " +
   "the rest stay as reported and are never guessed.";
+
+/**
+ * The note under the grants table when at least one row on the page is linked
+ * through other funders' returns. The second sentence lives in
+ * lib/content/recipient-alias-copy.ts with the rest of that feature's words;
+ * it is joined here so the table has one note. A page with no such row keeps
+ * GRANTS_AS_REPORTED_NOTE alone, so the note never describes links that are
+ * not on the page.
+ */
+export const GRANTS_WITH_ALIAS_LINKS_NOTE = `${GRANTS_AS_REPORTED_NOTE} ${GRANTS_ALIAS_LINKS_NOTE}`;
 
 export const GIVING_FOCUS_NOTE = (resolvedPct: number | null) =>
   resolvedPct === null

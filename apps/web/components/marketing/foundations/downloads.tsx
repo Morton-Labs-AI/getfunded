@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { ArrowUpRight, Download, FileSpreadsheet, Hourglass } from "lucide-react";
+import { ArrowUpRight, Download, FileSpreadsheet, Files, Hourglass } from "lucide-react";
 
 import { Missing } from "@/components/data/missing";
 import { SourceChip } from "@/components/data/source-chip";
 import { CopyButton } from "@/components/marketing/copy-button";
 import { LINKS } from "@/components/marketing/links";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatBytes, formatYearRange, type DataRelease, type DataReleaseFile } from "@/lib/data-release";
 import { formatDate, formatNumber } from "@/lib/format";
 import { site } from "@/lib/site";
 
-import { listFile } from "./columns";
+import { FOUNDATION_LIST_FILES, grantsFileYear, listFile } from "./columns";
 
 /** How many characters of the file fingerprint the card shows. The full value is in the title and on the Copy button. */
 const FINGERPRINT_CHARS = 12;
@@ -90,9 +91,106 @@ function FileCard({ file }: { file: DataReleaseFile }) {
   );
 }
 
-/** The release line and one card per file. Rendered only when there is a release. */
+/** A grants file with the fiscal year in its name. */
+type GrantsFile = { file: DataReleaseFile; year: number };
+
+/**
+ * The files of a release in two groups: the list files, each with its own
+ * card, and the grants files (one for each fiscal year), newest year first.
+ * A release can hold eight or more grants files; they share one card so the
+ * page does not become a wall of cards.
+ */
+export function splitReleaseFiles(files: readonly DataReleaseFile[]): { listFiles: DataReleaseFile[]; grantsFiles: GrantsFile[] } {
+  const listFiles: DataReleaseFile[] = [];
+  const grantsFiles: GrantsFile[] = [];
+  for (const file of files) {
+    const year = grantsFileYear(file.name);
+    if (year === null) listFiles.push(file);
+    else grantsFiles.push({ file, year });
+  }
+  grantsFiles.sort((a, b) => b.year - a.year);
+  return { listFiles, grantsFiles };
+}
+
+/** What the grants files are, in the dictionary's own words (columns.ts), so the card and the column table agree. */
+const GRANTS_FILES_SUMMARY = FOUNDATION_LIST_FILES.find((file) => file.pattern)?.summary ?? "";
+
+/**
+ * One card for all the grants files: what they are, then one compact row for
+ * each fiscal year with the file name, its rows, its size and the download.
+ * The full file fingerprint is on the short one's title, as on the other cards.
+ */
+function GrantsFilesCard({ files }: { files: GrantsFile[] }) {
+  const first = files[files.length - 1]?.year;
+  const last = files[0]?.year;
+  return (
+    <article data-slot="grants-files" className="rounded-lg border bg-card shadow-card">
+      <div className="flex items-start gap-3 p-5 pb-4">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary-tint text-primary">
+          <Files className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-semibold text-foreground">Grants files, one for each fiscal year</h3>
+          {GRANTS_FILES_SUMMARY ? <p className="mt-1 text-sm text-pretty text-muted-foreground">{GRANTS_FILES_SUMMARY}</p> : null}
+          <p className="tnum mt-1 text-xs text-ink-3">
+            {formatNumber(files.length)} {files.length === 1 ? "file" : "files"}
+            {first !== undefined && last !== undefined ? (first === last ? `, fiscal year ${first}` : `, fiscal years ${first} to ${last}`) : ""}. Every
+            file has the same columns.
+          </p>
+        </div>
+      </div>
+      <div className="border-t">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="px-3 sm:px-5">Fiscal year</TableHead>
+              <TableHead className="px-3">File</TableHead>
+              <TableHead className="px-3 text-right">Rows</TableHead>
+              <TableHead className="px-3 text-right">Size</TableHead>
+              <TableHead className="hidden px-3 md:table-cell">File fingerprint</TableHead>
+              <TableHead className="px-3 text-right sm:px-5">
+                <span className="sr-only">Download</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {files.map(({ file, year }) => (
+              <TableRow key={file.name}>
+                <TableCell className="tnum px-3 font-medium text-foreground sm:px-5">{year}</TableCell>
+                <TableCell className="px-3 font-mono text-[13px] break-all whitespace-normal text-ink-2">{file.name}</TableCell>
+                <TableCell className="tnum px-3 text-right font-mono">{file.rows === null ? <Missing /> : formatNumber(file.rows)}</TableCell>
+                <TableCell className="tnum px-3 text-right whitespace-nowrap">{file.bytes === null ? <Missing /> : formatBytes(file.bytes)}</TableCell>
+                <TableCell className="hidden px-3 md:table-cell">
+                  {file.sha256 === null ? (
+                    <Missing />
+                  ) : (
+                    <code className="tnum font-mono text-[13px] text-ink-3" title={file.sha256}>
+                      {file.sha256.slice(0, FINGERPRINT_CHARS)}
+                    </code>
+                  )}
+                </TableCell>
+                <TableCell className="px-3 text-right sm:px-5">
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={file.url} rel="noreferrer">
+                      <Download aria-hidden />
+                      <span className="sr-only sm:not-sr-only">Download</span>
+                      <span className="sr-only"> {file.name}</span>
+                    </a>
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </article>
+  );
+}
+
+/** The release line, one card per list file, and one card for all the grants files. Rendered only when there is a release. */
 function ReleaseFiles({ release }: { release: DataRelease }) {
   const years = formatYearRange(release.indexYears);
+  const { listFiles, grantsFiles } = splitReleaseFiles(release.files);
   return (
     <>
       <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-4">
@@ -134,11 +232,16 @@ function ReleaseFiles({ release }: { release: DataRelease }) {
       </dl>
 
       <ul className="mt-6 grid gap-4 md:grid-cols-2">
-        {release.files.map((file) => (
+        {listFiles.map((file) => (
           <li key={file.name}>
             <FileCard file={file} />
           </li>
         ))}
+        {grantsFiles.length > 0 ? (
+          <li className="md:col-span-2">
+            <GrantsFilesCard files={grantsFiles} />
+          </li>
+        ) : null}
       </ul>
     </>
   );
@@ -161,8 +264,9 @@ function ReleasePending() {
 }
 
 /**
- * The downloads block: the files (or the honest "being prepared" notice),
- * then the license line and the copyable citation. No download button is
+ * The downloads block: the list files and the grants files of the release (or
+ * the honest "being prepared" notice), then the license line and the copyable
+ * citation. No download button is
  * ever rendered without a published release behind it.
  */
 export function Downloads({ release }: { release: DataRelease }) {

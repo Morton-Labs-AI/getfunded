@@ -34,16 +34,30 @@ export function ProfileSection({
   );
 }
 
+/**
+ * One row of "the basics": a label and its value. `wide` is for a value that
+ * is a sentence or a chip: the row then takes the full width of the panel,
+ * with the value under the label, so long text is never squeezed.
+ */
+export type Fact = [label: string, value: React.ReactNode, opts?: { wide?: boolean }];
+
 /** Label / value rows for "the basics". */
-export function FactList({ facts }: { facts: [string, React.ReactNode][] }) {
+export function FactList({ facts }: { facts: Fact[] }) {
   return (
     <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-      {facts.map(([label, value]) => (
-        <div key={label} className="flex items-baseline justify-between gap-3 border-b border-border/70 pb-1.5">
-          <dt className="shrink-0 text-[13px] text-ink-3">{label}</dt>
-          <dd className="min-w-0 text-right text-[13.5px] text-foreground">{value}</dd>
-        </div>
-      ))}
+      {facts.map(([label, value, opts]) =>
+        opts?.wide ? (
+          <div key={label} className="flex flex-col gap-1 border-b border-border/70 pb-1.5 sm:col-span-2">
+            <dt className="text-[13px] text-ink-3">{label}</dt>
+            <dd className="min-w-0 text-[13.5px] leading-relaxed text-foreground">{value}</dd>
+          </div>
+        ) : (
+          <div key={label} className="flex items-baseline justify-between gap-3 border-b border-border/70 pb-1.5">
+            <dt className="shrink-0 text-[13px] text-ink-3">{label}</dt>
+            <dd className="min-w-0 text-right text-[13.5px] text-foreground">{value}</dd>
+          </div>
+        ),
+      )}
     </dl>
   );
 }

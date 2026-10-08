@@ -2,6 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import { MapPin } from "lucide-react";
 
+import { IrsStandingChip } from "@/components/data/irs-standing-chip";
 import { Missing } from "@/components/data/missing";
 import { Money } from "@/components/data/money";
 import { Posture } from "@/components/data/posture";
@@ -17,6 +18,17 @@ export type RenderSave = (hit: SearchHit) => React.ReactNode;
 function location(hit: SearchHit): string | null {
   if (hit.city && hit.state) return `${hit.city}, ${hit.state}`;
   return hit.state ?? hit.city ?? null;
+}
+
+/**
+ * The IRS standing chip on a result, only when the IRS automatically revoked
+ * the organization. Every other standing is on the funder's own page; a row of
+ * "on the IRS list" chips would be noise, and "on no list" is an absence, not
+ * a finding. The chip opens the IRS's dated statement.
+ */
+function RevokedChip({ hit }: { hit: SearchHit }) {
+  if (hit.irsStanding?.standing !== "revoked") return null;
+  return <IrsStandingChip standing={hit.irsStanding} compact />;
 }
 
 function GivingLine({ hit }: { hit: SearchHit }) {
@@ -123,7 +135,10 @@ export function ResultCards({ hits, funderBase, renderSave }: { hits: SearchHit[
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <GivingLine hit={hit} />
-              <Posture value={hit.posture ?? "unknown"} />
+              <span className="flex flex-wrap items-center gap-2">
+                <RevokedChip hit={hit} />
+                <Posture value={hit.posture ?? "unknown"} />
+              </span>
             </div>
             <ProgramAreas hit={hit} />
             <MatchLine hit={hit} />
@@ -175,7 +190,10 @@ export function ResultsTable({ hits, funderBase, renderSave }: { hits: SearchHit
                 <Money value={hit.assets} compact />
               </TableCell>
               <TableCell>
-                <Posture value={hit.posture ?? "unknown"} />
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <Posture value={hit.posture ?? "unknown"} />
+                  <RevokedChip hit={hit} />
+                </span>
               </TableCell>
               <TableCell>
                 <SourceChip label={hit.sourceLabel} />

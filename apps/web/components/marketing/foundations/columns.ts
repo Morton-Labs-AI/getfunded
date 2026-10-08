@@ -66,22 +66,25 @@ export const LIST_GRANTS_PAID_BASIS_VALUES: Array<{ value: string; meaning: stri
 
 /** The values of `irs_standing`. The words follow the export's README. */
 export const LIST_IRS_STANDING_VALUES: Array<{ value: string; meaning: string }> = [
-  { value: "listed", meaning: "In the IRS master file or in Publication 78, and not on the revocation list." },
+  { value: "listed", meaning: "In the IRS master file or in Publication 78, and not on the automatic revocation list." },
   {
     value: "not_listed",
-    meaning: "Not in the IRS master file and not in Publication 78. No revocation is in force.",
+    meaning:
+      "Not in the IRS master file and not in Publication 78. The automatic revocation list has no entry for it, or shows a reinstatement after the revocation. This does not mean that the foundation has shut down.",
   },
   {
     value: "revoked",
-    meaning: "On the IRS Automatic Revocation of Exemption List with no reinstatement, and on neither of the other two lists.",
+    meaning:
+      "Automatically revoked: on the IRS Automatic Revocation of Exemption List with no reinstatement after it, and on neither of the other two lists.",
   },
   {
     value: "revoked_then_relisted",
-    meaning: "Was on the revocation list and is in the IRS master file or Publication 78 again.",
+    meaning: "Was on the automatic revocation list, and is in the IRS master file or Publication 78 again.",
   },
   {
     value: "lists_disagree",
-    meaning: "On the revocation list and also in the IRS master file or Publication 78. Check with the IRS.",
+    meaning:
+      "On the automatic revocation list with no reinstatement after it, and also in the IRS master file or Publication 78. The lists do not agree, and we do not choose between them.",
   },
 ];
 
@@ -96,7 +99,7 @@ const NOT_IN_EVERY_RELEASE = "This column is not in every release.";
 export const IRS_STANDING_LIST_COLUMNS: ListColumn[] = [
   {
     name: "irs_standing",
-    meaning: `What three IRS lists say about the foundation’s tax-exempt status. Empty when the lists were not available for it. ${NOT_IN_EVERY_RELEASE}`,
+    meaning: `What three IRS lists say about the foundation’s tax-exempt status, on the dates in the release’s manifest. The revocation list holds automatic revocations only: no annual return or notice filed for three years in a row. Empty when the lists were not available for it. ${NOT_IN_EVERY_RELEASE}`,
     values: LIST_IRS_STANDING_VALUES,
     optional: true,
   },

@@ -13,7 +13,7 @@ One Postgres, two planes, one web app.
            │                   ▼                        ▼                          ▼
            │   ┌──────── corpus plane ────────┐   ┌──────── workspace plane ───────────────┐
            │   │ internal.* tables + mv_*     │   │ getfunded.* tables (RLS by membership) │
-           │   │ public.* views (14)          │   │ auth.users (Supabase Auth)             │
+           │   │ public.* views (18)          │   │ auth.users (Supabase Auth)             │
            │   │ internal.hybrid_search()     │   │ usage_ledger, subscriptions, plans     │
            │   │ READ ONLY to the app, always │   │ app role writes here and only here     │
            │   └──────────────────────────────┘   └────────────────────────────────────────┘
@@ -24,10 +24,16 @@ One Postgres, two planes, one web app.
 
 ## The two planes
 
-**Corpus plane.** The Open Funder Database: `internal.*` tables, `internal.mv_*` materialized
-views, 14 `public.*` views, and the functions `internal.hybrid_search` and `internal.similar_orgs`.
+**Corpus plane.** The Open Funder Database: `internal.*` tables, 12 `internal.mv_*` materialized
+views, 18 `public.*` views, and the functions `internal.hybrid_search` and `internal.similar_orgs`.
 Built and refreshed only by the Python pipeline in `corpus/`. The web app has SELECT and EXECUTE
 and nothing else. This is enforced by role grants, not by convention.
+
+The 18 public views are the 14 on the analyst allowlist (`lib/ai/sql-guard.ts`), plus four added
+on 2026-10-08: `public.recipient_aliases` (corpus migration 0027) and `public.irs_revocations`,
+`public.irs_pub78`, `public.org_irs_standing` (corpus migration 0028). The twelfth materialized
+view is `internal.mv_org_posture_history` (corpus migration 0029). None of the five new objects
+is on the analyst allowlist.
 
 **Workspace plane.** Everything a user or workspace creates: accounts, saved funders, pipeline,
 tasks, notes, AI analyses, outreach drafts, usage, subscriptions. Lives in schema `getfunded`
@@ -38,9 +44,9 @@ name, EIN, type, city and state, so a corpus re-ingest can never orphan workspac
 
 | Role | Login | Used by | Can |
 |---|---|---|---|
-| `getfunded_app` | no | the web app, via a login role that is `IN ROLE getfunded_app` | SELECT on `public.*` views, the `internal.mv_*` views, `internal.search_documents`, `internal.organizations`, `internal.filings`, `internal.filing_*`, `internal.funding_events`, `internal.funding_programs`, `internal.org_website`, and the two columns `(id, sha256)` of `internal.raw_files` (migration 0010, for the provenance fingerprint; no other column); EXECUTE on `internal.hybrid_search` and `internal.similar_orgs`; full DML on `getfunded.*` under RLS; EXECUTE on `getfunded.*` SECURITY DEFINER doors |
+| `getfunded_app` | no | the web app, via a login role that is `IN ROLE getfunded_app` | SELECT on the 14 allowlisted `public.*` views, the `internal.mv_*` views, `internal.search_documents`, `internal.organizations`, `internal.filings`, `internal.filing_*`, `internal.funding_events`, `internal.funding_programs`, `internal.org_website`, and the two columns `(id, sha256)` of `internal.raw_files` (migration 0010, for the provenance fingerprint; no other column). Three later web migrations add SELECT on: `internal.recipient_aliases`, `internal.recipient_alias_links` and `public.recipient_aliases` (getfunded_0012, why a grant row is linked); `internal.irs_revocations`, `internal.irs_pub78`, `internal.irs_standing_vintage` and `internal.org_irs_standing` (getfunded_0013, IRS standing; the app reads the internal view and is not granted the three `public.irs_*` / `public.org_irs_standing` views); `internal.mv_org_posture_history` and `internal.funder_recipient_turnover` (getfunded_0014, application history). The app probes each of these grants and shows nothing until it is there, so deploy order does not matter. EXECUTE on `internal.hybrid_search` and `internal.similar_orgs`; full DML on `getfunded.*` under RLS; EXECUTE on `getfunded.*` SECURITY DEFINER doors |
 | `getfunded_login` | yes | `DATABASE_URL` | nothing of its own; inherits `getfunded_app` |
-| `funder_ro` | yes (exists) | the analyst's model-generated SQL only (`ANALYST_DATABASE_URL`) | read-only at the role level, 15 s statement timeout, `search_path = public`. After migration 0010 it reads exactly the SQL guard's allowlist (`lib/ai/sql-guard.ts`): the 14 `public.*` views and the 11 `internal.mv_*` materialized views, nothing else in `internal`; the two search functions read internal tables as the caller and so are not available to it. `npm run db:ping` with `ANALYST_DATABASE_URL` set fails when the role and the allowlist drift |
+| `funder_ro` | yes (exists) | the analyst's model-generated SQL only (`ANALYST_DATABASE_URL`) | read-only at the role level, 15 s statement timeout, `search_path = public`. After migration 0010 it reads exactly the SQL guard's allowlist (`lib/ai/sql-guard.ts`): 14 of the 18 `public.*` views and 11 of the 12 `internal.mv_*` materialized views, nothing else in `internal` (it holds no grant on the objects added by corpus migrations 0027 to 0029); the two search functions read internal tables as the caller and so are not available to it. `npm run db:ping` with `ANALYST_DATABASE_URL` set fails when the role and the allowlist drift |
 | `postgres` | yes | migrations only, by a human or CI | everything |
 
 Row Level Security on every `getfunded.*` table. The app opens a transaction and runs
@@ -94,13 +100,23 @@ anonymous request shares one bucket.
   including public charities, which are not in the vector index),
 - faceted browse by org type, state, application posture (`internal.mv_org_application_posture`),
   latest distributions and assets (`internal.mv_org_latest_financials`), NTEE major group,
+- an optional IRS standing filter, `standing=hide_revoked`, that leaves out organizations the IRS
+  automatically revoked (`internal.org_irs_standing`). Nothing is hidden by default; a revoked
+  organization in the results carries a chip instead,
 - semantic "funds work like mine" search through `internal.hybrid_search` when a Voyage key is
   configured, keyword fallback with a visible notice when it is not,
 - profile: identity, posture ("Accepts applications" / "Funds preselected organizations only" /
   "Not stated in filings"), how to apply from Part XV, latest financials and a multi-year series,
   grants paid with recipients, officers, filer-stated website, public contact channels only
   (`publishability='public'`, role-based inboxes and phones), provenance seal on every fact
-  (source dataset, filing object id, raw file sha256).
+  (source dataset, filing object id, raw file sha256),
+- three sourced additions to the profile, each of which renders nothing until its data and its
+  grant exist: IRS standing with the date of each IRS list (`internal.org_irs_standing`); how a
+  foundation answered the application question across its Form 990-PF returns and how many of
+  a year's named recipients are not on its three earlier grant lists
+  (`internal.mv_org_posture_history`, `internal.funder_recipient_turnover`); and why a grant
+  row is linked when the link rests on other filers' returns (`internal.recipient_alias_links`,
+  `public.recipient_aliases`). None is written by a model, and none is a score.
 
 Saving a funder, notes, fit analysis and export require sign-in.
 

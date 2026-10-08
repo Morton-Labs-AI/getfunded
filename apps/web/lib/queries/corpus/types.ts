@@ -7,6 +7,9 @@ import type { PostureValue } from "@/components/data/posture";
 import type { SearchParams } from "@/lib/search/params";
 import type { RanMode, SearchNotice } from "@/lib/search/sql";
 
+import type { RecipientAliasMatch } from "./recipient-alias-types";
+import type { IrsStanding } from "./standing-types";
+
 /** The soft corpus reference a workspace stores next to an org id. */
 export type FunderSnapshot = {
   orgId: string;
@@ -57,6 +60,12 @@ export type SearchHit = {
   grantsLastFy: number | null;
   /** Label for the SourceChip: "IRS 990-PF · FY2023" or "IRS master file". */
   sourceLabel: string;
+  /**
+   * What the IRS lists say about the organization, with each list's date.
+   * Null for a company or an agency, for an organization with no EIN, and
+   * whenever the two IRS lists are not both loaded. Null never means "listed".
+   */
+  irsStanding: IrsStanding | null;
   match: {
     kind: MatchKind;
     /** One line that says why this row is here, in plain words. */
@@ -211,6 +220,11 @@ export type GrantRow = {
   purpose: string | null;
   relationship: string | null;
   provenance: Provenance;
+  /**
+   * Why this row carries a link, when the link rests on other filers' returns
+   * (corpus migration 0027). Null for every other row.
+   */
+  aliasMatch: RecipientAliasMatch | null;
 };
 
 export type GrantsPage = {

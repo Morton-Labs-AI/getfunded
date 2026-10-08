@@ -36,6 +36,7 @@ The same search as the app. Query parameters match the search page URL.
 | `type` | `private_foundation`, `public_charity`, `company`, `gov_agency` (or `all`, the default) |
 | `state` | Two-letter state |
 | `posture` | `open`, `preselected`, `unknown` |
+| `standing` | `hide_revoked` leaves out organizations the IRS automatically revoked. Leave it out to hide nothing, which is the default. See [The IRS standing filter](/docs/search-guide#the-irs-standing-filter) |
 | `page` | 1-based page number |
 
 Returns a page of funder summaries: id, name, EIN, type, city, state, posture, latest assets and latest giving, each with a `source` object. Grant counts and totals count the same rows the funder page shows: grants paid, excluding any row from a filing that a later amended return replaced.

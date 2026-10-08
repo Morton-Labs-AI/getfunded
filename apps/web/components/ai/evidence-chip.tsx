@@ -19,6 +19,8 @@ const KIND_LABELS: Record<string, string> = {
   financials: "Financials",
   series: "Giving by year",
   posture: "Application posture",
+  application_history: "Application answers over the years",
+  standing: "IRS standing",
   grant_stats: "Grant history",
   grant: "Grant",
   geography: "Giving geography",

@@ -19,6 +19,7 @@
  * (POSTURE_LABELS); callers pass the label in.
  */
 import { formatNumber } from "@/lib/format";
+import type { HistoryPosture, PostureHistory, PostureHistoryCase } from "@/lib/queries/corpus/application-history-types";
 
 export const APPLICATION_HISTORY_EYEBROW = "What its returns show";
 
@@ -121,6 +122,52 @@ export const TURNOVER_NOTE = (nUnnamedRows: number) => {
     unnamed
   );
 };
+
+/* ---------------------------------------------------- fit analysis evidence */
+
+/** Chip label for the evidence item below. */
+export const APPLICATION_HISTORY_EVIDENCE_LABEL = (latestFy: number | null) =>
+  latestFy !== null ? `IRS 990-PF · returns on record to FY${latestFy}` : "IRS 990-PF · returns on record";
+
+/**
+ * The same facts the page prints under "What its returns show", as one plain
+ * paragraph for the fit analysis to cite: how the foundation answered the
+ * application question across its Form 990-PF returns. It is built from the
+ * sentences above, so the page and the evidence cannot say different things.
+ *
+ * It carries the counts of returns only. The recipient counts are left out on
+ * purpose: they say nothing about a new request, and a model must not read
+ * them as interest. `labels` are the posture labels (POSTURE_LABELS).
+ */
+export function applicationHistoryEvidenceText(
+  h: PostureHistory,
+  c: Exclude<PostureHistoryCase, { kind: "none" }>,
+  labels: Record<HistoryPosture, string>,
+): string {
+  const parts: string[] = [];
+  if (c.kind === "latest-silent") {
+    parts.push(POSTURE_HISTORY_LATEST_SILENT(h.latestFy));
+    if (h.other && c.nOther > 0) {
+      const o = POSTURE_HISTORY_OTHER_ANSWER(c.nOther, h.other.fy);
+      parts.push(`${o.before}${labels[h.other.posture]}${o.after}`);
+    }
+    if (c.third && c.nThird > 0) parts.push(POSTURE_HISTORY_ALSO_SAID(c.nThird, labels[c.third]));
+  } else {
+    parts.push(`Answer on the latest Form 990-PF return${h.latestFy !== null ? ` (FY${h.latestFy})` : ""}: ${labels[h.latestPosture]}.`);
+    if (c.kind === "same") {
+      parts.push(POSTURE_HISTORY_SAME(c.n, h.firstFy, h.lastFy));
+    } else {
+      parts.push(POSTURE_HISTORY_K_OF_N(c.k, c.n, h.firstFy, h.lastFy));
+      if (h.other && c.nOther > 0) {
+        const o = POSTURE_HISTORY_OTHER_ANSWER(c.nOther, h.other.fy);
+        parts.push(`${o.before}${labels[h.other.posture]}${o.after}`);
+      }
+      if (c.nSilent > 0) parts.push(POSTURE_HISTORY_SILENT_COUNT(c.nSilent));
+    }
+  }
+  parts.push("This counts past returns only. It does not say how the foundation will treat a new request.");
+  return `Application answers across this foundation's Form 990-PF returns. ${parts.join(" ")}`;
+}
 
 /* ------------------------------------------------------------ seal labels */
 

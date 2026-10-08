@@ -18,6 +18,9 @@ import "server-only";
  *
  *   - `getFunderApplicationHistory(orgId)` returns null when there is nothing
  *     to show. Null means "show nothing".
+ *   - `readFunderPostureHistory(sql, orgId)` is the history half alone, on a
+ *     connection the caller already holds (the fit evidence package uses it).
+ *     It never reads the recipient counts.
  *   - The app role reads both relations after web migration getfunded_0014.
  *     The grant is probed, so deploying the app before the migration is safe:
  *     the reader returns null until the grant is there.
@@ -207,6 +210,47 @@ export function toRecipientTurnover(r: RecipientTurnoverRow): RecipientTurnover 
   };
 }
 
+/** The history row with its two seals. One index lookup by org_id. */
+async function selectPostureHistory(sql: Sql, orgId: string, sha: boolean): Promise<PostureHistory | null> {
+  const latestHash = rawFileHash(sql, sha, "h.raw_file_id", "hrf");
+  const otherHash = rawFileHash(sql, sha, "h.other_raw_file_id", "horf");
+  const rows = await sql<PostureHistoryRow[]>`
+    select h.n_returns, h.n_open, h.n_preselected, h.n_not_stated,
+           h.first_fy, h.last_fy,
+           h.latest_posture, h.latest_fy, h.latest_object_id,
+           h.other_posture, h.other_fy, h.other_object_id,
+           h.restrictive_phrase,
+           lf.object_id as latest_sealed, lf.source_dataset as latest_source_dataset,
+           lf.source_url as latest_source_url, lf.license_name as latest_license,
+           ${latestHash.column} as latest_sha256,
+           ef.object_id as other_sealed, ef.source_dataset as other_source_dataset,
+           ef.source_url as other_source_url, ef.license_name as other_license,
+           ${otherHash.column} as other_sha256
+    from internal.mv_org_posture_history h
+    -- Seals from public.filings: only republishable sources, and only a
+    -- filing that is still the current one for its period.
+    left join public.filings lf
+      on lf.object_id = h.latest_object_id and lf.superseded_by_object_id is null
+    ${latestHash.join}
+    left join public.filings ef
+      on ef.object_id = h.other_object_id and ef.superseded_by_object_id is null
+    ${otherHash.join}
+    where h.org_id = ${orgId}::uuid`;
+  return rows[0] ? toPostureHistory(rows[0]) : null;
+}
+
+/**
+ * The application answer across one foundation's Form 990-PF returns, read on
+ * a connection the caller already holds. Null when the relation cannot be
+ * read or the foundation has no row.
+ */
+export async function readFunderPostureHistory(sql: Sql, orgId: string): Promise<PostureHistory | null> {
+  if (!isUuid(orgId)) return null;
+  const can = await canReadApplicationHistory(sql);
+  if (!can.history) return null;
+  return selectPostureHistory(sql, orgId, await canReadRawFileHash(sql));
+}
+
 /**
  * The application answer across returns and up to three fiscal years of
  * recipient turnover (newest first) for one foundation, or null when neither
@@ -219,34 +263,7 @@ export const getFunderApplicationHistory = cache(async (orgId: string): Promise<
     if (!can.history && !can.turnover) return null;
     const sha = await canReadRawFileHash(sql);
 
-    let history: PostureHistory | null = null;
-    if (can.history) {
-      const latestHash = rawFileHash(sql, sha, "h.raw_file_id", "hrf");
-      const otherHash = rawFileHash(sql, sha, "h.other_raw_file_id", "horf");
-      const rows = await sql<PostureHistoryRow[]>`
-        select h.n_returns, h.n_open, h.n_preselected, h.n_not_stated,
-               h.first_fy, h.last_fy,
-               h.latest_posture, h.latest_fy, h.latest_object_id,
-               h.other_posture, h.other_fy, h.other_object_id,
-               h.restrictive_phrase,
-               lf.object_id as latest_sealed, lf.source_dataset as latest_source_dataset,
-               lf.source_url as latest_source_url, lf.license_name as latest_license,
-               ${latestHash.column} as latest_sha256,
-               ef.object_id as other_sealed, ef.source_dataset as other_source_dataset,
-               ef.source_url as other_source_url, ef.license_name as other_license,
-               ${otherHash.column} as other_sha256
-        from internal.mv_org_posture_history h
-        -- Seals from public.filings: only republishable sources, and only a
-        -- filing that is still the current one for its period.
-        left join public.filings lf
-          on lf.object_id = h.latest_object_id and lf.superseded_by_object_id is null
-        ${latestHash.join}
-        left join public.filings ef
-          on ef.object_id = h.other_object_id and ef.superseded_by_object_id is null
-        ${otherHash.join}
-        where h.org_id = ${orgId}::uuid`;
-      history = rows[0] ? toPostureHistory(rows[0]) : null;
-    }
+    const history: PostureHistory | null = can.history ? await selectPostureHistory(sql, orgId, sha) : null;
 
     let turnover: RecipientTurnover[] = [];
     if (can.turnover) {

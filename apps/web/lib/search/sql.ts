@@ -27,6 +27,9 @@
  *   - canonical_org_id is null on every path (merge losers never list)
  *   - posture / distribution predicates go inside hybrid_search, never after
  *   - every money comparison casts the parameter explicitly
+ *   - the IRS standing filter goes in the OUTER where, never inside a pool
+ *     (lib/search/standing-filter.ts says why), and only when the caller has
+ *     checked that the standing view can be read
  */
 import {
   MAX_PAGE,
@@ -38,6 +41,7 @@ import {
   type SearchSort,
   type SearchType,
 } from "./params";
+import { excludeRevokedSql } from "./standing-filter";
 
 export const POOL_LIMIT = 400;
 export const SEMANTIC_POOL_LIMIT = 200;
@@ -54,7 +58,11 @@ export type SearchNotice =
   | "giving_to_pool"
   | "rate_limited"
   /** The database stopped the query at the statement timeout (a very common name on a cold cache). */
-  | "timed_out";
+  | "timed_out"
+  /** Organizations the IRS automatically revoked were left out, because the reader asked for that. */
+  | "standing_filter"
+  /** The reader asked to leave them out, but the IRS lists cannot be read right now, so nothing was hidden. */
+  | "standing_unavailable";
 
 export type BuiltSearch = {
   text: string;
@@ -306,7 +314,18 @@ function browsePool(p: SearchParams, ps: Params): string {
 
 /* ------------------------------------------------------------- the build */
 
-export function buildSearchSql(p: SearchParams, opts: { vec?: number[] | null } = {}): BuiltSearch | SkippedSearch {
+export function buildSearchSql(
+  p: SearchParams,
+  opts: {
+    vec?: number[] | null;
+    /**
+     * True when this connection may read internal.org_irs_standing
+     * (lib/queries/corpus/standing.ts canReadIrsStanding). Without it the
+     * standing filter is left out, and a notice says that nothing was hidden.
+     */
+    standingReadable?: boolean;
+  } = {},
+): BuiltSearch | SkippedSearch {
   const ps = new Params();
   const notices: SearchNotice[] = [];
   let ran: RanMode;
@@ -349,6 +368,14 @@ export function buildSearchSql(p: SearchParams, opts: { vec?: number[] | null } 
 
   const where: string[] = [];
   if (postNtee && p.ntee) where.push(`o.ntee_code like ${ps.add(likePrefix(p.ntee))}::text`);
+  if (p.standing === "hide_revoked") {
+    if (opts.standingReadable) {
+      where.push(excludeRevokedSql("o"));
+      notices.push("standing_filter");
+    } else {
+      notices.push("standing_unavailable");
+    }
+  }
 
   let lateral = "";
   let hitCols = "";

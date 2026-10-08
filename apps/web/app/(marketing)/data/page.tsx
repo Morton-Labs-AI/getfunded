@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, FileSpreadsheet } from "lucide-react";
 
+import { Missing } from "@/components/data/missing";
 import { ProvenanceSeal } from "@/components/data/provenance-seal";
 import { CodeBlock } from "@/components/marketing/code-block";
 import { CtaBand } from "@/components/marketing/cta";
@@ -9,6 +10,8 @@ import { LINKS } from "@/components/marketing/links";
 import { CoverageTable } from "@/components/marketing/live-stats";
 import { Note, PageHero, Section, SectionHeading } from "@/components/marketing/section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
+import { getIrsStandingVintage } from "@/lib/queries/corpus/standing";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -18,7 +21,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "/data" },
 };
 
-const SOURCES: Array<{ source: string; publisher: string; take: string; terms: string }> = [
+/** The two IRS lists whose file date is read live and shown under the source name. */
+type IrsListKey = "revocationList" | "pub78";
+
+const SOURCES: Array<{ source: string; publisher: string; take: string; terms: string; irsList?: IrsListKey }> = [
   {
     source: "Form 990 / 990-PF e-file index and XML",
     publisher: "Internal Revenue Service",
@@ -30,6 +36,20 @@ const SOURCES: Array<{ source: string; publisher: string; take: string; terms: s
     publisher: "Internal Revenue Service",
     take: "Identity: name, EIN, address, subsection, foundation code, NTEE code, ruling date, asset, income and revenue amounts",
     terms: "Public domain",
+  },
+  {
+    source: "Automatic Revocation of Exemption List",
+    publisher: "Internal Revenue Service",
+    take: "For each EIN: the revocation date, the date the IRS posted it, and the reinstatement date when there is one. It holds automatic revocations only: organizations that filed no annual return or notice for three years in a row",
+    terms: "Public domain",
+    irsList: "revocationList",
+  },
+  {
+    source: "Publication 78 data",
+    publisher: "Internal Revenue Service",
+    take: "For each EIN: the IRS deductibility codes, which say what class of organization it is for tax-deductible gifts",
+    terms: "Public domain",
+    irsList: "pub78",
   },
   {
     source: "Form ADV (IAPD)",
@@ -71,7 +91,10 @@ const SOURCES: Array<{ source: string; publisher: string; take: string; terms: s
 
 const KNOWN_LIMITS: string[] = [
   "The same fund can appear more than once. Records of one fund from different SEC sources are kept as separate organizations, and people are kept per source; we have not merged them.",
-  "Not ingested: 990-EZ, 990-N, 990-T, paper returns, Publication 78, auto-revocations and determination letters.",
+  "Not ingested: 990-EZ, 990-N, 990-T, paper returns and determination letters.",
+  "IRS standing is only as current as the IRS lists we hold, and each statement shows the date of its list. The IRS replaces the lists about once a month. The revocation list holds automatic revocations only (no return or notice filed for three years in a row), so an organization that lost its status in another way is not on it and can still read as listed.",
+  "The lines under “Can I apply?” that count a foundation’s past returns cover Form 990-PF returns the IRS has published as data. The count of recipients that are not on earlier grant lists compares names as written, and it can be wrong in both directions: a recipient whose name is written differently from year to year can look new, and two recipients with almost the same name in one state can be counted as one. It is shown only for a foundation with named grant rows four years in a row. It is a count from past returns, not a sign that a foundation will consider a new request.",
+  "Some grant recipients are linked to an organization because three or more grant-making charities wrote the same name and state with one EIN on their own returns. No person has checked these links one by one. A link can point at a parent body, such as a parish or a sponsor, and the name on the row stays as the funder wrote it.",
   "The gives-per-year filter and the most-giving sort read the Form 990-PF giving lines (qualifying distributions, else charitable disbursements), so in name and browse searches they cover private foundations only; describe-the-work search also counts a public charity's reported grants, averaged per year. Profile grant lists include Schedule I grants from public charities as well as 990-PF grants.",
   "The IRS publishes XML in batches. At any time tens of thousands of indexed returns have no detail yet. They appear when the IRS publishes them.",
   "Back-year 990-PF grant rows are loaded for the newest index years only; earlier years carry filings, financials and officers.",
@@ -82,6 +105,35 @@ const KNOWN_LIMITS: string[] = [
 ];
 
 const EXAMPLE_SHA = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+/** "Ten sources", in words, from the table itself so the heading cannot drift from it. */
+const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+const SOURCE_COUNT = COUNT_WORDS[SOURCES.length] ?? String(SOURCES.length);
+
+/**
+ * The date of the copy of one IRS list that the database holds, read live
+ * (cached for hours). "dated" when the IRS dated the file, "retrieved" when
+ * it did not. When the date cannot be read, or the list is not loaded, it
+ * says "Not available": no date is ever written into this page by hand.
+ */
+async function IrsListFileDate({ list }: { list: IrsListKey }) {
+  const vintage = await getIrsStandingVintage();
+  const entry = vintage?.[list] ?? null;
+  return (
+    <span data-slot="irs-list-date" className="mt-1 block text-xs font-normal text-ink-3">
+      {entry ? (
+        <>
+          {entry.kind === "irs_file_date" ? "The IRS dated the file we hold " : "We retrieved the file we hold on "}
+          <time dateTime={entry.asOf}>{formatDate(entry.asOf)}</time>.
+        </>
+      ) : (
+        <>
+          Date of the file we hold: <Missing />
+        </>
+      )}
+    </span>
+  );
+}
 
 export default function DataPage() {
   return (
@@ -123,7 +175,7 @@ export default function DataPage() {
       <Section id="sources" tone="surface">
         <SectionHeading
           eyebrow="Sources"
-          title="Eight sources. All public."
+          title={`${SOURCE_COUNT} sources. All public.`}
           lede={
             <>
               URLs, refresh cadence and the limits of each source are in{" "}
@@ -147,7 +199,10 @@ export default function DataPage() {
             <TableBody>
               {SOURCES.map((row) => (
                 <TableRow key={row.source} className="align-top">
-                  <TableCell className="min-w-44 whitespace-normal font-medium text-foreground">{row.source}</TableCell>
+                  <TableCell className="min-w-44 whitespace-normal font-medium text-foreground">
+                    {row.source}
+                    {row.irsList ? <IrsListFileDate list={row.irsList} /> : null}
+                  </TableCell>
                   <TableCell className="min-w-40 whitespace-normal">{row.publisher}</TableCell>
                   <TableCell className="min-w-72 whitespace-normal text-ink-2">{row.take}</TableCell>
                   <TableCell className="min-w-36 whitespace-normal">{row.terms}</TableCell>

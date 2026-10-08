@@ -7,13 +7,15 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { GRANTS_AS_REPORTED_NOTE, GRANTS_EMPTY_NOTE, GRANTS_PAID_TITLE } from "@/lib/content/copy";
+import { GRANTS_AS_REPORTED_NOTE, GRANTS_EMPTY_NOTE, GRANTS_PAID_TITLE, GRANTS_WITH_ALIAS_LINKS_NOTE } from "@/lib/content/copy";
 import { formatNumber } from "@/lib/format";
+import { isExplainableAliasMatch } from "@/lib/queries/corpus/recipient-alias-types";
 import type { GrantsPage } from "@/lib/queries/corpus/types";
 import { cn } from "@/lib/utils";
 
 import { ProfileSection } from "./profile-section";
 import { SourceWithSeal } from "./provenance";
+import { RecipientMatchNote } from "./recipient-match-note";
 
 /** Zero-JS: a GET form for the filter and links for the pages. */
 export function GrantsTable({ grants, basePath, funderBase }: { grants: GrantsPage; basePath: string; funderBase: string }) {
@@ -25,13 +27,16 @@ export function GrantsTable({ grants, basePath, funderBase }: { grants: GrantsPa
     return `${basePath}${s ? `?${s}` : ""}#grants`;
   };
   const disabled = "pointer-events-none opacity-50";
+  // The extra sentence about links from other funders' returns is shown only
+  // when a row on this page carries such a link and its explanation line.
+  const hasAliasLinks = grants.rows.some((g) => g.recipientOrgId && isExplainableAliasMatch(g.aliasMatch));
 
   return (
     <ProfileSection
       id="grants"
       title={GRANTS_PAID_TITLE}
       aside={grants.total > 0 ? <span className="tnum text-xs text-ink-3">{formatNumber(grants.total)} on file</span> : undefined}
-      note={grants.total > 0 ? GRANTS_AS_REPORTED_NOTE : undefined}
+      note={grants.total > 0 ? (hasAliasLinks ? GRANTS_WITH_ALIAS_LINKS_NOTE : GRANTS_AS_REPORTED_NOTE) : undefined}
     >
       <form method="get" action={basePath} className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Label htmlFor="grants-q" className="sr-only">
@@ -72,9 +77,13 @@ export function GrantsTable({ grants, basePath, funderBase }: { grants: GrantsPa
                 <TableRow key={g.id} className="align-top">
                   <TableCell className="max-w-[18rem] whitespace-normal">
                     {g.recipientOrgId ? (
-                      <Link href={`${funderBase}/${g.recipientOrgId}`} className="font-medium text-foreground hover:text-primary hover:underline">
-                        {g.recipientName ?? <Missing bare />}
-                      </Link>
+                      <>
+                        <Link href={`${funderBase}/${g.recipientOrgId}`} className="font-medium text-foreground hover:text-primary hover:underline">
+                          {g.recipientName ?? <Missing bare />}
+                        </Link>
+                        {/* Why this row is linked, when the link rests on other filers' returns. Nothing for every other row. */}
+                        <RecipientMatchNote match={g.aliasMatch} />
+                      </>
                     ) : (
                       <span className="text-foreground" title="As reported on the filing; not matched to an organization record">
                         {g.recipientName ?? <Missing bare />}

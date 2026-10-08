@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileCheck, X } from "lucide-react";
 
 import { POSTURE_LABELS } from "@/components/data/posture";
+import { STANDING_FILTER_CHIP } from "@/lib/content/irs-standing-copy";
 import { NTEE_MAJOR, ORG_TYPE_LABELS } from "@/lib/content/labels";
 import { formatEin, formatMoneyCompact } from "@/lib/format";
 import { activeFilters, removeFilter, searchHref, type FilterKey, type SearchParams } from "@/lib/search/params";
@@ -25,6 +26,8 @@ function chipLabel(p: SearchParams, key: FilterKey): string {
       return `Assets ${formatMoneyCompact(p.minAssets)}+`;
     case "ntee":
       return p.ntee ? (NTEE_MAJOR[p.ntee] ?? p.ntee) : "";
+    case "standing":
+      return p.standing ? STANDING_FILTER_CHIP : "";
   }
 }
 
