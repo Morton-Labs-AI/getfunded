@@ -117,11 +117,12 @@ async function appChecks() {
         const [{ uid }] = await tx`select gen_random_uuid()::text as uid`;
         await tx`select set_config('app.user_id', ${uid}, true)`;
         try {
-          const [row] = await tx`
+          // No RETURNING: RLS applies the SELECT policy to returned rows, and a
+          // non-steward user with no workspace cannot read the row it just wrote.
+          const res = await tx`
             insert into getfunded.events (user_id, name, props)
-            values (${uid}::uuid, 'db_ping', '{"source":"scripts/db-ping.mjs"}')
-            returning id`;
-          insertOk = row?.id != null;
+            values (${uid}::uuid, 'db_ping', '{"source":"scripts/db-ping.mjs"}')`;
+          insertOk = res.count === 1;
         } catch (e) {
           note = e.message.slice(0, 80);
         }
