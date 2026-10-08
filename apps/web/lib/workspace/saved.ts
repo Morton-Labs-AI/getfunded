@@ -319,6 +319,19 @@ export async function savedOrgIds(ctx: WorkspaceCtx, orgIds: ReadonlyArray<strin
   });
 }
 
+/** Every live saved org id → saved_funders.id, so search results can show "Saved". */
+export async function savedOrgIndex(ctx: WorkspaceCtx, deps?: Deps): Promise<Record<string, string>> {
+  return run(ctx, deps, async (sql) => {
+    const rows = await sql<{ id: string; org_id: string }[]>`
+      select id, org_id from getfunded.saved_funders
+      where workspace_id = ${ctx.workspaceId}::uuid and archived_at is null
+      limit 5000`;
+    const out: Record<string, string> = {};
+    for (const r of rows) out[r.org_id] = r.id;
+    return out;
+  });
+}
+
 /* ------------------------------------------------------------------ edits */
 
 export type EditResult =

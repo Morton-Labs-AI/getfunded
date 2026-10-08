@@ -18,7 +18,7 @@ import "server-only";
 import type postgres from "postgres";
 import { withUser, type Db } from "@/lib/billing/db";
 import { corpusQuery } from "@/lib/db/corpus";
-import { addApplicantEvidence, readProfile, type Applicant } from "./applicant";
+import { addApplicantEvidence, readProfile, type Applicant, type KnowledgeItem } from "./applicant";
 import { EvidenceBuilder, clip, moneyForModel, type EvidenceItem } from "./evidence";
 import { FunderNotFoundError } from "./http";
 
@@ -79,16 +79,17 @@ export async function loadApplicant(sql: Db, workspaceId: string): Promise<Appli
     where workspace_id = ${workspaceId}::uuid and approved = true
     order by kind, created_at
     limit 30`;
-  return {
-    name: row.name,
-    profile: readProfile(row.profile),
-    knowledge: (knowledge as Array<{ id: unknown; kind: string; title: string; body: string }>).map((k) => ({
-      id: String(k.id),
-      kind: k.kind,
-      title: k.title,
-      body: k.body,
-    })),
-  };
+  // Rows are mapped field by field (postgres.js rows are loosely typed); only approved rows were selected.
+  const items: KnowledgeItem[] = [];
+  for (const k of knowledge as Iterable<Record<string, unknown>>) {
+    items.push({
+      id: String(k.id ?? ""),
+      kind: str(k.kind) ?? "fact",
+      title: str(k.title) ?? "",
+      body: str(k.body) ?? "",
+    });
+  }
+  return { name: row.name, profile: readProfile(row.profile), knowledge: items };
 }
 
 type Soft = <T>(fallback: T, fn: (s: postgres.TransactionSql) => Promise<T>) => Promise<T>;

@@ -21,8 +21,10 @@ export const FILTER_ORG_TYPES = ["private_foundation", "public_charity", "compan
 export const FILTER_POSTURES = ["open", "preselected_only", "unknown"] as const;
 
 /**
- * Query-string keys for each filter. ONE place to change when lib/search/params.ts
- * settles its names; the NL bar and the route both read from here.
+ * Query-string keys for each filter, following lib/search/params.ts where a
+ * key exists. `like` and `max_assets` have no URL key of their own:
+ * ./filter-search.ts turns `like` into the meaning-based `q` (or `giving_to`)
+ * and reports `max_assets` as dropped. That file is the one translation.
  */
 export const FILTER_PARAM_KEYS = {
   q: "q",
@@ -31,7 +33,7 @@ export const FILTER_PARAM_KEYS = {
   state: "state",
   posture: "posture",
   ntee: "ntee",
-  minGiving: "min_giving",
+  minGiving: "min_distributions",
   minAssets: "min_assets",
   maxAssets: "max_assets",
 } as const;

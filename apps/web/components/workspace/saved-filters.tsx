@@ -8,31 +8,20 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { exportSavedCsvAction } from "@/lib/workspace/actions";
+import { hasFilters, savedFiltersToQuery } from "@/lib/workspace/filters";
 import { STAGES, STAGE_LABELS, TIERS, TIER_LABELS } from "@/lib/workspace/stages";
 import type { Collection, Member, SavedFilters } from "@/lib/workspace/types";
 
 import { NativeSelect } from "./native-select";
 
+export { hasFilters, savedFiltersToQuery };
+
 /**
  * URL-driven filters for the saved list and the pipeline board, so a filtered
  * view is a link a person can send ("Dana's Tier 1 funders at Cultivating").
+ * The parser and serializer live in lib/workspace/filters.ts so the server
+ * pages and this client bar agree on the query keys.
  */
-export function savedFiltersToQuery(f: SavedFilters): string {
-  const p = new URLSearchParams();
-  if (f.q) p.set("q", f.q);
-  if (f.stage) p.set("stage", f.stage);
-  if (f.ownerId) p.set("owner", f.ownerId);
-  if (f.tier) p.set("tier", String(f.tier));
-  if (f.collectionId) p.set("list", f.collectionId);
-  if (f.sort && f.sort !== "updated") p.set("sort", f.sort);
-  const s = p.toString();
-  return s ? `?${s}` : "";
-}
-
-export function hasFilters(f: SavedFilters): boolean {
-  return Boolean(f.q || f.stage || f.ownerId || f.tier || f.collectionId);
-}
-
 export function SavedFiltersBar({
   base,
   current,

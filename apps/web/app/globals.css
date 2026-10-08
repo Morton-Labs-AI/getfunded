@@ -466,3 +466,18 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ----------------------------------------------------------------------------
+   Printable reports (/app/reports): hide the app chrome, keep the page.
+   The report page marks its body with .print-report; nothing else prints
+   without the sidebar and top bar.
+---------------------------------------------------------------------------- */
+@media print {
+  body:has(.print-report) [data-slot="app-shell"] > aside,
+  body:has(.print-report) [data-slot="app-shell"] > div > header {
+    display: none;
+  }
+  body:has(.print-report) [data-slot="app-shell"] {
+    min-height: 0;
+  }
+}

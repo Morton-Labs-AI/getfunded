@@ -7,15 +7,15 @@ import "server-only";
 import { z } from "zod";
 import type { AiRequest, Tool } from "@/lib/ai/types";
 import { meter, type MeterDeps } from "@/lib/billing/meter";
+import { parseSearchParams, type SearchParams } from "@/lib/search/params";
+import { filterToSearchParams, type FilterDropped } from "./filter-search";
 import {
   FILTER_ORG_TYPES,
   FILTER_POSTURES,
   FILTER_PROMPT_VERSION,
   STATE_NAMES,
-  US_STATES,
   mergeFilterParams,
   normalizeFilter,
-  normalizeState,
   type FilterToolOutput,
   type NormalizedFilter,
 } from "./filter-schema";
@@ -91,7 +91,11 @@ export const FilterInput = z.object({
 export type FilterInput = z.infer<typeof FilterInput>;
 
 export type FilterResult = NormalizedFilter & {
-  /** The merged query-string params to navigate to. */
+  /** The next search state, translated through ./filter-search (serialize with `toQueryString`). */
+  searchParams: SearchParams;
+  /** Filters the model set that the search page cannot express yet. */
+  dropped: FilterDropped[];
+  /** The merged query-string params (model vocabulary); prefer `searchParams`. */
   merged: Record<string, string>;
   interpretation: string;
   mock: boolean;
@@ -111,8 +115,17 @@ export async function runFilter(
       if (res.toolInput === undefined) throw new AiOutputRejectedError(["no filters produced"], res.usage);
       const normalized = normalizeFilter(res.mock ? mockFilterOutput(input.text) : res.toolInput);
       const merged = mergeFilterParams(input.current, normalized);
+      const translated = filterToSearchParams(parseSearchParams(input.current), normalized);
       return {
-        result: { ...normalized, merged, interpretation: input.text, mock: res.mock },
+        result: {
+          ...normalized,
+          chips: translated.applied,
+          searchParams: translated.params,
+          dropped: translated.dropped,
+          merged,
+          interpretation: input.text,
+          mock: res.mock,
+        },
         usage: res.usage,
       };
     },
@@ -150,9 +163,9 @@ export function mockFilterOutput(text: string): FilterToolOutput {
     .replace(/\$\s?[\d.,]+\s*(k|m|million|thousand|b|billion)?/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (topic.length > 3 && !out.state) out.like = topic.slice(0, 80);
-  else if (topic.length > 3) {
-    const t = topic.replace(new RegExp(`\\b${out.state.toLowerCase()}\\b`, "g"), " ").replace(/\s+/g, " ").trim();
+  if (topic.length > 3) {
+    const state = out.state;
+    const t = state ? topic.replace(new RegExp(`\\b${state.toLowerCase()}\\b`, "g"), " ").replace(/\s+/g, " ").trim() : topic;
     if (t.length > 3) out.like = t.slice(0, 80);
   }
   return out;

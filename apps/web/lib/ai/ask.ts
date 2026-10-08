@@ -18,6 +18,7 @@ import { z } from "zod";
 import { addUsage, type AiClient, type AiRequest, type MessageParam, type Usage } from "@/lib/ai/types";
 import { meter, type MeterDeps } from "@/lib/billing/meter";
 import { analyst as analystPool, analystEnabled } from "@/lib/db/corpus";
+import { AskBody } from "./api-schemas";
 import {
   ASK_PROMPT_VERSION,
   MOCK_ASK_QUERY,
@@ -32,13 +33,8 @@ import { AiNotConfiguredError, AiOutputRejectedError } from "./http";
 import { GuardError, ROW_CAP, guardSql, isExplain, serializeValue, textTable, wrapWithLimit, type GuardedResult } from "./sql-guard";
 import type { AskEvent } from "./sse";
 
-export const AskInput = z.object({
-  question: z.string().trim().min(3).max(2000),
-  history: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(8000) }))
-    .max(12)
-    .optional(),
-});
+/** The request body and the engine input are one schema (lib/ai/api-schemas.ts). */
+export const AskInput = AskBody;
 export type AskInput = z.infer<typeof AskInput>;
 
 export type AskDeps = MeterDeps & {

@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { aiMode } from "@/lib/ai/client";
-import { AiDisabledError, QuotaExceededError } from "@/lib/billing/meter";
+import { AiFeatureError, AiOutputRejectedError } from "@/lib/ai/http";
+import { AiDisabledError, QuotaExceededError, aiMode } from "@/lib/billing/meter";
 import { DbError } from "@/lib/db/app";
 import { copyFilingContact, createContact, deleteContact, updateContact } from "@/lib/outreach/contacts";
 import { deleteWorkspaceTemplate, saveWorkspaceTemplate } from "@/lib/outreach/boilerplate";
@@ -47,7 +47,7 @@ import { requireWorkspace } from "@/lib/workspace/context";
  * workspace id from the client.
  */
 
-export type ActionResult<T = Record<string, never>> = ({ ok: true } & T) | { ok: false; error: string };
+export type ActionResult<T = Record<never, never>> = ({ ok: true } & T) | { ok: false; error: string };
 
 const OUTREACH = "/app/outreach";
 
@@ -61,6 +61,13 @@ function friendly(error: unknown): string {
     return `This workspace has used its AI credits for the ${error.scope === "daily" ? "day" : "month"}. Polishing is paused; plain drafts still work.`;
   }
   if (error instanceof AiDisabledError) return "AI features are turned off right now. Plain drafts still work.";
+  if (error instanceof AiOutputRejectedError) {
+    return "The model's rewrite did not pass the honesty checks (every sentence must cite a source), so it was thrown away and your credits were refunded. Your own text is unchanged; try again or edit by hand.";
+  }
+  if (error instanceof AiFeatureError) return error.message;
+  if (error instanceof z.ZodError) {
+    return error.issues[0]?.message ?? "Check the form and try again.";
+  }
   console.error("[outreach/action]", error instanceof Error ? `${error.name}: ${error.message}` : error);
   return "Something went wrong. Try again in a moment.";
 }
@@ -126,6 +133,7 @@ export async function polishDraftAction(input: unknown): Promise<PolishActionRes
     const mock = aiMode() === "mock";
     const dossier = await latestDossier(ctx, saved.orgId, mock);
     const template = `Subject: ${parsed.data.subject}\n\n${parsed.data.body}`;
+    if (template.trim().length < 20) return { ok: false, error: "Write a few more words first. The model needs at least a short paragraph to work with." };
     const result = await polishDraft(ctx, {
       template,
       funder,
@@ -286,8 +294,12 @@ const useFilingSchema = z.object({
   label: z.string().trim().max(200).optional(),
 });
 
-/** Copy one public, role-based channel from the funder's filing into the workspace. */
-export async function useFilingContactAction(input: unknown): Promise<ActionResult<{ id: string }>> {
+/**
+ * Copy one public, role-based channel from the funder's filing into the
+ * workspace. Preferred name: a `use…` prefix reads as a React hook to the
+ * rules-of-hooks lint, so components should import this one.
+ */
+export async function copyFilingContactAction(input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = parse(useFilingSchema, input);
   if (!parsed.ok) return parsed;
   try {
@@ -303,6 +315,11 @@ export async function useFilingContactAction(input: unknown): Promise<ActionResu
   } catch (error) {
     return { ok: false, error: friendly(error) };
   }
+}
+
+/** Older name kept for components/outreach/contacts-panel.tsx; switch that import to copyFilingContactAction. */
+export async function useFilingContactAction(input: unknown): Promise<ActionResult<{ id: string }>> {
+  return copyFilingContactAction(input);
 }
 
 /* ----------------------------------------------------------------------------

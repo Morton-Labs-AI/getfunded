@@ -404,7 +404,10 @@ function BulkBar({
       let touched = 0;
       if (stage) {
         const r = await bulkMoveStageAction({ ids, stage: stage as Stage });
-        if (!r.ok) return toast.error("Could not move", { description: r.message });
+        if (!r.ok) {
+          toast.error("Could not move", { description: r.message });
+          return;
+        }
         touched += r.moved;
         if (r.failed > 0) toast.warning(`${r.failed} ${r.failed === 1 ? "funder" : "funders"} could not be moved`);
       }
@@ -413,7 +416,10 @@ function BulkBar({
         if (tier) patch.tier = tier === "none" ? null : (Number(tier) as Tier);
         if (owner) patch.ownerId = owner === "none" ? null : owner;
         const r = await bulkUpdateSavedAction({ ids, patch });
-        if (!r.ok) return toast.error("Could not update", { description: r.message });
+        if (!r.ok) {
+          toast.error("Could not update", { description: r.message });
+          return;
+        }
         touched += r.updated;
       }
       if (newList.trim()) {
@@ -428,7 +434,10 @@ function BulkBar({
         touched += ids.length;
       } else if (list) {
         const r = await addToCollectionAction({ collectionId: list, savedFunderIds: ids });
-        if (!r.ok) return toast.error("Could not add to the list", { description: r.message });
+        if (!r.ok) {
+          toast.error("Could not add to the list", { description: r.message });
+          return;
+        }
         touched += r.added;
       }
       toast.success(`Updated ${ids.length} ${ids.length === 1 ? "funder" : "funders"}`);

@@ -8,7 +8,12 @@ import { cn } from "@/lib/utils";
  * where a popover select per row is heavy and the native control is the
  * accessible one: keyboard, screen reader and touch all work for free.
  */
-export function NativeSelect({ className, children, size = "sm", ...props }: React.ComponentProps<"select"> & { size?: "sm" | "default" }) {
+type NativeSelectProps = Omit<React.ComponentProps<"select">, "size"> & {
+  /** Control height. The native `size` (visible rows) attribute is deliberately not exposed. */
+  size?: "sm" | "default";
+};
+
+export function NativeSelect({ className, children, size = "sm", ...props }: NativeSelectProps) {
   return (
     <span className={cn("relative inline-flex w-full", className)}>
       <select

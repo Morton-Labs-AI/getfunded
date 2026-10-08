@@ -39,10 +39,11 @@ export function PipelineBoard({ initial }: { initial: SavedFunder[] }) {
   const router = useRouter();
   const [rows, setRows] = React.useState(initial);
   const [activeId, setActiveId] = React.useState<string | null>(null);
-  const initialRef = React.useRef(initial);
-  if (initialRef.current !== initial) {
-    // Fresh server data (after a revalidate): adopt it.
-    initialRef.current = initial;
+  // Fresh server data (after a revalidate): adopt it. This is React's
+  // "storing information from previous renders" pattern; no effect, no ref.
+  const [seenInitial, setSeenInitial] = React.useState(initial);
+  if (seenInitial !== initial) {
+    setSeenInitial(initial);
     setRows(initial);
   }
 
