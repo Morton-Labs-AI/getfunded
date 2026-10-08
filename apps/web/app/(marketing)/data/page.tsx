@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight, FileSpreadsheet } from "lucide-react";
 
 import { ProvenanceSeal } from "@/components/data/provenance-seal";
 import { CodeBlock } from "@/components/marketing/code-block";
@@ -90,7 +90,28 @@ export default function DataPage() {
         eyebrow="The data"
         title="Every fact points at a file you can download and hash yourself."
         lede="GetFunded is built only from public government records. This page lists the sources, shows what the database holds right now, says what is missing, and explains the rules for contact data."
-      />
+      >
+        <Link
+          href="/foundations"
+          className="group flex max-w-2xl items-start gap-4 rounded-lg border border-primary-border bg-primary-tint/50 p-5 shadow-card transition-[border-color,box-shadow] duration-150 hover:border-primary hover:shadow-lift"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-card text-primary">
+            <FileSpreadsheet className="size-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="eyebrow text-primary">Open data</p>
+            <h2 className="mt-1 font-display text-xl font-medium tracking-tight text-foreground">The Open Foundation List</h2>
+            <p className="mt-1.5 text-sm text-pretty text-ink-2">
+              Every U.S. private foundation that files Form 990-PF electronically, in one public list: what it gave, what it
+              holds, and whether it says it accepts applications. Free to reuse with attribution.
+            </p>
+            <p className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
+              Open the list
+              <ArrowRight className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
+            </p>
+          </div>
+        </Link>
+      </PageHero>
 
       <Section id="coverage" className="py-10 sm:py-14">
         <SectionHeading eyebrow="Coverage" title="What the database holds." lede="Live from the database, cached for a few hours." />

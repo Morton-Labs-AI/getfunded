@@ -75,6 +75,8 @@ options.
 | `ingest adv-schedules` | SEC Form ADV monthly zips: Schedule A/B owners and 7.B.1 private funds. |
 | `ingest formd` | SEC Form D quarterly data sets: Reg D offerings, issuers, related persons. |
 | `ingest sbir` | SBIR/STTR award data: federal non-dilutive awards to small businesses. |
+| `backfill` | Load older IRS index years (2017 to 2020) one zip at a time, safe on a small disk (`--dry-run`, `--discard-zips`, `--min-free-gb`, `--limit-zips`, `--forms`, `--finish`, `--parse-only ZIP`). |
+| `refresh-views` | Rebuild the materialized views the app reads. Run it after a backfill. |
 | `contacts sync-part-xv` | 990-PF Part XV application contacts into `contact_channels`, tiered (`--dry-run` classifies and counts only). |
 | `contacts audit` | Publication invariants; every count must be 0. |
 | `embed sync` | Rebuild the search documents and embed the ones whose hash changed (Voyage AI). |
@@ -92,6 +94,79 @@ options.
 | `eval er` | Entity-resolution precision floors. |
 | `eval parity` | Spot-check filing financials against the ProPublica Nonprofit Explorer API (report only, needs network). |
 | `export public` | Export the `public.*` views as a hash-stable, versioned CSV dataset (`--verify-only` runs the assertions and writes nothing). |
+| `export foundations` | The Open Foundation List: two small CSV files of U.S. private foundations, read only from the `public.*` views (`--out DIR`, `--limit N`, `--no-ledger`). |
+
+## Backfilling older years
+
+The normal `ingest` commands load one year at a time and keep every zip. The
+`backfill` command loads the older index years 2017 to 2020. It handles one
+zip at a time, so it works on a machine with little free disk.
+
+```
+uv run funderdb backfill --dry-run                # the plan: zips, sizes, free disk
+uv run funderdb backfill --discard-zips --limit-zips 1   # try one zip first
+uv run funderdb backfill --discard-zips           # all four years, newest first
+```
+
+What it does for each zip:
+
+1. It checks the free disk. It does not start a download that leaves less
+   than `--min-free-gb` (default 6).
+2. It downloads the zip (the download can resume) and records its sha256 in
+   `internal.raw_files`, as every ingest does.
+3. It loads the 990-PF grants, financials, officers, Schedule B, Part XV and
+   websites that the zip holds. It reads the zip one time.
+4. It writes one ledger row that starts with `backfill:`. A later run skips
+   a zip that has this row.
+5. With `--discard-zips` it deletes the local zip. The `raw_files` row keeps
+   the sha256 and the source URL. `raw_files.meta` gets a `local_copy` note
+   that says the copy was discarded and where to get it again.
+
+After the last zip of a year it runs the amended-return sweep for that year.
+At the end it prints four follow-up commands. It does not run them, because
+they are slow and one of them costs money. `--finish` runs them in order.
+
+Options: `--years 2020,2019` picks the years and their order. `--forms
+990pf,990` also loads Form 990 core financials and Schedule I grants (much
+more data). `--indexed-only` skips returns that are in a zip but in no index.
+`--parse-only ZIP` parses one zip you already have and prints counts and the
+schema-version coverage table. It needs no database.
+
+Sizes: 36 zips, 13.0 GB in all, 0.42 GB for the largest. With
+`--discard-zips` the extra disk in use stays under 1 GB. The file names, the
+sizes and four facts about these old files are in
+[docs/DATA-SOURCES.md](docs/DATA-SOURCES.md). The steps for a small disk are
+in [docs/SELF-INSTALL.md](docs/SELF-INSTALL.md).
+
+A second run of a finished year adds no rows.
+
+## Open Foundation List
+
+The Open Foundation List is a small public download: every U.S. private
+foundation in the database, in two CSV files.
+
+```
+uv run funderdb export foundations --out data/open-foundation-list
+uv run funderdb export foundations --out /tmp/check --limit 300 --no-ledger   # a quick sample
+```
+
+It writes `DIR/<vintage>/` with:
+
+- `foundations.csv.gz`: one row for each foundation (name, place, latest
+  assets and giving, grants on file, application posture, public contact,
+  link to the profile page);
+- `foundation_years.csv.gz`: one row for each foundation and fiscal year;
+- `README.md`, `LICENSE.txt` (CC BY 4.0 for the compilation; the IRS records
+  are public domain) and `manifest.json` (row counts, sha256 of each file,
+  sources, the git commit).
+
+The export reads only the `public.*` views. It checks this before it writes a
+file, and it checks that the contact columns come only from
+`public.contact_channels`. Empty cells mean "not available", never zero.
+`not_stated` does not mean "closed". The same database gives the same bytes.
+
+`export public` is not changed by this command. Column dictionary and rebuild
+steps: [docs/OPEN-FOUNDATION-LIST.md](docs/OPEN-FOUNDATION-LIST.md).
 
 ## What is in the database
 
@@ -277,9 +352,15 @@ only proof that the files, not just a live database, describe the schema.
 - **The IRS zip backlog.** At any time tens of thousands of indexed returns
   have no published XML. They sit in the filings spine with nothing attached
   and are picked up by a later run.
-- **Back-year 990-PF grant rows** are loaded for the newest index years
-  only; earlier years carry filings, financials and officers. Loading their
-  grant rows needs disk, not code.
+- **Back-year 990-PF grant rows** are loaded for the index years you ran.
+  `funderdb backfill` loads 2017 to 2020 one zip at a time. Two gaps stay:
+  the 2016 zips are gone from the IRS host, so about 18,700 990-PF rows of
+  the 2017 index have no XML; and index years before 2017 are not published.
+- **Qualifying distributions on returns loaded before the 2026-10 parser
+  fix.** The Part XII group has an older name in schema versions before
+  2021v4.0. Returns of those versions that were already loaded (about
+  127,700) have an empty `qualifying_distributions`. New loads fill it. The
+  old rows need a repair pass.
 - **Form D** names the issuer, never the investors, so it is not a deal
   graph. Offerings whose first sale is yet to occur have a NULL event date,
   and a few filer-entered absurd amounts survive in the tail.

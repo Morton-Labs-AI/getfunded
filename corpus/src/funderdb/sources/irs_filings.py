@@ -23,6 +23,10 @@ module owns two things:
 Spine scope: 990PF + 990 only. 990 matters even before charity financials
 land because Schedule I grants come from 990 filings and need the same
 supersession. 990-EZ/990-T are recorded absences (see README known limits).
+
+The 2017-2020 indexes write two of those forms under other codes ('990PR'
+for some 990-PFs, '990O' for Form 990s from non-501(c)(3) filers). The spine
+stores the canonical form, so supersession groups line up across years.
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ import psycopg
 from .. import ledger, staging
 from ..db import connect
 from ..normalize import normalize_ein
-from .irs_990pf import DATASET, stage_index
+from .irs_990pf import DATASET, canonical_return_type, stage_index
 
 RETURN_TYPES = ("990PF", "990")
 
@@ -89,7 +93,7 @@ def load_spine_rows(year: int, refresh: bool = False) -> tuple[staging.StagedFil
     rows: dict[str, tuple] = {}
     with staged.path.open(encoding="utf-8", errors="replace") as fh:
         for row in csv.DictReader(fh):
-            rt = (row.get("RETURN_TYPE") or "").strip()
+            rt = canonical_return_type(row.get("RETURN_TYPE"))
             if rt not in RETURN_TYPES:
                 continue
             ein = normalize_ein(row.get("EIN") or "")
@@ -107,73 +111,117 @@ def load_spine_rows(year: int, refresh: bool = False) -> tuple[staging.StagedFil
     return staged, list(rows.values())
 
 
+def upsert_spine_rows(cur, rows: list[tuple], raw_file_id: int) -> tuple[int, int]:
+    """Upsert spine rows inside the caller's transaction; returns
+    ``(inserted, updated)``.
+
+    ``rows`` are ``(object_id, ein, return_type, tax_period, taxpayer_name,
+    dln, sub_date, batch_id)``. They normally come from an index CSV
+    (load_spine_rows); the backfill also passes rows read from the XML header
+    of returns that are in a zip but in no index, with the zip as raw file."""
+    cur.execute(_SPINE_STAGE_DDL)
+    with cur.copy(
+        "copy _filings_idx (object_id, ein, return_type, tax_period,"
+        " taxpayer_name, dln, sub_date, batch_id) from stdin"
+    ) as copy:
+        for r in rows:
+            copy.write_row(r)
+    cur.execute("analyze _filings_idx")
+    cur.execute(_SPINE_UPSERT, {"rfid": raw_file_id})
+    inserted, updated = cur.fetchone()
+    return inserted, updated
+
+
+def load_spine_year(conn: psycopg.Connection, year: int, refresh: bool = False) -> dict:
+    """Load one index year into the spine: stage and register the index CSV,
+    upsert its rows, record a ledger run. No supersession sweep — the caller
+    runs reconcile() when it has finished loading."""
+    staged, rows = load_spine_rows(year, refresh=refresh)
+    raw_file_id = staging.register_raw_file(
+        conn, staged, license_code="us_public_domain",
+        content_type="text/csv",
+    )
+    conn.commit()
+    run_id = ledger.start_run(conn, raw_file_id, DATASET)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("set local statement_timeout = '30min'")
+            inserted, updated = upsert_spine_rows(cur, rows, raw_file_id)
+        conn.commit()
+        ledger.complete_run(
+            conn, run_id, inserted=inserted, updated=updated,
+            notes=f"filings spine {year}: {len(rows)} index rows "
+                  f"(990PF+990); +{inserted} / ~{updated}",
+        )
+        print(f"{year}: index_rows={len(rows):,} "
+              f"inserted={inserted:,} updated={updated:,}", flush=True)
+    except Exception as exc:
+        try:
+            conn.rollback()
+            ledger.fail_run(conn, run_id, f"{type(exc).__name__}: {exc}")
+        except Exception:
+            pass
+        raise
+    return {"indexed": len(rows), "inserted": inserted, "updated": updated,
+            "raw_file_id": raw_file_id}
+
+
 def ingest(years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026),
            refresh: bool = False) -> dict:
     totals: dict[str, int] = defaultdict(int)
     with connect() as conn:
         for year in years:
-            staged, rows = load_spine_rows(year, refresh=refresh)
-            totals[f"indexed_{year}"] = len(rows)
-            raw_file_id = staging.register_raw_file(
-                conn, staged, license_code="us_public_domain",
-                content_type="text/csv",
-            )
-            conn.commit()
-            run_id = ledger.start_run(conn, raw_file_id, DATASET)
-            try:
-                with conn.cursor() as cur:
-                    cur.execute("set local statement_timeout = '30min'")
-                    cur.execute(_SPINE_STAGE_DDL)
-                    with cur.copy(
-                        "copy _filings_idx (object_id, ein, return_type, tax_period,"
-                        " taxpayer_name, dln, sub_date, batch_id) from stdin"
-                    ) as copy:
-                        for r in rows:
-                            copy.write_row(r)
-                    cur.execute("analyze _filings_idx")
-                    cur.execute(_SPINE_UPSERT, {"rfid": raw_file_id})
-                    inserted, updated = cur.fetchone()
-                conn.commit()
-                totals["spine_inserted"] += inserted
-                totals["spine_updated"] += updated
-                ledger.complete_run(
-                    conn, run_id, inserted=inserted, updated=updated,
-                    notes=f"filings spine {year}: {len(rows)} index rows "
-                          f"(990PF+990); +{inserted} / ~{updated}",
-                )
-                print(f"{year}: index_rows={len(rows):,} "
-                      f"inserted={inserted:,} updated={updated:,}", flush=True)
-            except Exception as exc:
-                try:
-                    conn.rollback()
-                    ledger.fail_run(conn, run_id, f"{type(exc).__name__}: {exc}")
-                except Exception:
-                    pass
-                raise
+            r = load_spine_year(conn, year, refresh=refresh)
+            totals[f"indexed_{year}"] = r["indexed"]
+            totals["spine_inserted"] += r["inserted"]
+            totals["spine_updated"] += r["updated"]
         for k, v in reconcile(conn).items():
             totals[k] = v
     return dict(totals)
 
 
-def reconcile(conn: psycopg.Connection) -> dict:
+# Scope filter for reconcile(): only the (ein, return_type, tax_period) groups
+# that hold at least one filing registered under the given raw files. The
+# whole group is still compared, so an amendment that arrived in another year
+# or another zip wins or loses exactly as in the unscoped sweep.
+_SCOPE_GROUPS = """
+              and (ein, return_type, tax_period) in (
+                select s.ein, s.return_type, s.tax_period
+                from internal.filings s
+                where s.raw_file_id = any(%(scope)s::bigint[]))"""
+
+
+def reconcile(conn: psycopg.Connection, *,
+              scope_raw_file_ids: list[int] | None = None,
+              refresh_stats: bool = True) -> dict:
     """Supersession sweep. Idempotent; runs at the tail of every 990 ingest.
 
     Each step commits separately — the org_id backfill alone touches up to
     2.5M rows on first run, and small transactions keep WAL spikes inside
     what Supabase disk autoscaling absorbs (learned the hard way, see
     irs_990pf._load_batch).
+
+    ``scope_raw_file_ids`` limits the sweep to the supersession groups touched
+    by filings registered under those raw files (an index CSV and its zips).
+    The backfill uses it to sweep one year at a time. ``refresh_stats=False``
+    leaves out the materialized-view refresh and the full-table linked-grant
+    count, so a caller can do that expensive step once at the very end.
+    The defaults are the original behaviour: everything, then refresh.
     """
     counts: dict[str, int] = {}
+    scoped = scope_raw_file_ids is not None
+    params = {"scope": list(scope_raw_file_ids)} if scoped else None
+    groups = _SCOPE_GROUPS if scoped else ""
 
     with conn.cursor() as cur:
         cur.execute("set local statement_timeout = '30min'")
         # Winner = max(object_id) per (ein, return_type, tax_period).
         # Also repairs stale pointers if a later index reveals a newer winner.
-        cur.execute("""
+        cur.execute(f"""
             with w as (
               select ein, return_type, tax_period, max(object_id) as winner
               from internal.filings
-              where coalesce(tax_period, '') <> ''
+              where coalesce(tax_period, '') <> ''{groups}
               group by 1, 2, 3
               having count(*) > 1
             )
@@ -185,7 +233,7 @@ def reconcile(conn: psycopg.Connection) -> dict:
               and f.tax_period = w.tax_period
               and f.superseded_by_object_id is distinct from
                   case when f.object_id = w.winner then null else w.winner end
-        """)
+        """, params)
         counts["supersession_pointer_updates"] = cur.rowcount
         cur.execute(
             "select count(*) from internal.filings "
@@ -197,37 +245,41 @@ def reconcile(conn: psycopg.Connection) -> dict:
         cur.execute("set local statement_timeout = '30min'")
         # Measure before deleting: the resolved count is the ER-floor guard
         # input (suite floor: 886,763 linked grant rows).
-        cur.execute("""
+        cur.execute(f"""
             select count(*), count(*) filter (where recipient_org_id is not null)
             from internal.funding_events
             where split_part(source_record_key, ':', 2) in
                   (select object_id from internal.filings
-                   where superseded_by_object_id is not null)
-        """)
+                   where superseded_by_object_id is not null{groups})
+        """, params)
         n_del, n_del_resolved = cur.fetchone()
         counts["superseded_events_found"] = n_del
         counts["superseded_events_resolved"] = n_del_resolved
         if n_del:
-            cur.execute("""
+            cur.execute(f"""
                 delete from internal.funding_events
                 where split_part(source_record_key, ':', 2) in
                       (select object_id from internal.filings
-                       where superseded_by_object_id is not null)
-            """)
+                       where superseded_by_object_id is not null{groups})
+            """, params)
             counts["superseded_events_deleted"] = cur.rowcount
     conn.commit()
 
     with conn.cursor() as cur:
         cur.execute("set local statement_timeout = '30min'")
-        cur.execute("""
+        cur.execute(f"""
             update internal.filings f
             set org_id = oi.org_id
             from internal.org_identifiers oi
             where f.org_id is null
               and oi.id_type = 'ein' and oi.id_value = f.ein
-        """)
+              {"and f.raw_file_id = any(%(scope)s::bigint[])" if scoped else ""}
+        """, params)
         counts["org_id_backfilled"] = cur.rowcount
     conn.commit()
+
+    if not refresh_stats:
+        return counts
 
     with conn.cursor() as cur:
         cur.execute("set local statement_timeout = '30min'")

@@ -41,7 +41,7 @@ from ..config import get_settings
 from ..db import connect
 from ..normalize import normalize_ein, normalize_name, parse_amount
 from .irs_990pf import (DATASET, NS, PfFiling, _iter_wanted_members, _text,
-                        batch_ids_for, load_index, stage_batch)
+                        batch_ids_for, canonical_batch, load_index, stage_batch)
 
 ROW_CAP = 50_000
 
@@ -252,7 +252,7 @@ def _staged_zip(batch_id: str):
     """Already-staged batch zip path, or None — never downloads (dry-run)."""
     settings = get_settings()
     dest = settings.raw_dir / DATASET
-    hits = sorted(p for p in dest.glob(f"*_{batch_id.strip().upper()}.zip")
+    hits = sorted(p for p in dest.glob(f"*_{canonical_batch(batch_id)}.zip")
                   if not p.name.startswith(".partial"))
     return hits[-1] if hits else None
 

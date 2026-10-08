@@ -197,6 +197,68 @@ Budget for it:
 You can also run any single step from the list in `uv run funderdb --help`;
 `full` only chains them.
 
+### Older years on a small disk (2017 to 2020)
+
+The IRS still publishes the returns of 2017, 2018, 2019 and 2020. They are
+36 zip files, 13 GB in all. You do not need 13 GB of free disk. The
+`backfill` command handles one zip at a time and can delete each zip when it
+is done with it.
+
+Step 1. Look at the plan. This step downloads nothing and needs no database.
+
+```
+uv run funderdb backfill --dry-run --discard-zips
+```
+
+It lists each zip, its size, the free disk, and which zips would start.
+
+Step 2. Try one zip.
+
+```
+uv run funderdb backfill --discard-zips --limit-zips 1
+```
+
+It prints how many seconds the zip took and how many rows it added. Use
+these numbers to plan the rest.
+
+Step 3. Run the rest. You can stop it at any time and run the same command
+again. It skips the zips that are done.
+
+```
+uv run funderdb backfill --discard-zips
+```
+
+Step 4. Run the four follow-up commands that it prints at the end. Or run
+step 3 with `--finish` and it runs them for you.
+
+Things to know:
+
+- **Free disk rule.** The command does not start a download that leaves less
+  than 6 GB free. Change the number with `--min-free-gb`. When it refuses, it
+  stops and exits with code 2. Free some space and run it again.
+- **How much disk it uses.** With `--discard-zips`: one zip (0.42 GB at most)
+  plus four index files (0.06 GB each). Three of the zips also need about
+  0.2 GB of temporary space while they are read. Without `--discard-zips` all
+  13 GB stay on disk.
+- **A discarded zip is not lost.** The database keeps its sha256, its size
+  and its source URL in `internal.raw_files`. The `meta` column gets a
+  `local_copy` note that says the copy was discarded. If the zip is
+  downloaded again, the sha256 shows that the bytes are the same.
+- **One year at a time.** `--years 2020` runs only that year. The default
+  order is newest first: `2020,2019,2018,2017`.
+- **Install 7zz for three of the zips.** `2018_TEOS_XML_CT1`,
+  `2018_TEOS_XML_CT3` and `2020_TEOS_XML_CT1` use Deflate64 compression. With
+  `7zz` on the path (`brew install sevenzip`) they take about a minute each.
+  Without it a slower reader is used.
+- **More data.** `--forms 990pf,990` also loads Form 990 financials and
+  Schedule I grants from the same zips. This is about one million more
+  returns. Plan for many more hours and several more GB in the database.
+- **The database needs room too.** The 990-PF backfill adds about 290,000
+  returns. The estimate for grant rows is 4 to 6 million. The zips do not
+  stay on disk, but the rows stay in the database.
+
+The file names, the sizes and the known gaps are in `docs/DATA-SOURCES.md`.
+
 ### Semantic search (optional)
 
 `funderdb embed sync` builds the hybrid search corpus with Voyage AI

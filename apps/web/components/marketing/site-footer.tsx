@@ -22,6 +22,7 @@ const COLUMNS: { heading: string; links: FooterLink[] }[] = [
       { label: "GitHub", href: site.github, external: true },
       { label: "Why open source", href: "/open-source" },
       { label: "The data", href: "/data" },
+      { label: "Open Foundation List", href: "/foundations" },
       { label: "Data license", href: "/docs/data-sources-and-license" },
       { label: "Self-install", href: "/docs/self-install" },
       { label: "Contributing", href: "/docs/governance-and-contributing" },

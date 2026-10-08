@@ -32,6 +32,7 @@ element path.
 from __future__ import annotations
 
 import csv
+import re
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -49,6 +50,120 @@ DATASET = "irs_990_xml"
 NS = "{http://www.irs.gov/efile}"
 INDEX_URL = "https://apps.irs.gov/pub/epostcard/990/xml/{year}/index_{year}.csv"
 BATCH_URL = "https://apps.irs.gov/pub/epostcard/990/xml/{year}/{batch}.zip"
+
+# ---------------------------------------------------------------------------
+# Index years 2017-2020 ("legacy" years).
+#
+# From 2021 the IRS names every zip {YEAR}_TEOS_XML_{NN}{A-H}.zip and
+# probe_batches() can find them. The four years before that use two older
+# schemes whose names cannot be guessed, so they are recorded here: zip stem
+# -> size in bytes, HEAD-checked against apps.irs.gov on 2026-10-08. The IRS
+# downloads page lists the 2019 and 2020 files; the 2017 and 2018 files are no
+# longer listed there but are still served. The 2016 files are gone.
+#
+#   download990xml_{YEAR}_{N}.zip   the year's returns, in object-id order
+#   {YEAR}_TEOS_XML_CT{N}.zip       later additions for the same year
+#
+# Measured on the real files (docs/DATA-SOURCES.md has the numbers):
+#   * members are flat `{OBJECT_ID}_public.xml`, the 2025+ layout;
+#   * a zip holds returns by OBJECT-ID year, not by index year. Index year Y
+#     also lists the returns posted early in Y whose object ids start with
+#     Y-1, and those sit in the Y-1 zips. So a legacy index is complete only
+#     after the previous year's zips were read as well;
+#   * 2018_TEOS_XML_CT1, 2018_TEOS_XML_CT3 and 2020_TEOS_XML_CT1 are Deflate64
+#     (see _iter_wanted_members); every other legacy zip is plain Deflate;
+#   * the 2020 zips hold about 47,750 990-PF returns that are in no index at
+#     all (the 2020 index stops listing 990-PFs in late September 2020).
+# The main zips come first on purpose: the CT zips mostly repeat them.
+# ---------------------------------------------------------------------------
+LEGACY_BATCHES: dict[int, dict[str, int]] = {
+    2020: {
+        "download990xml_2020_1": 410_636_484,
+        "download990xml_2020_2": 403_633_186,
+        "download990xml_2020_3": 402_519_268,
+        "download990xml_2020_4": 412_449_605,
+        "download990xml_2020_5": 407_097_915,
+        "download990xml_2020_6": 404_259_826,
+        "download990xml_2020_7": 406_249_542,
+        "download990xml_2020_8": 164_852_375,
+        "2020_TEOS_XML_CT1": 374_013_631,
+    },
+    2019: {
+        "download990xml_2019_1": 405_230_455,
+        "download990xml_2019_2": 402_125_774,
+        "download990xml_2019_3": 403_135_309,
+        "download990xml_2019_4": 407_401_876,
+        "download990xml_2019_5": 399_048_882,
+        "download990xml_2019_6": 394_490_221,
+        "download990xml_2019_7": 406_778_542,
+        "download990xml_2019_8": 190_353_313,
+        "2019_TEOS_XML_CT1": 15_817,
+    },
+    2018: {
+        "download990xml_2018_1": 405_852_961,
+        "download990xml_2018_2": 402_189_942,
+        "download990xml_2018_3": 407_493_755,
+        "download990xml_2018_4": 404_723_587,
+        "download990xml_2018_5": 408_094_770,
+        "download990xml_2018_6": 406_406_859,
+        "download990xml_2018_7": 301_672_836,
+        "2018_TEOS_XML_CT1": 408_154_337,
+        "2018_TEOS_XML_CT2": 408_862_000,
+        "2018_TEOS_XML_CT3": 420_140_132,
+    },
+    2017: {
+        "download990xml_2017_1": 410_883_001,
+        "download990xml_2017_2": 410_054_163,
+        "download990xml_2017_3": 411_234_704,
+        "download990xml_2017_4": 411_728_756,
+        "download990xml_2017_5": 408_880_532,
+        "download990xml_2017_6": 411_037_347,
+        "download990xml_2017_7": 170_853_823,
+        "2017_TEOS_XML_CT1": 23_112_306,
+    },
+}
+
+# RETURN_TYPE codes the 2017-2020 indexes use for the two forms this pipeline
+# loads. '990O' is a full Form 990 filed by an organization that is not a
+# 501(c)(3); '990PR' (2020 index only, 30,085 rows) is a 990-PF published in
+# 2020_TEOS_XML_CT1. Both were checked against ReturnTypeCd in the XML. From
+# 2021 the index writes plain '990' and '990PF' for all of them.
+INDEX_RETURN_TYPE_ALIASES = {"990PR": "990PF", "990O": "990"}
+
+_YEAR_IN_NAME = re.compile(r"(?<!\d)(20\d\d)(?!\d)")
+
+
+def canonical_return_type(raw: str | None) -> str:
+    """The form an index RETURN_TYPE code stands for ('990PR' -> '990PF')."""
+    rt = (raw or "").strip()
+    return INDEX_RETURN_TYPE_ALIASES.get(rt, rt)
+
+
+def canonical_batch(batch_id: str) -> str:
+    """The zip stem as the IRS host spells it.
+
+    TEOS labels are upper-case on the host while the 2024 index writes some of
+    them lower-case ('2024_TEOS_XML_05a'). The legacy 'download990xml_...'
+    stems are lower-case on the host, and the host is case-sensitive."""
+    b = batch_id.strip()
+    return b.lower() if b.lower().startswith("download990xml_") else b.upper()
+
+
+def batch_year(batch_id: str, default: int) -> int:
+    """The year folder a zip lives in. It is the year in the zip's own name,
+    which for legacy zips can differ from the index year that needs it."""
+    m = _YEAR_IN_NAME.search(batch_id)
+    return int(m.group(1)) if m else default
+
+
+def batch_url(batch_id: str, year: int) -> str:
+    batch = canonical_batch(batch_id)
+    return BATCH_URL.format(year=batch_year(batch, year), batch=batch)
+
+
+def legacy_batches(year: int) -> list[str]:
+    """Recorded zip stems for a legacy year, in processing order ([] from 2021)."""
+    return list(LEGACY_BATCHES.get(year, ()))
 
 
 @dataclass(frozen=True)
@@ -76,33 +191,40 @@ def stage_index(year: int, refresh: bool = False) -> staging.StagedFile:
     )
 
 
+def iter_index(year: int, refresh: bool = False):
+    """Yield ``(form, PfFiling)`` for every usable row of one index CSV.
+
+    ``form`` is the canonical return type (see INDEX_RETURN_TYPE_ALIASES), so
+    callers compare against '990PF' / '990' whatever the index year wrote.
+    Rows of forms the pipeline does not load ('990EZ', '990T', ...) are
+    yielded too: the backfill needs to tell "indexed as another form" from
+    "in no index at all"."""
+    staged = stage_index(year, refresh=refresh)
+    with staged.path.open(encoding="utf-8", errors="replace") as fh:
+        for row in csv.DictReader(fh):
+            ein = normalize_ein(row.get("EIN") or "")
+            oid = (row.get("OBJECT_ID") or "").strip()
+            if not ein or not oid:
+                continue
+            yield canonical_return_type(row.get("RETURN_TYPE")), PfFiling(
+                object_id=oid, ein=ein,
+                tax_period=(row.get("TAX_PERIOD") or "").strip(),
+                taxpayer_name=(row.get("TAXPAYER_NAME") or "").strip(),
+                batch_id=(row.get("XML_BATCH_ID") or "").strip(),
+            )
+
+
 def load_index(year: int, return_type: str = "990PF",
                refresh: bool = False) -> list[PfFiling]:
     """Index rows for one RETURN_TYPE. The Schedule I loader shares this with
     return_type='990'; PfFiling is return-type-agnostic.
 
-    Pre-2024 indexes (2021-2023) carry NO XML_BATCH_ID column — those rows
+    Pre-2024 indexes (2017-2023) carry NO XML_BATCH_ID column — those rows
     get batch_id='' and callers discover the batch zips via probe_batches()
-    (the zips exist under the same naming pattern; processing is
-    membership-driven anyway, so the label only enumerates downloads)."""
-    staged = stage_index(year, refresh=refresh)
-    out: list[PfFiling] = []
-    with staged.path.open(encoding="utf-8", errors="replace") as fh:
-        for row in csv.DictReader(fh):
-            if (row.get("RETURN_TYPE") or "").strip() != return_type:
-                continue
-            ein = normalize_ein(row.get("EIN") or "")
-            oid = (row.get("OBJECT_ID") or "").strip()
-            batch = (row.get("XML_BATCH_ID") or "").strip()
-            if not ein or not oid:
-                continue
-            out.append(PfFiling(
-                object_id=oid, ein=ein,
-                tax_period=(row.get("TAX_PERIOD") or "").strip(),
-                taxpayer_name=(row.get("TAXPAYER_NAME") or "").strip(),
-                batch_id=batch,
-            ))
-    return out
+    (processing is membership-driven anyway, so the label only enumerates
+    downloads). The 2017-2020 indexes also spell two return types differently;
+    iter_index() folds them in (990PR -> 990PF, 990O -> 990)."""
+    return [f for form, f in iter_index(year, refresh=refresh) if form == return_type]
 
 
 def load_pf_index(year: int, refresh: bool = False) -> list[PfFiling]:
@@ -113,8 +235,16 @@ def probe_batches(year: int) -> list[str]:
     """Discover a year's batch zips by HEAD probe (pre-2024 indexes don't
     name them). Numbers are contiguous from 01; letters are contiguous per
     number (e.g. 11A-11D). Only a 200 counts — the IRS host 302s missing
-    zips to an error page."""
+    zips to an error page.
+
+    2017-2020 use older names that follow no pattern, so they come from
+    LEGACY_BATCHES instead of a probe. The previous year's zips are appended
+    because they hold the returns a legacy index lists first (object ids that
+    start with year-1); without them those rows would never find their XML."""
     import httpx
+
+    if year in LEGACY_BATCHES:
+        return legacy_batches(year) + legacy_batches(year - 1)
 
     found: list[str] = []
     with httpx.Client(headers={"User-Agent": get_settings().http_user_agent}, timeout=30.0,
@@ -145,11 +275,12 @@ def batch_ids_for(year: int, filings: list[PfFiling]) -> list[str]:
 
 
 def stage_batch(year: int, batch_id: str) -> staging.StagedFile:
-    # The 2024 index writes some batch ids lowercase ('2024_TEOS_XML_05a')
-    # while the published zips are uppercase ('...05A.zip') — normalize.
-    batch = batch_id.strip().upper()
+    # canonical_batch() fixes the case of the label (the 2024 index writes
+    # some lower-case); batch_url() takes the year folder from the zip's own
+    # name, which matters for legacy zips read on behalf of the next index.
+    batch = canonical_batch(batch_id)
     return staging.stage_download(
-        DATASET, BATCH_URL.format(year=year, batch=batch),
+        DATASET, batch_url(batch, year),
         filename=f"{batch}.zip", timeout=600.0,
     )
 
@@ -277,12 +408,41 @@ FIN_FIELDS: list[tuple[str, str | None, str]] = [
 ]
 FIN_COLUMNS = [c for c, _, _ in FIN_FIELDS]
 
+# Groups that were renamed between schema versions: the name FIN_FIELDS uses
+# -> the older names, tried in order when the current one is absent.
+#
+# Part XII "Qualifying Distributions" is QualifyingDistriPartXIIGrp in every
+# returnVersion from 2014v6.0 to 2019v5.1 (read from the XML) and
+# PFQualifyingDistributionsGrp in the newer schema FIN_FIELDS was written
+# against. The switch is at 2021v4.0: in the database loaded before this alias
+# existed, 0 of 114,618 returns of version 2020v4.x have the column and 92% of
+# 2021v4.x returns do. Measured 2026-10-08 on
+# 46,765 990-PF returns from five 2017-2020 zips: qualifying_distributions was
+# filled on 0% of them before this alias and on 84-100% after in every
+# version with more than 100 returns. It was the only column at zero because
+# of a rename (2018v3.0 also shows total_grants_approved_future at zero, but
+# those returns carry no future-grant element under any name).
+#
+# Do NOT replace this with a search for QualifyingDistributionsAmt anywhere in
+# the form. The same element name also sits in QlfyUndSect4940eReducedTaxGrp
+# (old Part V) and in UndistributedIncomeGrp (Part XIII), where it is a
+# different line.
+_GROUP_ALIASES: dict[str, tuple[str, ...]] = {
+    "PFQualifyingDistributionsGrp": ("QualifyingDistriPartXIIGrp",),
+}
+
 
 def _parse_financials(pf) -> dict:
     groups: dict[str, object] = {}
     for _, g, _ in FIN_FIELDS:
         if g is not None and g not in groups:
-            groups[g] = pf.find(NS + g)
+            el = pf.find(NS + g)
+            if el is None:
+                for old in _GROUP_ALIASES.get(g, ()):
+                    el = pf.find(NS + old)
+                    if el is not None:
+                        break
+            groups[g] = el
     out: dict[str, int | None] = {}
     for col, g, name in FIN_FIELDS:
         parent = pf if g is None else groups[g]
@@ -393,6 +553,45 @@ def _parse_contributor(grp) -> tuple | None:
             _checked(grp, "PersonContributionInd"),
             _checked(grp, "PayrollContributionInd"),
             _checked(grp, "NoncashContributionInd"))
+
+
+_PERIOD_END = re.compile(r"^(\d{4})-(\d{2})-\d{2}$")
+
+
+def filing_from_header(object_id: str, data: bytes) -> tuple[str, PfFiling] | None:
+    """``(form, PfFiling)`` read from a return's own ReturnHeader.
+
+    For returns that are in a published zip but in no index CSV (about 47,750
+    990-PFs in the 2020 zips). The header carries everything the index row
+    would have given the loaders: the form (ReturnTypeCd), the EIN, the tax
+    period (the YYYYMM of TaxPeriodEndDt, which is how the index writes
+    TAX_PERIOD) and the filer name. Measured 2026-10-08 on 42,851 990-PF
+    returns that ARE indexed, from four zips of 2017-2020: form, EIN and tax
+    period agree with the index on every one. None when the header is
+    unusable."""
+    root = etree.fromstring(data)
+    hdr = root.find(f"{NS}ReturnHeader")
+    if hdr is None:
+        return None
+    form = _text(hdr, "ReturnTypeCd")
+    filer = hdr.find(f"{NS}Filer")
+    if not form or filer is None:
+        return None
+    ein = normalize_ein(_text(filer, "EIN") or "")
+    if not ein:
+        return None
+    m = _PERIOD_END.match(_text(hdr, "TaxPeriodEndDt") or "")
+    name = None
+    biz = filer.find(f"{NS}BusinessName")
+    if biz is not None:
+        name = " ".join(x for x in (
+            _text(biz, "BusinessNameLine1Txt", "BusinessNameLine1"),
+            _text(biz, "BusinessNameLine2Txt", "BusinessNameLine2")) if x) or None
+    return form, PfFiling(
+        object_id=object_id, ein=ein,
+        tax_period=(m.group(1) + m.group(2)) if m else "",
+        taxpayer_name=name or "", batch_id="",
+    )
 
 
 def parse_filing(data: bytes, filing: PfFiling) -> Parsed:
@@ -990,27 +1189,37 @@ def _iter_wanted_members(path: Path, todo: list[PfFiling], totals: dict):
                     pass
 
 
+# Members extracted per 7zz call. One call for a whole archive wrote every
+# wanted member to the temp folder at once (2-3 GB for a 400 MB legacy zip);
+# slices keep the temp folder near 200 MB, which is what makes the Deflate64
+# zips safe on a small disk. Each call re-reads only the central directory.
+_7ZZ_SLICE = 5000
+
+
 def _extract_via_7zz(path: Path, present: dict[str, tuple[PfFiling, str]], totals: dict):
     """`present` maps object_id -> (filing, full member path inside the zip).
     7zz 'e' flattens on extraction, so outputs are basenames either way."""
     import subprocess
     import tempfile
 
-    with tempfile.TemporaryDirectory(prefix="funderdb_7z_") as tmp:
-        listfile = Path(tmp) / "members.txt"
-        listfile.write_text("\n".join(member for _f, member in present.values()))
-        outdir = Path(tmp) / "out"
-        outdir.mkdir()
-        subprocess.run(
-            ["7zz", "e", str(path), f"-o{outdir}", f"@{listfile}", "-y", "-bso0", "-bsp0"],
-            check=True, capture_output=True,
-        )
-        for oid, (f, _member) in present.items():
-            out = outdir / f"{oid}_public.xml"
-            if out.exists():
-                yield f, out.read_bytes()
-            else:
-                totals["member_errors"] += 1
+    items = list(present.items())
+    for start in range(0, len(items), _7ZZ_SLICE):
+        part = items[start:start + _7ZZ_SLICE]
+        with tempfile.TemporaryDirectory(prefix="funderdb_7z_") as tmp:
+            listfile = Path(tmp) / "members.txt"
+            listfile.write_text("\n".join(member for _oid, (_f, member) in part))
+            outdir = Path(tmp) / "out"
+            outdir.mkdir()
+            subprocess.run(
+                ["7zz", "e", str(path), f"-o{outdir}", f"@{listfile}", "-y", "-bso0", "-bsp0"],
+                check=True, capture_output=True,
+            )
+            for oid, (f, _member) in part:
+                out = outdir / f"{oid}_public.xml"
+                if out.exists():
+                    yield f, out.read_bytes()
+                else:
+                    totals["member_errors"] += 1
 
 
 def ingest(years: tuple[int, ...] = (2026, 2025), limit: int | None = None,
@@ -1122,7 +1331,7 @@ def _staged_zip(batch_id: str) -> Path | None:
     """Already-staged batch zip path, or None — never downloads."""
     settings = get_settings()
     dest = settings.raw_dir / DATASET
-    hits = sorted(p for p in dest.glob(f"*_{batch_id.strip().upper()}.zip")
+    hits = sorted(p for p in dest.glob(f"*_{canonical_batch(batch_id)}.zip")
                   if not p.name.startswith(".partial"))
     return hits[-1] if hits else None
 
@@ -1141,7 +1350,7 @@ def _raw_file_id_for_zip(conn, path: Path, year: int, batch_id: str) -> int:
     if row:
         return int(row[0])
     staged = staging.StagedFile(
-        DATASET, BATCH_URL.format(year=year, batch=batch_id.strip().upper()),
+        DATASET, batch_url(batch_id, year),
         path, staging._sha256_of(path), path.stat().st_size,
     )
     rfid = staging.register_raw_file(
@@ -1150,6 +1359,36 @@ def _raw_file_id_for_zip(conn, path: Path, year: int, batch_id: str) -> int:
     )
     conn.commit()
     return rfid
+
+
+def load_detail_chunk(conn, raw_file_id: int, filings: list[PfFiling],
+                      parsed: list[Parsed],
+                      errors: list[tuple[PfFiling, str]] = ()) -> dict:
+    """Detail-only load of one chunk of 990-PF filings whose grant rows already
+    exist: detail tables, header, and the grant-detail columns backfilled onto
+    the existing funding_events rows. Never inserts 'grant' rows. One
+    transaction, committed here. Shared by reparse_details and the backfill."""
+    with conn.cursor() as cur:
+        cur.execute("set local statement_timeout = '30min'")
+        cur.execute(_GRANT_STAGE_DDL)
+        with cur.copy(
+            f"copy _pf_grants ({_GRANT_COLS}) from stdin"
+        ) as copy:
+            for p in parsed:
+                for row in p.grants:
+                    (ein, key, locator, recipient, city,
+                     state, purpose, amt, fy, address,
+                     zipc, country, fstatus, rel) = row
+                    copy.write_row((
+                        key, ein, locator, recipient, city,
+                        state, purpose, amt, fy, address,
+                        zipc, country, fstatus, rel))
+        counts = _load_details(
+            cur, raw_file_id, filings, parsed,
+            errors=errors, update_grants=True,
+        )
+    conn.commit()
+    return counts
 
 
 def reparse_details(years: tuple[int, ...] = (2026, 2025, 2024)) -> dict:
@@ -1198,28 +1437,11 @@ def reparse_details(years: tuple[int, ...] = (2026, 2025, 2024)) -> dict:
                     chunk = 5000
                     agg: dict[str, int] = defaultdict(int)
                     for i in list(range(0, len(found), chunk)) or [0]:
-                        with conn.cursor() as cur:
-                            cur.execute("set local statement_timeout = '30min'")
-                            cur.execute(_GRANT_STAGE_DDL)
-                            with cur.copy(
-                                f"copy _pf_grants ({_GRANT_COLS}) from stdin"
-                            ) as copy:
-                                for p in parsed[i:i + chunk]:
-                                    for row in p.grants:
-                                        (ein, key, locator, recipient, city,
-                                         state, purpose, amt, fy, address,
-                                         zipc, country, fstatus, rel) = row
-                                        copy.write_row((
-                                            key, ein, locator, recipient, city,
-                                            state, purpose, amt, fy, address,
-                                            zipc, country, fstatus, rel))
-                            counts = _load_details(
-                                cur, raw_file_id, found[i:i + chunk],
-                                parsed[i:i + chunk],
-                                errors=errors if i == 0 else [],
-                                update_grants=True,
-                            )
-                        conn.commit()
+                        counts = load_detail_chunk(
+                            conn, raw_file_id, found[i:i + chunk],
+                            parsed[i:i + chunk],
+                            errors=errors if i == 0 else [],
+                        )
                         for k, v in counts.items():
                             agg[k] += v
                         for f in found[i:i + chunk]:
@@ -1250,6 +1472,35 @@ def reparse_details(years: tuple[int, ...] = (2026, 2025, 2024)) -> dict:
         for k, v in reconcile(conn).items():
             totals[f"reconcile_{k}"] = v
     return dict(totals)
+
+
+def coverage_add(by_version: dict, p: Parsed, columns: list[str] | None = None) -> None:
+    """Count one parsed return into the per-returnVersion coverage histogram."""
+    ver = p.header.get("return_version") or "?"
+    v = by_version.setdefault(ver, {"n": 0, "cols": defaultdict(int)})
+    v["n"] += 1
+    for c in columns or FIN_COLUMNS:
+        if p.fin.get(c) is not None:
+            v["cols"][c] += 1
+
+
+def print_coverage(by_version: dict, columns: list[str] | None = None,
+                   headline: tuple[str, ...] = ("total_revenue", "total_assets_eoy",
+                                                "fmv_assets_eoy")) -> None:
+    """One line per returnVersion: how often the headline columns are filled,
+    and how many columns are filled on NO return of that version. A column at
+    zero in a well-populated version means an element was renamed."""
+    columns = columns or FIN_COLUMNS
+    for ver in sorted(by_version):
+        v = by_version[ver]
+        zero = [c for c in columns if v["cols"].get(c, 0) == 0]
+        pct = lambda c: 100 * v["cols"].get(c, 0) / v["n"]  # noqa: E731
+        print(f"  {ver}: n={v['n']:,}  "
+              + "  ".join(f"{c}={pct(c):.1f}%" for c in headline)
+              + f"  zero-coverage-cols={len(zero)}")
+        if zero and v["n"] >= 50:
+            print(f"    zero in this version: {', '.join(zero[:12])}"
+                  f"{'…' if len(zero) > 12 else ''}")
 
 
 def dry_run_details(years: tuple[int, ...], limit: int | None = None) -> dict:
@@ -1283,12 +1534,7 @@ def dry_run_details(years: tuple[int, ...], limit: int | None = None) -> dict:
                     totals["xml_errors"] += 1
                     continue
                 scanned += 1
-                ver = p.header.get("return_version") or "?"
-                v = by_version.setdefault(ver, {"n": 0, "cols": defaultdict(int)})
-                v["n"] += 1
-                for c in FIN_COLUMNS:
-                    if p.fin.get(c) is not None:
-                        v["cols"][c] += 1
+                coverage_add(by_version, p)
                 totals["officer_rows"] += len(p.filing_officers)
                 totals["contributor_rows"] += len(p.contributors)
                 totals["futgrant_rows"] += len(p.future_grants)
@@ -1299,15 +1545,5 @@ def dry_run_details(years: tuple[int, ...], limit: int | None = None) -> dict:
                     break
     totals["filings_scanned"] = scanned
     print(f"\nscanned {scanned:,} filings across {len(by_version)} returnVersions")
-    for ver in sorted(by_version):
-        v = by_version[ver]
-        zero = [c for c in FIN_COLUMNS if v["cols"].get(c, 0) == 0]
-        pct = lambda c: 100 * v["cols"].get(c, 0) / v["n"]  # noqa: E731
-        print(f"  {ver}: n={v['n']:,}  total_revenue={pct('total_revenue'):.1f}%  "
-              f"total_assets_eoy={pct('total_assets_eoy'):.1f}%  "
-              f"fmv_assets_eoy={pct('fmv_assets_eoy'):.1f}%  "
-              f"zero-coverage-cols={len(zero)}")
-        if zero and v["n"] >= 50:
-            print(f"    zero in this version: {', '.join(zero[:12])}"
-                  f"{'…' if len(zero) > 12 else ''}")
+    print_coverage(by_version)
     return dict(totals)

@@ -53,6 +53,34 @@ Mutable feeds (same URL, new bytes over time) keep every vintage on disk. A
 refresh that finds new bytes stages a *new* file with a new hash; the old one
 stays, and stays registered, because rows were parsed from it.
 
+### Discarded local copies
+
+`funderdb backfill --discard-zips` deletes a batch zip from disk after its
+rows are loaded and its ledger row is written. This is the one case where a
+registered file is not kept locally. The promise still holds, because:
+
+- the `raw_files` row stays, with the same `sha256`, `byte_size` and
+  `source_url`;
+- `raw_files.meta` gets a `local_copy` object: `state` (`discarded`),
+  `discarded_at`, `reason`, `refetch_url`, `sha256` and `byte_size`;
+- the sidecar `<file>.meta.json` stays on disk and gets the same note;
+- the zips are immutable at the IRS, so a new download of `refetch_url` must
+  give the recorded sha256. If it does not, staging registers it as a new
+  file and the difference is visible.
+
+When a discarded zip is downloaded again, the note changes to `state`
+`present` with a `refetched_at` time.
+
+### Returns that are in no index
+
+The 2020 zips hold about 47,750 Form 990-PF returns that no IRS index CSV
+lists (`docs/DATA-SOURCES.md`). `funderdb backfill` loads them. Their row in
+`internal.filings` is built from the header of the return itself (EIN, tax
+period, form, name). Its `raw_file_id` is the zip, not an index CSV, and its
+`dln` and `sub_date` are empty because only the index has them. Every other
+row of such a return has the same provenance as any other return: the zip
+and an element path inside `<OBJECT_ID>_public.xml`.
+
 ## Record locators
 
 Every fact row carries `raw_file_id` and `source_record_locator`, which
@@ -84,7 +112,10 @@ Low-volume rows (seed, ADV firms) keep a compact extracted `raw_source`.
 free-text `notes` (which now record the file's vintage and whether it came
 from cache). `funderdb status` prints the most recent runs. Exports are
 ledgered too: the manifest of every published export is staged, hashed and
-registered under dataset `export_public`.
+registered under dataset `export_public` (`export_foundations` for the Open
+Foundation List). A backfill writes one row per finished zip whose notes
+start with `backfill:` and name the forms that were loaded; the resume check
+reads these rows.
 
 ## licensing_map and what it decides
 

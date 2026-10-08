@@ -388,6 +388,93 @@ def ingest_seed() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Backfill (older index years, one zip at a time)
+# ---------------------------------------------------------------------------
+@main.command()
+@click.option("--years", default="2020,2019,2018,2017", show_default=True,
+              help="Index years to backfill, comma-separated, in the order to run them.")
+@click.option("--forms", default="990pf", show_default=True,
+              help="990pf, or 990pf,990 to also load Form 990 core financials and "
+                   "Schedule I grants from the same zips.")
+@click.option("--min-free-gb", type=float, default=6.0, show_default=True,
+              help="Refuse to start a download that would leave less free disk than this.")
+@click.option("--limit-zips", type=int, default=None,
+              help="Stop after N zips have been processed in this run.")
+@click.option("--discard-zips", is_flag=True,
+              help="Delete each local zip after its ledger row is written. The raw_files "
+                   "row keeps the sha256 and source URL, with a note that the copy can be "
+                   "fetched again.")
+@click.option("--dry-run", is_flag=True,
+              help="Plan only: list the zips, their sizes, what is already complete and "
+                   "the free disk. Downloads nothing, writes nothing, needs no database.")
+@click.option("--resume/--no-resume", default=True, show_default=True,
+              help="Skip zips the ledger already marks complete for these forms.")
+@click.option("--finish", is_flag=True,
+              help="Run the four follow-up steps at the end instead of printing them.")
+@click.option("--indexed-only", is_flag=True,
+              help="Load only returns that an index CSV lists. By default returns that are "
+                   "in a zip but in no index (about 47,750 990-PFs in the 2020 zips) are "
+                   "loaded too, read from their own header.")
+@click.option("--parse-only", "parse_only_zip", type=click.Path(exists=True, dir_okay=False),
+              default=None,
+              help="Parse this already-downloaded zip and print counts and the "
+                   "per-returnVersion coverage histogram. No database, no zip download.")
+@click.option("--limit", type=int, default=None,
+              help="--parse-only: stop after N returns.")
+def backfill(years: str, forms: str, min_free_gb: float, limit_zips: int | None,
+             discard_zips: bool, dry_run: bool, resume: bool, finish: bool,
+             indexed_only: bool, parse_only_zip: str | None, limit: int | None) -> None:
+    """Backfill older IRS index years, one zip at a time, safely on a small disk.
+
+    For each zip: stage it (resume + sha256), load the 990-PF grants,
+    financials, officers, Schedule B, Part XV and websites it holds, write one
+    ledger row, and (with --discard-zips) delete the local copy. After a
+    year's last zip the amended-return sweep runs for that year. The expensive
+    follow-up steps are printed at the end; --finish runs them. Re-running a
+    finished year adds no rows.
+    """
+    from pathlib import Path
+
+    from . import backfill as bf
+
+    try:
+        year_list = bf.parse_years(years)
+        form_list = bf.parse_forms(forms)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
+
+    if parse_only_zip:
+        explicit = click.get_current_context().get_parameter_source("years").name != "DEFAULT"
+        try:
+            bf.parse_only(Path(parse_only_zip), form_list,
+                          year=year_list[0] if explicit else None, limit=limit,
+                          include_unindexed=not indexed_only, echo=click.echo)
+        except ValueError as exc:
+            raise click.UsageError(str(exc))
+        return
+
+    try:
+        result = bf.run(year_list, form_list, min_free_gb=min_free_gb, limit_zips=limit_zips,
+                        discard_zips=discard_zips, dry_run=dry_run, resume=resume,
+                        finish=finish, include_unindexed=not indexed_only, echo=click.echo)
+    except RuntimeError as exc:
+        click.echo(f"\nerror: {exc}", err=True)
+        raise SystemExit(1)
+    if result.get("stopped") == "disk":
+        raise SystemExit(2)
+
+
+@main.command("refresh-views")
+def refresh_views() -> None:
+    """Rebuild the materialized views the app reads (after a backfill or ingest)."""
+    from . import backfill as bf
+
+    t0 = _time.monotonic()
+    bf.refresh_views()
+    click.echo(f"materialized views refreshed in {_fmt_secs(_time.monotonic() - t0)}")
+
+
+# ---------------------------------------------------------------------------
 # Contacts
 # ---------------------------------------------------------------------------
 @main.group()
@@ -627,6 +714,42 @@ def export_public(out_dir: str | None, verify_only: bool) -> None:
     if not verify_only:
         click.echo(f"\n{m['row_count_total']:,} rows across {len(m['files'])} files"
                    f" -> vintage {m['vintage']}")
+
+
+@export.command("foundations")
+@click.option("--out", "out_dir", type=click.Path(file_okay=False), required=True,
+              help="Folder to publish into. Each run writes DIR/<vintage>/ and updates "
+                   "DIR/LATEST.")
+@click.option("--limit", type=int, default=None,
+              help="Write only the first N foundations by EIN (a sample for checking). "
+                   "A sample run keeps every query under 20 seconds.")
+@click.option("--no-ledger", is_flag=True,
+              help="Do not register the run in raw_files and the ledger. Use it with a "
+                   "read-only database role.")
+@click.option("--statement-timeout", default=None, metavar="TEXT",
+              help="Statement timeout for the export queries [default: 20s with --limit, "
+                   "60min without].")
+def export_foundations(out_dir: str, limit: int | None, no_ledger: bool,
+                       statement_timeout: str | None) -> None:
+    """The Open Foundation List: one small CSV of U.S. private foundations.
+
+    Writes foundations.csv.gz (one row per foundation), foundation_years.csv.gz
+    (one row per foundation and fiscal year), README.md, LICENSE.txt and
+    manifest.json. Reads only the public.* views and checks that before it
+    writes a byte. `export public` is not changed by this command.
+    """
+    from pathlib import Path
+
+    from . import export_foundations as ef
+
+    try:
+        m = ef.run(Path(out_dir), limit=limit, no_ledger=no_ledger,
+                   statement_timeout=statement_timeout, echo=click.echo)
+    except (RuntimeError, ValueError) as exc:
+        click.echo(f"\nerror: {exc}", err=True)
+        raise SystemExit(1)
+    click.echo("\n" + ", ".join(f"{f['name']} {f['rows']:,} rows" for f in m["files"])
+               + f" -> vintage {m['vintage']}")
 
 
 # ---------------------------------------------------------------------------
