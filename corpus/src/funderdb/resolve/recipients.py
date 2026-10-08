@@ -172,6 +172,18 @@ where internal.recipient_matches.status = 'auto'
 # match, whatever the statistics think. The OFFSET 0 is the flattening
 # fence: without it the planner decorrelates the lateral back into the
 # invertible join (observed).
+#
+# The confidence test. `confidence` is type `real`, so tier3's 0.90 is stored
+# as 0.8999999762. The old test `rm.confidence >= 0.90` compared it with the
+# exact 0.90 and was FALSE for every tier3 match: tier3 was computed and
+# stored but never applied (measured 2026-10-08: 0 of 93,780 passed). The
+# test now compares `real` with `real`:
+#   * `rm.confidence > 0.90::real` passes exactly the rows the old test
+#     passed (tier1 0.98 and tier2 0.93), so a run that does not ask for
+#     tier3 links what it always linked;
+#   * `rm.confidence = 0.90::real` is tier3, and it is applied only when the
+#     caller asks (`resolve recipients --max-tier 3`). It is a choice, not a
+#     default, because it links about 0.9 million rows at once.
 _APPLY_BATCH = """
 update internal.funding_events fe
 set recipient_org_id = t.org_id
@@ -188,7 +200,8 @@ from (
     offset 0
   ) hit
   where rm.id between %(lo)s and %(hi)s
-    and rm.confidence >= 0.90
+    and (rm.confidence > 0.90::real
+         or (%(tier3)s and rm.confidence = 0.90::real))
     and rm.status in ('auto', 'accepted')
 ) t
 where fe.id = t.event_id
@@ -224,8 +237,11 @@ def _cursor_path() -> Path:
     return Path(get_settings().data_root) / "resolve" / "apply_cursor.txt"
 
 
-def apply_matches(conn, batch: int = 20_000) -> dict:
+def apply_matches(conn, batch: int = 20_000, apply_tier3: bool = False) -> dict:
     """Link events to matched orgs, one committed batch of matches at a time.
+
+    Tier1 and tier2 matches are always applied. Tier3 matches are applied
+    only when `apply_tier3` is true (see the note above _APPLY_BATCH).
 
     Restartable by construction: only rows with recipient_org_id IS NULL are
     touched. A local cursor file additionally remembers the last completed
@@ -263,7 +279,7 @@ def apply_matches(conn, batch: int = 20_000) -> dict:
             # which is the plan this batching was designed around.
             cur.execute("set local enable_mergejoin = off")
             cur.execute("set local enable_hashjoin = off")
-            cur.execute(_APPLY_BATCH, {"lo": lo, "hi": hi})
+            cur.execute(_APPLY_BATCH, {"lo": lo, "hi": hi, "tier3": apply_tier3})
             counts["events_linked"] += cur.rowcount
             cur.execute(_UNAPPLY_BATCH, {"lo": lo, "hi": hi})
             counts["events_unlinked"] += cur.rowcount
@@ -277,7 +293,13 @@ def apply_matches(conn, batch: int = 20_000) -> dict:
     return counts
 
 
-def run(apply: bool = True, max_tier: int = 3) -> dict:
+def run(apply: bool = True, max_tier: int = 3, apply_tier3: bool = False) -> dict:
+    """Compute matches for tiers 1..max_tier, store them, and apply them.
+
+    The defaults are what this job has always done in practice: tiers 1 to 3
+    are computed and stored, tiers 1 and 2 are applied. `apply_tier3=True`
+    (the CLI passes it for an explicit `--max-tier 3`) also applies tier3.
+    """
     counts: dict[str, int] = {}
     settings = get_settings()
 
@@ -292,12 +314,17 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
         manifest_dir = Path(settings.data_root) / "resolve"
         manifest_dir.mkdir(parents=True, exist_ok=True)
         manifest = manifest_dir / f"recipients-{datetime.now():%Y%m%d-%H%M%S}.json"
-        manifest.write_text(json.dumps({
+        manifest_body: dict = {
             "job": "recipients",
             "method": "deterministic tiers 1-%d" % max_tier,
             "candidate_types": CANDIDATE_TYPES,
             "strippable_suffixes": STRIPPABLE_SUFFIXES,
-        }, indent=2))
+        }
+        if apply_tier3:
+            # Only written when asked for, so the artifact of a default run
+            # keeps the bytes (and the sha256) it has always had.
+            manifest_body["apply_tier3"] = True
+        manifest.write_text(json.dumps(manifest_body, indent=2))
         staged = staging.stage_local("resolve_recipients", manifest)
         rfid = staging.register_raw_file(conn, staged, license_code="cc_by",
                                          content_type="application/json")
@@ -346,7 +373,13 @@ def run(apply: bool = True, max_tier: int = 3) -> dict:
                 # reconnect and a fast rescan, not the run.
                 for attempt in range(6):
                     try:
-                        counts.update(apply_matches(conn))
+                        counts.update(apply_matches(conn, apply_tier3=apply_tier3))
+                        if apply_tier3:
+                            # Recorded in the ledger notes: from here on a
+                            # linked row with a tier3 key may be the matcher's
+                            # own link, and `resolve aliases --report` must
+                            # stop calling its tier3 agreement number clean.
+                            counts["tier3_applied"] = 1
                         break
                     except psycopg.OperationalError:
                         if attempt == 5:

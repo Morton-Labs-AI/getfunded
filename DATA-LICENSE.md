@@ -24,6 +24,8 @@ sources:
 - IRS Tax Exempt Organization Search and e-file XML bulk data
   (Form 990, Form 990-PF, Schedule I)
 - IRS Exempt Organizations Business Master File (BMF)
+- IRS Automatic Revocation of Exemption List and IRS Publication 78 data
+  (Tax Exempt Organization Search bulk data)
 - SEC Investment Adviser Public Disclosure (IAPD) Form ADV
 - SEC Form D
 - SBIR.gov award data (SBIR and STTR)
@@ -46,6 +48,8 @@ data, say so.
 |---|---|---|---|
 | Form 990 / 990-PF e-file XML bulk data; Tax Exempt Organization Search | Internal Revenue Service | US government work, public domain | Filing-level financial figures, officers and trustees as reported, grants made (990-PF Part XV, 990 Schedule I), application-posture statements, filing identifiers |
 | Exempt Organizations Business Master File | Internal Revenue Service | US government work, public domain | Organization identity: name, EIN, address, subsection, NTEE code, ruling date, deductibility status |
+| Automatic Revocation of Exemption List | Internal Revenue Service | US government work, public domain | Per EIN: legal name, exemption type, revocation date as filed and as corrected by the IRS note for 2020, revocation posting date, reinstatement date; and the standing we derive from the lists |
+| Publication 78 data | Internal Revenue Service | US government work, public domain | Per EIN: deductibility status codes (the class of organization for deductible gifts) |
 | Form ADV (IAPD) | US Securities and Exchange Commission | US government work, public domain | Adviser identity, CRD and SEC file numbers, offices, assets under management, private-fund schedules |
 | Form D | US Securities and Exchange Commission | US government work, public domain | Exempt-offering notices: issuer, offering amounts, related persons as filed |
 | SBIR/STTR awards | US Small Business Administration (SBIR.gov) | US government work, public domain | Award records: agency, program, phase, amount, awardee |

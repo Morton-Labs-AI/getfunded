@@ -329,6 +329,45 @@ def ingest_websites(years: tuple[int, ...], dry_run: bool, limit: int | None) ->
         click.echo(f"{k}: {v:,}")
 
 
+@ingest.command("irs-standing")
+@click.option("--only", type=click.Choice(["revocation", "pub78"]), default=None,
+              help="Load one list only. Standing stays empty until BOTH lists are loaded.")
+@click.option("--dry-run", is_flag=True,
+              help="Download, hash, parse and count both lists; needs no database, "
+                   "writes nothing to it.")
+@click.option("--report", "show_report", is_flag=True,
+              help="Read-only: private foundations per IRS standing, and how many "
+                   "automatically revoked foundations still say they accept applications.")
+@click.option("--refresh", is_flag=True, help=_REFRESH_HELP)
+@click.option("--allow-shrink", is_flag=True,
+              help="Load a file even when it holds under 90% of the rows now loaded "
+                   "(refused by default: it usually means a cut-off file).")
+def ingest_irs_standing(only: str | None, dry_run: bool, show_report: bool,
+                        refresh: bool, allow_shrink: bool) -> None:
+    """IRS standing: the automatic revocation list and Publication 78.
+
+    Loads every row of both IRS lists as a full snapshot (one transaction per
+    list), so internal.org_irs_standing can say whether the IRS still lists an
+    organization. Every EIN on the two lists is loaded, known to the database
+    or not, so an ingest that adds organizations later needs no second run.
+    """
+    from .sources import irs_standing
+
+    if dry_run and show_report:
+        raise click.UsageError("--dry-run and --report cannot be used together.")
+    try:
+        if dry_run:
+            irs_standing.dry_run(only=only, refresh=refresh)
+        elif show_report:
+            irs_standing.report()
+        else:
+            irs_standing.ingest(only=only, refresh=refresh, allow_shrink=allow_shrink)
+    except irs_standing.LayoutError as exc:
+        # The file is not what the loader expects. Nothing was loaded.
+        click.echo(f"error: {exc}", err=True)
+        raise SystemExit(1)
+
+
 @ingest.command("filings")
 @click.option("--year", "years", type=int, multiple=True,
               default=(2021, 2022, 2023, 2024, 2025, 2026))
@@ -421,9 +460,14 @@ def ingest_seed() -> None:
                    "per-returnVersion coverage histogram. No database, no zip download.")
 @click.option("--limit", type=int, default=None,
               help="--parse-only: stop after N returns.")
+@click.option("--prefetch", type=int, default=0, show_default=True,
+              help="Download up to N zips ahead while the current one loads (one "
+                   "connection to the IRS host at a time). Each one waits on disk "
+                   "until its turn, so allow about 0.4 GB per zip.")
 def backfill(years: str, forms: str, min_free_gb: float, limit_zips: int | None,
              discard_zips: bool, dry_run: bool, resume: bool, finish: bool,
-             indexed_only: bool, parse_only_zip: str | None, limit: int | None) -> None:
+             indexed_only: bool, parse_only_zip: str | None, limit: int | None,
+             prefetch: int) -> None:
     """Backfill older IRS index years, one zip at a time, safely on a small disk.
 
     For each zip: stage it (resume + sha256), load the 990-PF grants,
@@ -456,7 +500,78 @@ def backfill(years: str, forms: str, min_free_gb: float, limit_zips: int | None,
     try:
         result = bf.run(year_list, form_list, min_free_gb=min_free_gb, limit_zips=limit_zips,
                         discard_zips=discard_zips, dry_run=dry_run, resume=resume,
-                        finish=finish, include_unindexed=not indexed_only, echo=click.echo)
+                        finish=finish, include_unindexed=not indexed_only,
+                        prefetch=max(0, prefetch), echo=click.echo)
+    except RuntimeError as exc:
+        click.echo(f"\nerror: {exc}", err=True)
+        raise SystemExit(1)
+    if result.get("stopped") == "disk":
+        raise SystemExit(2)
+
+
+# ---------------------------------------------------------------------------
+# Repair (fill a value an older parser left empty, from the original zips)
+# ---------------------------------------------------------------------------
+@main.group()
+def repair() -> None:
+    """Repair values that an older version of a parser left empty.
+
+    A repair reads the original source file again and fills only what is
+    empty. It never changes a value that is already there.
+    """
+
+
+@repair.command("qualifying-distributions")
+@click.option("--years", default="2021,2022,2023", show_default=True,
+              help="Object-id years of the returns to repair (the first four digits of "
+                   "the object id), comma-separated.")
+@click.option("--also-look-in", "also_look_in", multiple=True,
+              type=click.Path(exists=True, file_okay=False),
+              help="An extra folder that may hold the zips (for example the raw folder of "
+                   "an older clone). It is only read: nothing in it is changed or deleted. "
+                   "Can be given more than once.")
+@click.option("--min-free-gb", type=float, default=6.0, show_default=True,
+              help="Refuse to start a download that would leave less free disk than this.")
+@click.option("--limit-zips", type=int, default=None,
+              help="Stop after N zips have been repaired in this run.")
+@click.option("--discard-zips", is_flag=True,
+              help="Delete a zip after its ledger row is written, but only a zip this "
+                   "command downloaded. A zip that was already on disk is never deleted.")
+@click.option("--prefetch", type=int, default=0, show_default=True,
+              help="Get up to N zips ahead while the current one is repaired (one "
+                   "connection to the IRS host at a time).")
+@click.option("--dry-run", is_flag=True,
+              help="Plan only: the zips, their sizes, the returns to repair in each, what "
+                   "is on this machine, the total download and the free disk. Reads the "
+                   "database, writes nothing, downloads nothing.")
+@click.option("--resume/--no-resume", default=True, show_default=True,
+              help="Skip zips the ledger already marks complete for this repair.")
+def repair_qualifying_distributions(years: str, also_look_in: tuple[str, ...],
+                                    min_free_gb: float, limit_zips: int | None,
+                                    discard_zips: bool, prefetch: int, dry_run: bool,
+                                    resume: bool) -> None:
+    """Fill qualifying distributions on 990-PF returns loaded before the Part XII fix.
+
+    Returns of version 2018v3, 2019v5 and 2020v4 name Part XII differently,
+    and an older parser left the amount empty on them. This reads those
+    returns again from the zip each one was loaded from, and fills the amount
+    where it is empty. A return that states no amount stays empty. Run
+    `funderdb refresh-views` afterwards. Running it twice changes nothing.
+    """
+    from pathlib import Path
+
+    from . import backfill as bf
+    from . import repair as repair_mod
+
+    try:
+        year_list = bf.parse_years(years)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
+    try:
+        result = repair_mod.run(
+            year_list, also_look_in=tuple(Path(d) for d in also_look_in),
+            min_free_gb=min_free_gb, limit_zips=limit_zips, discard_zips=discard_zips,
+            dry_run=dry_run, resume=resume, prefetch=max(0, prefetch), echo=click.echo)
     except RuntimeError as exc:
         click.echo(f"\nerror: {exc}", err=True)
         raise SystemExit(1)
@@ -674,14 +789,85 @@ def resolve_status() -> None:
 
 @resolve.command("recipients")
 @click.option("--no-apply", is_flag=True, help="Compute matches without touching funding_events.")
-@click.option("--max-tier", type=int, default=3, show_default=True)
-def resolve_recipients(no_apply: bool, max_tier: int) -> None:
+@click.option("--max-tier", type=int, default=None, metavar="N",
+              help="Highest tier to compute. Without this flag tiers 1 to 3 are computed and "
+                   "tiers 1 and 2 are applied, as this command has always done. An explicit "
+                   "`--max-tier 3` also APPLIES the tier3 matches, which were stored but never "
+                   "applied before; read the tier3 lines of `resolve aliases --report` first.")
+def resolve_recipients(no_apply: bool, max_tier: int | None) -> None:
     """Resolve grant recipients to organizations by EIN / name+state tiers."""
     from .resolve import recipients
 
-    counts = recipients.run(apply=not no_apply, max_tier=max_tier)
+    counts = recipients.run(apply=not no_apply,
+                            max_tier=3 if max_tier is None else max_tier,
+                            apply_tier3=max_tier is not None and max_tier >= 3)
     for k, v in counts.items():
         click.echo(f"{k}: {v:,}")
+
+
+@resolve.command("aliases")
+@click.option("--build", "do_build", is_flag=True,
+              help="Derive the alias rows from Schedule I filers. Writes the alias table only.")
+@click.option("--report", "do_report", is_flag=True,
+              help="Print the stored counts and the last build's notes. Read only, seconds.")
+@click.option("--apply", "do_apply", is_flag=True,
+              help="Link 990-PF grant rows of the strict class and record every link.")
+@click.option("--unapply", "do_unapply", is_flag=True,
+              help="Remove every link --apply made, only where the link is still ours.")
+@click.option("--min-filers", type=int, default=3, show_default=True,
+              help="Fewest independent filers an alias needs to be applied (never below 3).")
+@click.option("--dry-run", is_flag=True,
+              help="With --build, --apply or --unapply: count and print, write nothing.")
+@click.option("--sample", "sample_n", type=int, default=None, metavar="N",
+              help="Write N random would-be links of the strict class to --out as CSV, for an "
+                   "independent audit before --apply. Read only.")
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), default=None, metavar="FILE",
+              help="CSV file for --sample.")
+@click.option("--seed", type=int, default=20261008, show_default=True,
+              help="Seed for --sample. The same seed on the same data gives the same file.")
+def resolve_aliases(do_build: bool, do_report: bool, do_apply: bool, do_unapply: bool,
+                    min_filers: int, dry_run: bool, sample_n: int | None,
+                    out_path: str | None, seed: int) -> None:
+    """Link 990-PF grant recipients through names other filers wrote with an EIN.
+
+    A 990-PF names a recipient but gives no EIN. Charities that file Schedule I
+    do write the EIN. When 3 or more of them wrote the same name and state with
+    one EIN, and the city on the 990-PF row matches, --apply links that row to
+    the same organization. Order: --build, --report, --sample, --apply.
+    """
+    from pathlib import Path
+
+    from .resolve import aliases
+
+    if not (do_build or do_report or do_apply or do_unapply or sample_n is not None):
+        raise click.UsageError(
+            "Pass --build, --report, --sample N --out FILE, --apply or --unapply.")
+    if do_apply and do_unapply:
+        raise click.UsageError("--apply and --unapply cannot run together.")
+    if (sample_n is None) != (out_path is None):
+        raise click.UsageError("--sample N and --out FILE go together.")
+    try:
+        if do_build:
+            click.echo("build (dry run, nothing stored)" if dry_run else "build")
+            for k, v in aliases.build(dry_run=dry_run).items():
+                click.echo(f"{k}: {v:,}")
+        if sample_n is not None and out_path is not None:
+            click.echo(f"sample -> {out_path} (seed {seed})")
+            for k, v in aliases.sample(sample_n, Path(out_path), seed,
+                                       min_filers=min_filers).items():
+                click.echo(f"{k}: {v:,}")
+        if do_apply:
+            click.echo("apply (dry run, nothing written)" if dry_run else "apply")
+            for k, v in aliases.apply(min_filers=min_filers, dry_run=dry_run).items():
+                click.echo(f"{k}: {v:,}")
+        if do_unapply:
+            click.echo("unapply (dry run, nothing written)" if dry_run else "unapply")
+            for k, v in aliases.unapply(dry_run=dry_run).items():
+                click.echo(f"{k}: {v:,}")
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+    if do_report:
+        click.echo(aliases.report(min_filers=min_filers))
 
 
 # ---------------------------------------------------------------------------
@@ -729,23 +915,44 @@ def export_public(out_dir: str | None, verify_only: bool) -> None:
 @click.option("--statement-timeout", default=None, metavar="TEXT",
               help="Statement timeout for the export queries [default: 20s with --limit, "
                    "60min without].")
+@click.option("--tag", default=None, metavar="NAME",
+              help="Name of the data release, for example data-2026-10-08. "
+                   "Needed with --release-json.")
+@click.option("--release-json", "release_json", type=click.Path(dir_okay=False), default=None,
+              metavar="FILE",
+              help="After a successful export, write the JSON the website reads "
+                   "(apps/web/content/data-release.json): the tag, the vintage and, for "
+                   "each CSV file, its download link, size, sha256 and row count.")
 def export_foundations(out_dir: str, limit: int | None, no_ledger: bool,
-                       statement_timeout: str | None) -> None:
-    """The Open Foundation List: one small CSV of U.S. private foundations.
+                       statement_timeout: str | None, tag: str | None,
+                       release_json: str | None) -> None:
+    """The Open Foundation List: small CSV files of U.S. private foundations.
 
     Writes foundations.csv.gz (one row per foundation), foundation_years.csv.gz
-    (one row per foundation and fiscal year), README.md, LICENSE.txt and
-    manifest.json. Reads only the public.* views and checks that before it
-    writes a byte. `export public` is not changed by this command.
+    (one row per foundation and fiscal year), one foundation_grants_<year>.csv.gz
+    for each fiscal year (one row per grant whose recipient is linked to an
+    organization record; other grants are counted, not named), README.md,
+    LICENSE.txt and manifest.json. Reads only the public.* views and checks
+    that before it writes a byte. `export public` is not changed by this
+    command.
     """
     from pathlib import Path
+
+    import psycopg
 
     from . import export_foundations as ef
 
     try:
         m = ef.run(Path(out_dir), limit=limit, no_ledger=no_ledger,
-                   statement_timeout=statement_timeout, echo=click.echo)
-    except (RuntimeError, ValueError) as exc:
+                   statement_timeout=statement_timeout, tag=tag,
+                   release_json=Path(release_json) if release_json else None,
+                   echo=click.echo)
+    except psycopg.errors.QueryCanceled as exc:
+        click.echo(f"\nerror: {exc}\nA query reached the time limit and nothing was published. "
+                   "On a busy database the first run can be slow because the data is not in "
+                   "memory yet. Run the command again, or give --statement-timeout.", err=True)
+        raise SystemExit(1)
+    except (RuntimeError, ValueError, psycopg.Error) as exc:
         click.echo(f"\nerror: {exc}", err=True)
         raise SystemExit(1)
     click.echo("\n" + ", ".join(f"{f['name']} {f['rows']:,} rows" for f in m["files"])
@@ -840,6 +1047,51 @@ def status() -> None:
             f"orgs={c[0]:,} identifiers={c[1]:,} programs={c[2]:,} "
             f"events={c[3]:,} people={c[4]:,} filings={c[5]:,} db={c[6]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Derived facts (counts from rows already in the database)
+# ---------------------------------------------------------------------------
+@main.group()
+def derive() -> None:
+    """Counts computed from rows already in the database. No download, no model."""
+
+
+@derive.command("turnover")
+@click.option("--fy", "fys", type=int, multiple=True,
+              help="Target fiscal year; repeat for several [default: 2023 2024 2025].")
+@click.option("--slice", "slices", type=click.IntRange(0, 255), multiple=True, metavar="N",
+              help="Run only slice N of 256 (foundations whose id starts with byte N); "
+                   "repeat for several. Slice 117 is the 1.45-million-row one.")
+@click.option("--dry-run", is_flag=True,
+              help="Compute and print, write nothing (slices 0 and 1 unless --slice is given).")
+@click.option("--report", "do_report", is_flag=True,
+              help="Print dated counts from the stored rows and the posture history view.")
+@click.option("--restart", is_flag=True,
+              help="Full run only: ignore the cursor file and begin at slice 0.")
+def derive_turnover(fys: tuple[int, ...], slices: tuple[int, ...], dry_run: bool,
+                    do_report: bool, restart: bool) -> None:
+    """Named grant recipients of a fiscal year that are on none of the same
+    foundation's lists for the three years before (Form 990-PF only).
+
+    A count from past returns: it does not say a foundation will consider a
+    new request. A foundation gets a row only when it has named grant rows in
+    the target year and in each of the three years before. Each slice deletes
+    its old rows and inserts the new ones, so a re-run is safe.
+    """
+    from .derive import turnover
+
+    try:
+        if do_report:
+            turnover.report(echo=click.echo)
+            return
+        counts = turnover.run(fys=fys or turnover.DEFAULT_FYS, slices=slices or None,
+                              dry_run=dry_run, restart=restart, echo=click.echo)
+    except RuntimeError as exc:
+        click.echo(f"\nerror: {exc}", err=True)
+        raise SystemExit(1)
+    for k, v in counts.items():
+        click.echo(f"{k}: {v:,}")
 
 
 if __name__ == "__main__":

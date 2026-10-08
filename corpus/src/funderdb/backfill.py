@@ -44,6 +44,7 @@ see docs/DATA-SOURCES.md):
 
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor
 import json
 import re
 import shutil
@@ -799,7 +800,8 @@ def run_follow_ups(echo=_say) -> None:
 def run(years: tuple[int, ...] = DEFAULT_YEARS, forms: tuple[str, ...] = ("990PF",), *,
         min_free_gb: float = 6.0, limit_zips: int | None = None,
         discard_zips: bool = False, dry_run: bool = False, resume: bool = True,
-        finish: bool = False, include_unindexed: bool = True, echo=_say) -> dict:
+        finish: bool = False, include_unindexed: bool = True, prefetch: int = 0,
+        echo=_say) -> dict:
     settings = get_settings()
     plans, info = discover(years, echo=echo)
 
@@ -855,7 +857,31 @@ def run(years: tuple[int, ...] = DEFAULT_YEARS, forms: tuple[str, ...] = ("990PF
                 for iy in index_years_for(year):
                     ensure_spine(conn, iy, echo)
                 pool = build_pool(index_years_for(year), forms)
-            for plan in pending:
+            # Download-ahead: one worker thread stages upcoming zips (one
+            # connection to the IRS host at a time) while this thread loads the
+            # current one. prefetch=0 keeps the plain download-then-load order.
+            executor = ThreadPoolExecutor(max_workers=1) if prefetch > 0 else None
+            futures: dict[str, Future] = {}
+
+            def ensure_prefetch(i: int, year=year, pending=pending,
+                                executor=executor, futures=futures) -> None:
+                if executor is None:
+                    return
+                last = i + prefetch
+                if limit_zips is not None:
+                    last = min(last, i + (limit_zips - summary["zips_done"]) - 1)
+                for nxt in pending[i:last + 1]:
+                    if nxt.name in futures:
+                        continue
+                    need_nxt = _still_to_download(nxt)
+                    queued = sum((_still_to_download(q) or 0) for q in pending
+                                 if q.name in futures and not futures[q.name].done())
+                    free_now, _ = free_bytes()
+                    if need_nxt is None or free_now - queued - need_nxt < floor:
+                        break
+                    futures[nxt.name] = executor.submit(irs_990pf.stage_batch, year, nxt.name)
+
+            for i, plan in enumerate(pending):
                 if limit_zips is not None and summary["zips_done"] >= limit_zips:
                     summary["stopped"] = f"--limit-zips {limit_zips} reached"
                     break
@@ -869,7 +895,9 @@ def run(years: tuple[int, ...] = DEFAULT_YEARS, forms: tuple[str, ...] = ("990PF
                          "run the same command again.")
                     break
                 t0 = time.monotonic()
-                staged = irs_990pf.stage_batch(year, plan.name)
+                ensure_prefetch(i)
+                fut = futures.get(plan.name)
+                staged = fut.result() if fut is not None else irs_990pf.stage_batch(year, plan.name)
                 raw_file_id = staging.register_raw_file(
                     conn, staged, license_code="us_public_domain",
                     content_type="application/zip",
@@ -908,6 +936,10 @@ def run(years: tuple[int, ...] = DEFAULT_YEARS, forms: tuple[str, ...] = ("990PF
                          "keeps sha256 and source URL)")
             # The sweep runs whenever the year was looked at, complete or not:
             # an amended return must never keep event rows, even between runs.
+            if executor is not None:
+                # A zip already downloading finishes (it is reused by the next
+                # run); queued ones that have not started are dropped.
+                executor.shutdown(wait=True, cancel_futures=True)
             sweep_year(conn, year, plans, echo)
 
     summary["rows"] = dict(summary["rows"])

@@ -7,18 +7,19 @@ order: 8
 
 # Using the Open Foundation List
 
-The Open Foundation List is a free list of every U.S. private foundation that files Form 990-PF electronically. For each foundation it shows what it gave, what it holds, and whether it says it accepts applications.
+The Open Foundation List is a free list of every U.S. private foundation that files Form 990-PF electronically. For each foundation it shows what it gave, what it holds, and whether it says it accepts applications. It also lists the grants whose recipient we could match to an organization record.
 
 You get the files from [the list page](/foundations). You may reuse them when you credit the source.
 
 ## What it is
 
-The list comes from the returns that private foundations file with the IRS. Those returns are public records. We read them, put the main facts in two spreadsheet files, and publish the files.
+The list comes from the returns that private foundations file with the IRS. Those returns are public records. We read them, put the main facts in spreadsheet files, and publish the files.
 
 | File | One row is | Use it to |
 |---|---|---|
 | `foundations.csv.gz` | One foundation | Build a list of foundations to look at: name, place, latest numbers, what it says about applications. |
-| `foundation_years.csv.gz` | One foundation in one fiscal year | See how giving and assets changed from year to year. |
+| `foundation_years.csv.gz` | One foundation in one fiscal year | See how giving and assets changed from year to year, and how many of its grants are in the grants files. |
+| `foundation_grants_2023.csv.gz` and one file for each other fiscal year | One grant to an organization we could match | See which organizations a foundation gave to, how much, and for what purpose. |
 
 The meaning of every column is in the table on [the list page](/foundations#columns). That table is the only copy, so it always matches the files.
 
@@ -41,7 +42,7 @@ A file that ends in `.csv.gz` is a spreadsheet file (`.csv`) that was packed to 
 1. Open a blank workbook.
 2. On the **Data** tab, choose **From Text/CSV**. Select the `.csv` file.
 3. In the preview window, choose **Transform Data**.
-4. Select the `ein` column and the `zip` column. Set their data type to **Text**.
+4. Select the `ein` column and the `zip` column. Set their data type to **Text**. In a grants file, do this for `funder_ein` and `recipient_ein`.
 5. Choose **Close & Load**.
 
 Do not skip step 4. Some EINs and ZIP codes start with a zero. If Excel reads them as numbers, it removes the zero, and the EIN no longer matches the IRS number.
@@ -65,6 +66,16 @@ The list says what the returns say, and nothing more. Keep these four rules.
 2. **An empty cell means not available, never zero.** When a line is missing from the return, the cell is empty. A `0` in the file is a real zero that the foundation reported. Do not fill empty cells with 0 before you add numbers up.
 3. **Amended returns replace the originals.** When a foundation files a corrected return for the same year, the list uses the newer one. Nothing is counted twice.
 4. **Contact details are for shared inboxes and office phones only.** An email or a phone number appears only when the filing lists a shared inbox, such as grants@, or an office phone. A named person's address is left out.
+
+## Read the grants files honestly
+
+The grants files have three more rules.
+
+1. **The grants files do not list every grant.** A foundation types the name of each recipient on its return. Some recipients are private people, such as a student with a scholarship. So a grant is listed only when we matched its recipient to an organization record. Every other grant is counted and is not named.
+2. **Do not use a grants file as a total of giving.** The sum of a grants file is less than what the foundations gave. For the total, use `grants_paid` in `foundation_years.csv.gz`. In the same file, `grants_linked_on_file` and `grants_not_linked_on_file` show how many grants of each year are in the grants file and how many are not.
+3. **A match can be wrong.** The recipient name, city and state come from the organization record we matched. They are not the text on the return. The purpose is in the foundation's own words. Use `filing_object_id` to find the return before you rely on a row.
+
+If a row names a private person, tell us. Use the link in "Found a mistake?" below.
 
 ## Check that your download is complete
 

@@ -11,6 +11,7 @@ dist/
 
 # Run manifests (regenerated each run; provenance lives in raw_files + ledger)
 data/resolve/
+data/derive/
 data/embeddings/
 data/logs/
 

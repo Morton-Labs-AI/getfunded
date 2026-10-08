@@ -1,43 +1,68 @@
-"""The Open Foundation List: a small public file anyone can download.
+"""The Open Foundation List: a small public file set anyone can download.
 
 `funderdb export public` publishes every public view, 47M rows in 55 files.
-Most people who want "a list of U.S. private foundations" need two small
+Most people who want "a list of U.S. private foundations" need a few small
 files instead:
 
-    foundations.csv.gz        one row per private foundation
-    foundation_years.csv.gz   one row per foundation per fiscal year
+    foundations.csv.gz                one row per private foundation
+    foundation_years.csv.gz           one row per foundation per fiscal year
+    foundation_grants_<year>.csv.gz   one row per LINKED grant, one file per
+                                      fiscal year
 
 This module writes them, with a README, a LICENSE and a manifest, into
 ``DIR/<vintage>/`` using the same publication pattern as export.py: files go
 into a temporary folder, ``manifest.json`` is written last, the folder is
 renamed into place, then ``LATEST`` is updated.
 
-The licence boundary is structural, not a promise. Both queries read ONLY the
+The licence boundary is structural, not a promise. Every query reads ONLY the
 republishable surface, the ``public.*`` views, and only the seven listed in
-ALLOWED_VIEWS. Before a byte is written the module checks that:
+ALLOWED_VIEWS (plus an optional view when the database has it, see below).
+Before a byte is written the module checks that:
 
 * every output column declares a source view and that view is allowed;
-* every relation either query reads is an allowed view or one of the query's
-  own CTEs, and no other schema is named anywhere in the SQL;
+* every relation a query reads is an allowed view or one of the query's own
+  CTEs, and no other schema is named anywhere in the SQL;
 * each allowed view really is a view in schema ``public`` and has the columns
   the queries use;
 * the two contact columns come from ``public.contact_channels`` and from
   nothing else, and the views that carry as-filed contact details
-  (``public.filing_application_info``) are not read at all.
+  (``public.filing_application_info``) are not read at all;
+* a grant row names its recipient only through the organization record it is
+  linked to; the recipient text the filer typed is never read.
 
 One failed check aborts with a nonzero exit and no files.
+
+Why the grants files hold linked grants only. A Form 990-PF grant row names
+its recipient as free text, and some recipients are private persons
+(scholarships, hardship grants). A bulk file must not name them. So a grant
+row is written to a grants file only when ``recipient_org_id`` points at an
+organization record, and the name, city and state in the file are that
+record's, not the filer's text. Every other grant row is counted in
+``foundation_years.csv.gz`` (``grants_not_linked_on_file``,
+``amount_not_linked_on_file``) and never named.
+
+Optional columns. Some columns exist only when the database exposes their
+source on a public view. This is checked at run time and recorded in the
+manifest under ``optional_columns``:
+
+* ``irs_standing``, ``irs_revocation_date``, ``irs_on_pub78`` in
+  ``foundations.csv.gz`` need the view ``public.org_irs_standing``;
+* ``link_basis`` in the grants files needs a ``recipient_link_basis`` column
+  on ``public.funding_events``. No public view says how a recipient was
+  linked today, so the column is left out rather than guessed.
 
 Honesty rules the files obey (the README repeats them for readers):
 
 * ``not_stated`` is not closed. It means the latest parsed return says
   nothing about applications, or no return is on file.
-* Empty means not available. A missing number is empty, never 0. Counts are
-  empty too when nothing is on file, so a 0 is always a filed zero.
+* Empty means not available. A missing number is empty, never 0. A 0 in a
+  money column is a filed zero. Counts are empty when nothing is on file.
 * ``latest_*`` values come from the latest PARSED, unsuperseded return.
 
-Determinism: server-side COPY with a total ORDER BY (ein, then id), timezone
-and DateStyle pinned, gzip with mtime 0 and an empty filename. The same
-database gives the same bytes.
+Determinism: every query runs in ONE read-only REPEATABLE READ transaction,
+so all files describe the same moment of the database. Server-side COPY with
+a total ORDER BY, timezone and DateStyle pinned, gzip with mtime 0 and an
+empty filename. The same database gives the same bytes.
 """
 
 from __future__ import annotations
@@ -45,9 +70,13 @@ from __future__ import annotations
 import csv
 import gzip
 import io
+import json
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+
+import psycopg
 
 from . import ledger, staging
 from .db import connect
@@ -57,6 +86,9 @@ DATASET = "export_foundations"
 PROFILE_URL = "https://getfunded.ai/funder/"
 ATTRIBUTION = "Open Funder Database contributors (GetFunded), from IRS e-file data"
 LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/"
+LICENCE_NAME = "CC BY 4.0"
+# Where a tagged data release lives. `--release-json` builds its links from it.
+RELEASES_URL = "https://github.com/Morton-Labs-AI/getfunded/releases"
 
 # The only relations this export may read.
 ALLOWED_VIEWS = (
@@ -68,19 +100,40 @@ ALLOWED_VIEWS = (
     "public.funding_events",
     "public.contact_channels",
 )
+# Read only when the database has it (checked with to_regclass at run time).
+IRS_STANDING_VIEW = "public.org_irs_standing"
 CONTACT_VIEW = "public.contact_channels"
 CONTACT_COLUMNS = ("public_contact_email", "public_contact_phone")
+EVENTS_VIEW = "public.funding_events"
+ORGS_VIEW = "public.organizations"
+
+# `link_basis` appears in the grants files only when public.funding_events
+# has this column. Its values pass through unchanged and must be one of
+# LINK_BASIS_VALUES (or empty); any other value stops the export.
+LINK_BASIS_SOURCE_COLUMN = "recipient_link_basis"
+LINK_BASIS_VALUES = ("ein_on_return", "name_and_state_match", "filer_consensus")
+
+# With --limit, each grants file holds at most this many rows, so a sample
+# stays inside the 20 second limit of the read-only role even when one of the
+# sampled foundations made a very large number of grants.
+GRANTS_SAMPLE_ROW_CAP = 5_000
+
+GRANTS_KIND = "foundation_grants"
+GRANTS_FILE_PATTERN = "foundation_grants_<fiscal_year>.csv.gz"
+_TAG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 
 # Values a filer writes in the "how to apply" box when there is nothing to say.
 _NO_INSTRUCTIONS = ("N/A", "NA", "N.A.", "NONE", "NOT APPLICABLE", "NULL", "X")
 
+Column = tuple[str, tuple[str, ...], str]
+
 # ---------------------------------------------------------------------------
 # Column dictionaries: (column, source view(s), meaning). The source views are
-# checked against ALLOWED_VIEWS before the export runs; the meanings become
-# the README's column dictionary, so the documentation cannot drift from the
-# file.
+# checked against the allowed views before the export runs; the meanings
+# become the README's column dictionary, so the documentation cannot drift
+# from the file.
 # ---------------------------------------------------------------------------
-FOUNDATION_COLUMNS: list[tuple[str, tuple[str, ...], str]] = [
+FOUNDATION_COLUMNS: list[Column] = [
     ("getfunded_id", ("public.organizations",),
      "Stable id of the foundation in this database (a UUID)."),
     ("ein", ("public.org_identifiers",),
@@ -142,13 +195,49 @@ FOUNDATION_COLUMNS: list[tuple[str, tuple[str, ...], str]] = [
     ("profile_url", ("public.organizations",), "The foundation's page on getfunded.ai."),
 ]
 
-YEAR_COLUMNS: list[tuple[str, tuple[str, ...], str]] = [
+# Optional: appended to foundations.csv.gz only when IRS_STANDING_VIEW exists
+# (migration 0028). (output column, column of the view it is read from, meaning)
+IRS_STANDING_SOURCE: list[tuple[str, str, str]] = [
+    ("irs_standing", "standing",
+     "What three IRS lists say about the foundation's tax-exempt status: `listed`, "
+     "`not_listed`, `revoked`, `revoked_then_relisted` or `lists_disagree`. Empty when "
+     "the lists are not loaded for it. The dates of the lists are in manifest.json."),
+    ("irs_revocation_date", "effective_revocation_date",
+     "Date of the foundation's latest automatic revocation, when the IRS list has one. "
+     "A foundation that was reinstated later still has a date here, so read "
+     "irs_standing with it. A listed date from 2020-04-01 to 2020-07-14 reads "
+     "2020-07-15, as the IRS says it should."),
+    ("irs_on_pub78", "on_pub78",
+     "`t` when the foundation is in IRS Publication 78 data (organizations that can "
+     "receive tax-deductible contributions), `f` when it is not. `f` alone does not "
+     "mean that the foundation lost its status."),
+]
+# The values of irs_standing, in plain words (the README prints them).
+IRS_STANDING_VALUES: list[tuple[str, str]] = [
+    ("listed", "In the IRS master file or in Publication 78, and not on the revocation list."),
+    ("not_listed", "Not in the IRS master file and not in Publication 78. No revocation "
+                   "is in force: it was never on the revocation list, or it was reinstated."),
+    ("revoked", "On the Automatic Revocation of Exemption List with no reinstatement, and "
+                "in neither the IRS master file nor Publication 78."),
+    ("revoked_then_relisted", "Was on the revocation list and is in the IRS master file or "
+                              "Publication 78 again. A reinstatement or a later ruling "
+                              "date explains it."),
+    ("lists_disagree", "On the revocation list with nothing that explains it, and also in "
+                       "the IRS master file or Publication 78. Check with the IRS."),
+]
+IRS_STANDING_COLUMNS: list[Column] = [
+    (c, (IRS_STANDING_VIEW,), meaning) for c, _src, meaning in IRS_STANDING_SOURCE]
+
+YEAR_COLUMNS: list[Column] = [
     ("ein", ("public.org_identifiers",), "IRS Employer Identification Number."),
     ("getfunded_id", ("public.organizations",), "Same id as in foundations.csv.gz."),
     ("fiscal_year", ("public.org_financial_series",),
      "The year in which the fiscal year ended."),
-    ("tax_period_end", ("public.org_financial_series",), "Last day of the fiscal year."),
-    ("return_type", ("public.org_financial_series",), "`990PF` or `990`."),
+    ("tax_period_end", ("public.org_financial_series",),
+     "Last day of the fiscal year, YYYY-MM-DD."),
+    ("return_type", ("public.org_financial_series",),
+     "`990PF` or `990`. A few organizations that the IRS lists as private foundations "
+     "filed Form 990 for a year; grants_paid is empty for those years."),
     ("total_revenue", ("public.org_financial_series",), "Total revenue, in dollars."),
     ("total_expenses", ("public.org_financial_series",), "Total expenses, in dollars."),
     ("total_assets_eoy", ("public.org_financial_series",),
@@ -159,13 +248,72 @@ YEAR_COLUMNS: list[tuple[str, tuple[str, ...], str]] = [
      "Qualifying distributions when the return has that line, else charitable "
      "disbursements, in dollars."),
     ("grants_paid_basis", ("public.org_financial_series",),
-     "Which of the two lines grants_paid is."),
+     "Which of the two lines grants_paid is: `qualifying_distributions` or "
+     "`charitable_disbursements`."),
     ("n_grants_on_file", ("public.funding_events",),
      "Grant rows this database holds for that foundation and fiscal year. "
      "Empty when it holds none."),
+    ("grants_linked_on_file", ("public.funding_events", "public.organizations"),
+     "How many of those grant rows are in the grants file of that fiscal year: the "
+     "rows whose recipient is linked to an organization record. Empty when the "
+     "database holds no grant rows for the year."),
+    ("grants_not_linked_on_file", ("public.funding_events", "public.organizations"),
+     "How many of those grant rows are NOT in the grants file. Their recipient is not "
+     "linked to an organization record, so they are counted here and never named."),
+    ("amount_not_linked_on_file", ("public.funding_events", "public.organizations"),
+     "Sum of the grant rows that are not in the grants file, in dollars. Empty when "
+     "there are none."),
     ("filing_object_id", ("public.org_financial_series",),
      "IRS OBJECT_ID of the return."),
 ]
+
+GRANT_COLUMNS: list[Column] = [
+    ("funder_ein", ("public.org_identifiers",),
+     "EIN of the foundation that made the grant. Same as ein in foundations.csv.gz."),
+    ("funder_getfunded_id", ("public.organizations",),
+     "Id of that foundation. Same as getfunded_id in foundations.csv.gz."),
+    ("funder_name", ("public.organizations",),
+     "Name of that foundation. Same as name in foundations.csv.gz."),
+    ("recipient_ein", ("public.org_identifiers",),
+     "EIN of the organization record the recipient is linked to. Empty when that "
+     "record has no EIN."),
+    ("recipient_getfunded_id", ("public.organizations",),
+     "Id of that organization record in this database (a UUID)."),
+    ("recipient_name", ("public.organizations",),
+     "Name on that organization record. It is NOT the text the foundation typed."),
+    ("recipient_city", ("public.organizations",),
+     "City on that organization record."),
+    ("recipient_state", ("public.organizations",),
+     "State on that organization record (2 letters)."),
+    ("amount", ("public.funding_events",), "Amount of the grant as filed, in dollars."),
+    ("purpose_text", ("public.funding_events",),
+     "Purpose of the grant, exactly as the foundation wrote it."),
+    ("fiscal_year", ("public.funding_events",),
+     "The year in which the foundation's fiscal year ended."),
+    ("filing_object_id", ("public.funding_events",),
+     "IRS OBJECT_ID of the return the grant row comes from."),
+]
+
+# Optional: appended to the grants files only when public.funding_events has
+# the LINK_BASIS_SOURCE_COLUMN column.
+LINK_BASIS_COLUMN: Column = (
+    "link_basis", ("public.funding_events",),
+    "How the recipient was linked to the organization record: `ein_on_return` (the "
+    "return gives the recipient's EIN), `name_and_state_match` (the name and state on "
+    "the return match one organization) or `filer_consensus` (other filers wrote this "
+    "name and state with one EIN).")
+
+
+def foundation_columns(irs_standing: bool = False) -> list[Column]:
+    return FOUNDATION_COLUMNS + (IRS_STANDING_COLUMNS if irs_standing else [])
+
+
+def grant_columns(link_basis: bool = False) -> list[Column]:
+    return GRANT_COLUMNS + ([LINK_BASIS_COLUMN] if link_basis else [])
+
+
+def grants_file_name(fiscal_year: int) -> str:
+    return f"foundation_grants_{int(fiscal_year)}.csv.gz"
 
 
 def _pf_cte(limit: int | None) -> str:
@@ -203,8 +351,18 @@ _GRANTS_BASIS = ("case when {a}.qualifying_distributions is not null "
                  "then 'charitable_disbursements' end")
 
 
-def foundations_sql(limit: int | None = None) -> str:
+def foundations_sql(limit: int | None = None, irs_standing: bool = False) -> str:
     junk = ", ".join(f"'{j}'" for j in _NO_INSTRUCTIONS)
+    # The view has one row per organization EIN; pf holds one EIN per
+    # foundation, so the join on both keeps one row per foundation.
+    irs_cte = f""",
+irs as (
+  select st.org_id, {', '.join(f'st.{src}' for _c, src, _m in IRS_STANDING_SOURCE)}
+  from {IRS_STANDING_VIEW} st
+  join pf on pf.org_id = st.org_id and pf.ein = st.ein
+)"""
+    irs_select = "".join(f",\n  irs.{src} as {col}" for col, src, _m in IRS_STANDING_SOURCE)
+    irs_join = "\nleft join irs on irs.org_id = pf.org_id"
     return f"""with {_pf_cte(limit)},
 {_FIN_CTE},
 span as (
@@ -246,7 +404,7 @@ contact as (
   join pf on pf.org_id = c.org_id
   where c.channel_type in ('email', 'phone')
   group by c.org_id
-)
+){irs_cte if irs_standing else ''}
 select
   o.id as getfunded_id,
   pf.ein,
@@ -281,7 +439,7 @@ select
            array[o.source_dataset, latest_filing.source_dataset, p.source_dataset]
            || coalesce(grants.datasets, '{{}}') || coalesce(contact.datasets, '{{}}')) as d) x
    where d is not null) as source_dataset,
-  '{PROFILE_URL}' || o.id::text as profile_url
+  '{PROFILE_URL}' || o.id::text as profile_url{irs_select if irs_standing else ''}
 from pf
 join public.organizations o on o.id = pf.org_id
 left join span on span.org_id = pf.org_id
@@ -290,17 +448,27 @@ left join latest_filing on latest_filing.org_id = pf.org_id
 left join grants on grants.org_id = pf.org_id
 left join site on site.org_id = pf.org_id
 left join contact on contact.org_id = pf.org_id
-left join public.org_application_posture p on p.org_id = pf.org_id
+left join public.org_application_posture p on p.org_id = pf.org_id{irs_join if irs_standing else ''}
 order by pf.ein, o.id"""
 
 
+# "Linked" has one meaning in every query below: the grant row's
+# recipient_org_id points at an organization that public.organizations shows.
+# The years query and the coverage query count it with a LEFT join; the grants
+# query keeps it with an INNER join. So for one snapshot of the database,
+# grants_linked_on_file adds up to the rows of the grants files.
 def years_sql(limit: int | None = None) -> str:
     return f"""with {_pf_cte(limit)},
 {_FIN_CTE},
 grants as (
-  select e.funder_org_id as org_id, e.fiscal_year, count(*) as n
+  select e.funder_org_id as org_id, e.fiscal_year,
+         count(*) as n,
+         count(r.id) as n_linked,
+         count(*) - count(r.id) as n_not_linked,
+         sum(e.amount) filter (where r.id is null) as amount_not_linked
   from public.funding_events e
   join pf on pf.org_id = e.funder_org_id
+  left join public.organizations r on r.id = e.recipient_org_id
   where e.event_type = 'grant' and e.fiscal_year is not null
   group by e.funder_org_id, e.fiscal_year
 )
@@ -317,6 +485,9 @@ select
   {_GRANTS_PAID.format(a='fin')} as grants_paid,
   {_GRANTS_BASIS.format(a='fin')} as grants_paid_basis,
   grants.n as n_grants_on_file,
+  grants.n_linked as grants_linked_on_file,
+  grants.n_not_linked as grants_not_linked_on_file,
+  grants.amount_not_linked as amount_not_linked_on_file,
   fin.object_id as filing_object_id
 from pf
 join public.organizations o on o.id = pf.org_id
@@ -325,12 +496,97 @@ left join grants on grants.org_id = pf.org_id and grants.fiscal_year = fin.fy
 order by pf.ein, o.id, fin.fy"""
 
 
+def irs_lists_as_of_sql() -> str:
+    """The dates of the two IRS lists behind the irs_* columns. Every row of
+    the view carries the same two dates, so one row is enough."""
+    return f"""select st.revocation_list_as_of, st.pub78_as_of
+from {IRS_STANDING_VIEW} st
+limit 1"""
+
+
+def grant_coverage_sql(limit: int | None = None) -> str:
+    """Per fiscal year: how many grant rows the foundations in scope have, how
+    many are linked, and the dollar sums. It names the fiscal years that get a
+    grants file and gives the row count each file must have."""
+    return f"""with {_pf_cte(limit)}
+select e.fiscal_year,
+       count(*) as grants,
+       count(r.id) as linked,
+       count(*) - count(r.id) as not_linked,
+       sum(e.amount) filter (where r.id is not null) as amount_linked,
+       sum(e.amount) filter (where r.id is null) as amount_not_linked
+from public.funding_events e
+join pf on pf.org_id = e.funder_org_id
+left join public.organizations r on r.id = e.recipient_org_id
+where e.event_type = 'grant'
+group by e.fiscal_year
+order by e.fiscal_year"""
+
+
+def grants_sql(fiscal_year: int, limit: int | None = None, row_cap: int | None = None,
+               link_basis: bool = False) -> str:
+    """One fiscal year of linked grants. The recipient's name, city, state and
+    EIN come from the linked organization record (alias ``r`` and the ``rid``
+    step); the as-filed recipient text of public.funding_events is not read.
+    The order is total: the last key is the grant row's own id."""
+    basis_step = f",\n         e.{LINK_BASIS_SOURCE_COLUMN} as link_basis" if link_basis else ""
+    basis_out = ",\n  g.link_basis" if link_basis else ""
+    cap = f"\nlimit {int(row_cap)}" if row_cap else ""
+    return f"""with {_pf_cte(limit)},
+g as (
+  select pf.ein as funder_ein, e.funder_org_id, e.id as event_id, e.recipient_org_id,
+         e.amount, e.purpose_text, e.fiscal_year, e.filing_object_id{basis_step}
+  from public.funding_events e
+  join pf on pf.org_id = e.funder_org_id
+  where e.event_type = 'grant'
+    and e.fiscal_year = {int(fiscal_year)}
+    and e.recipient_org_id is not null
+),
+rid as (
+  select i.org_id, min(i.id_value) as ein
+  from public.org_identifiers i
+  where i.id_type = 'ein'
+    and i.org_id in (select g.recipient_org_id from g)
+  group by i.org_id
+)
+select
+  g.funder_ein,
+  fo.id as funder_getfunded_id,
+  fo.name as funder_name,
+  rid.ein as recipient_ein,
+  r.id as recipient_getfunded_id,
+  r.name as recipient_name,
+  r.city as recipient_city,
+  r.state as recipient_state,
+  g.amount,
+  g.purpose_text,
+  g.fiscal_year,
+  g.filing_object_id{basis_out}
+from g
+join public.organizations fo on fo.id = g.funder_org_id
+join public.organizations r on r.id = g.recipient_org_id
+left join rid on rid.org_id = r.id
+order by g.funder_ein, g.filing_object_id, rid.ein, g.amount, g.event_id{cap}"""
+
+
 # ---------------------------------------------------------------------------
 # Boundary checks
 # ---------------------------------------------------------------------------
 _CTE_NAME = re.compile(r"(?:\bwith|,)\s*(\w+)\s+as\s*\(", re.I)
 _RELATION = re.compile(r"\b(?:from|join)\s+([a-z_][\w.]*)", re.I)
 _SCHEMAS = ("internal", "information_schema", "pg_catalog", "extensions", "auth", "vault")
+# The recipient text a filer typed. No query of this export may read it.
+_AS_FILED_RECIPIENT = re.compile(
+    r"\b\w+\.recipient_(?:name|city|state|address|zip|country|foundation_status|relationship)\b",
+    re.I)
+# Where each recipient column of a grants file must come from.
+_RECIPIENT_SOURCES = (
+    ("recipient_getfunded_id", "r.id"),
+    ("recipient_name", "r.name"),
+    ("recipient_city", "r.city"),
+    ("recipient_state", "r.state"),
+    ("recipient_ein", "rid.ein"),
+)
 
 
 def relations_read(sql: str) -> set[str]:
@@ -356,23 +612,28 @@ def cte_body(sql: str, name: str) -> str:
     return sql[m.end():i - 1]
 
 
-def static_checks(queries: dict[str, str]) -> list[dict]:
+def static_checks(queries: dict[str, str], columns: dict[str, list[Column]],
+                  allowed: tuple[str, ...] = ALLOWED_VIEWS) -> list[dict]:
     """Boundary checks that need no database: they read the column dictionaries
-    and the SQL text itself."""
+    and the SQL text itself. ``queries`` holds every statement the run will
+    send (the grants statement once, as a template: the per-year statements
+    differ from it only in the year number). ``columns`` maps each kind of
+    file to its column dictionary."""
     out: list[dict] = []
+    all_columns = [c for cols in columns.values() for c in cols]
 
     def add(aid: str, statement: str, problems: list[str]) -> None:
         out.append({"id": aid, "statement": statement,
                     "result": "PASS" if not problems else "FAIL", "problems": problems})
 
-    declared = [(c, v) for c, views, _ in FOUNDATION_COLUMNS + YEAR_COLUMNS for v in views]
+    declared = [(c, v) for c, views, _ in all_columns for v in views]
     add("F1", "every output column declares a source view and it is an allowed public view",
-        sorted({f"{c} <- {v}" for c, v in declared if v not in ALLOWED_VIEWS}))
+        sorted({f"{c} <- {v}" for c, v in declared if v not in allowed}))
 
     bad_rel = []
     for qname, sql in queries.items():
         bad_rel += [f"{qname}: {r}" for r in sorted(relations_read(sql))
-                    if r not in ALLOWED_VIEWS]
+                    if r not in allowed]
     add("F2", "every relation the queries read is an allowed public view or their own CTE",
         bad_rel)
 
@@ -386,9 +647,13 @@ def static_checks(queries: dict[str, str]) -> list[dict]:
     add("F3", "no other schema and no as-filed contact view is named in the SQL", bad_schema)
 
     contact_problems = []
-    for c, views, _ in FOUNDATION_COLUMNS + YEAR_COLUMNS:
+    for c, views, _ in all_columns:
         if c in CONTACT_COLUMNS and views != (CONTACT_VIEW,):
             contact_problems.append(f"{c} declares {views}")
+    for kind, cols in columns.items():
+        if kind != "foundations":
+            contact_problems += [f"{kind} has a contact column {c}" for c, _v, _m in cols
+                                 if c in CONTACT_COLUMNS or re.search(r"email|phone", c)]
     fsql = queries["foundations"]
     body_rels = relations_read("with x as (select 1) " + cte_body(fsql, "contact")) - {"pf"}
     if body_rels != {CONTACT_VIEW}:
@@ -398,47 +663,92 @@ def static_checks(queries: dict[str, str]) -> list[dict]:
         if not re.search(rf"\b{re.escape(src)}\s+as\s+{col}\b", fsql):
             contact_problems.append(f"{col} is not selected from {src}")
     # No other alias may yield an email or phone value (public.filings has a
-    # filer phone column; it must never reach this file).
+    # filer phone column; it must never reach these files).
     for m in re.finditer(r"\b(\w+)\.(email|phone)\b", fsql, re.I):
         if m.group(1).lower() != "contact":
             contact_problems.append(f"{m.group(0)} is read outside the contact CTE")
-    if re.search(r"\b(email|phone)\b", queries["foundation_years"], re.I):
-        contact_problems.append("foundation_years names an email or phone column")
+    for qname, sql in queries.items():
+        if qname == "foundations":
+            continue
+        if CONTACT_VIEW in sql.lower():
+            contact_problems.append(f"{qname} reads {CONTACT_VIEW}")
+        if re.search(r"\b(email|phone)\b", sql, re.I):
+            contact_problems.append(f"{qname} names an email or phone column")
     add("F4", f"contact columns come only from {CONTACT_VIEW}", contact_problems)
+
+    # F7: the grants files name organizations, never the filer's free text.
+    recipient_problems = []
+    for qname, sql in queries.items():
+        recipient_problems += [f"{qname}: reads {m.group(0)}"
+                               for m in _AS_FILED_RECIPIENT.finditer(sql)]
+    gsql = queries[GRANTS_KIND]
+    if not re.search(r"\brecipient_org_id\s+is\s+not\s+null\b", cte_body(gsql, "g"), re.I):
+        recipient_problems.append("the g step does not keep only linked grant rows")
+    join = re.search(r"(\w+)\s+join\s+public\.organizations\s+r\s+on\s+"
+                     r"r\.id\s*=\s*g\.recipient_org_id\b", gsql, re.I)
+    if not join or join.group(1).lower() in ("left", "right", "full", "outer", "cross"):
+        recipient_problems.append(
+            "the grants query does not INNER join public.organizations r on the linked id")
+    for col, src in _RECIPIENT_SOURCES:
+        if not re.search(rf"\b{re.escape(src)}\s+as\s+{col}\b", gsql):
+            recipient_problems.append(f"{col} is not selected from {src}")
+    rid_rels = relations_read("with x as (select 1) " + cte_body(gsql, "rid")) - {"g"}
+    if rid_rels != {"public.org_identifiers"}:
+        recipient_problems.append(f"rid step reads {sorted(rid_rels)}")
+    for c, views, _ in columns.get(GRANTS_KIND, []):
+        if c.startswith("recipient_") and not set(views) <= {ORGS_VIEW, "public.org_identifiers"}:
+            recipient_problems.append(f"{c} declares {views}")
+    add("F7", "a grant row names its recipient only through the linked organization "
+              f"record ({ORGS_VIEW}); the as-filed recipient text is never read",
+        recipient_problems)
+    out.sort(key=lambda c: c["id"])
     return out
 
 
-_VIEW_COLUMNS_USED = {
-    "public.organizations": ("id", "name", "city", "state", "zip", "ntee_code", "ruling_date",
-                             "org_type", "source_dataset"),
-    "public.org_identifiers": ("org_id", "id_type", "id_value"),
-    "public.org_application_posture": ("org_id", "application_posture", "has_part_xv",
-                                       "form_and_info_txt", "submission_deadlines_txt",
-                                       "source_dataset"),
-    "public.org_financial_series": ("org_id", "fy", "tax_period", "tax_period_end",
-                                    "return_type", "object_id", "total_revenue",
-                                    "total_expenses", "total_assets_eoy", "net_assets_eoy",
-                                    "qualifying_distributions", "charitable_disbursements"),
-    "public.filings": ("object_id", "org_id", "tax_period", "website",
-                       "superseded_by_object_id", "source_dataset"),
-    "public.funding_events": ("funder_org_id", "event_type", "amount", "fiscal_year",
-                              "source_dataset"),
-    "public.contact_channels": ("org_id", "channel_type", "value", "source_dataset"),
-}
+def view_columns_used(irs_standing: bool = False, link_basis: bool = False) -> dict:
+    """The columns the queries read on each view (checked against the catalog)."""
+    used = {
+        "public.organizations": ("id", "name", "city", "state", "zip", "ntee_code",
+                                 "ruling_date", "org_type", "source_dataset"),
+        "public.org_identifiers": ("org_id", "id_type", "id_value"),
+        "public.org_application_posture": ("org_id", "application_posture", "has_part_xv",
+                                           "form_and_info_txt", "submission_deadlines_txt",
+                                           "source_dataset"),
+        "public.org_financial_series": ("org_id", "fy", "tax_period", "tax_period_end",
+                                        "return_type", "object_id", "total_revenue",
+                                        "total_expenses", "total_assets_eoy", "net_assets_eoy",
+                                        "qualifying_distributions",
+                                        "charitable_disbursements"),
+        "public.filings": ("object_id", "org_id", "tax_period", "website",
+                           "superseded_by_object_id", "source_dataset"),
+        "public.funding_events": ("id", "funder_org_id", "recipient_org_id", "event_type",
+                                  "amount", "purpose_text", "fiscal_year",
+                                  "filing_object_id", "source_dataset"),
+        "public.contact_channels": ("org_id", "channel_type", "value", "source_dataset"),
+    }
+    if irs_standing:
+        used[IRS_STANDING_VIEW] = ("org_id", "ein",
+                                   *(src for _c, src, _m in IRS_STANDING_SOURCE),
+                                   "revocation_list_as_of", "pub78_as_of")
+    if link_basis:
+        used[EVENTS_VIEW] = (*used[EVENTS_VIEW], LINK_BASIS_SOURCE_COLUMN)
+    return used
 
 
-def database_checks(cur) -> list[dict]:
+def database_checks(cur, allowed: tuple[str, ...] = ALLOWED_VIEWS,
+                    used: dict | None = None) -> list[dict]:
     """Each allowed relation is a view in schema public and has the columns
     the queries use. Reads the catalog only."""
+    used = used if used is not None else view_columns_used()
     cur.execute("select table_name from information_schema.views where table_schema = 'public'")
     views = {r[0] for r in cur.fetchall()}
-    missing = [v for v in ALLOWED_VIEWS if v.split(".", 1)[1] not in views]
+    missing = [v for v in allowed if v.split(".", 1)[1] not in views]
     cur.execute("select table_name, column_name from information_schema.columns "
                 "where table_schema = 'public'")
     have: dict[str, set[str]] = {}
     for t, c in cur.fetchall():
         have.setdefault(t, set()).add(c)
-    absent = [f"{v}.{c}" for v, cols in _VIEW_COLUMNS_USED.items() for c in cols
+    absent = [f"{v}.{c}" for v, cols in used.items() for c in cols
               if c not in have.get(v.split(".", 1)[1], set())]
     return [
         {"id": "F5", "statement": "every relation read is a view in schema public",
@@ -446,6 +756,44 @@ def database_checks(cur) -> list[dict]:
         {"id": "F6", "statement": "every column the queries use exists on its public view",
          "result": "PASS" if not absent else "FAIL", "problems": absent},
     ]
+
+
+def detect_optional(cur) -> list[dict]:
+    """Which optional columns this database can supply. Reads the catalog only.
+    One entry per optional group, kept in the manifest as ``optional_columns``."""
+    cur.execute(
+        "select to_regclass(%s::text) is not null, "
+        "coalesce(has_table_privilege(to_regclass(%s::text)::oid, 'select'), false)",
+        (IRS_STANDING_VIEW, IRS_STANDING_VIEW))
+    exists, readable = cur.fetchone()
+    irs = {
+        "id": "irs_standing",
+        "file": "foundations.csv.gz",
+        "columns": [c for c, _s, _m in IRS_STANDING_SOURCE],
+        "source": IRS_STANDING_VIEW,
+        "present": bool(exists and readable),
+        "reason": ("the view is in this database" if exists and readable else
+                   "the view is in this database, but this connection may not read it"
+                   if exists else
+                   f"the view {IRS_STANDING_VIEW} is not in this database, "
+                   "so the columns are left out"),
+    }
+    cur.execute(
+        "select exists (select 1 from information_schema.columns "
+        "where table_schema = 'public' and table_name = 'funding_events' "
+        "and column_name = %s)", (LINK_BASIS_SOURCE_COLUMN,))
+    has_basis = bool(cur.fetchone()[0])
+    basis = {
+        "id": "link_basis",
+        "file": GRANTS_FILE_PATTERN,
+        "columns": [LINK_BASIS_COLUMN[0]],
+        "source": f"{EVENTS_VIEW}.{LINK_BASIS_SOURCE_COLUMN}",
+        "present": has_basis,
+        "reason": ("the column is in this database" if has_basis else
+                   f"no public view says how a recipient was linked ({EVENTS_VIEW} has no "
+                   f"{LINK_BASIS_SOURCE_COLUMN} column), so the column is left out, not guessed"),
+    }
+    return [irs, basis]
 
 
 # ---------------------------------------------------------------------------
@@ -490,8 +838,17 @@ def _iter_rows(path: Path):
         yield from csv.DictReader(io.TextIOWrapper(fh, encoding="utf-8", newline=""))
 
 
+def _money(value) -> float | None:
+    """A dollar sum for the manifest. None stays None: a missing sum is not 0."""
+    return None if value is None else float(value)
+
+
 def _license_text() -> str:
     return f"""Open Foundation List
+
+THE FILES
+foundations.csv.gz, foundation_years.csv.gz and the grants files named
+{GRANTS_FILE_PATTERN} (one for each fiscal year).
 
 THE COMPILATION
 The selection, arrangement and derived columns of these files are licensed
@@ -506,9 +863,18 @@ use, when you give credit. Use this credit line:
 
 THE UNDERLYING RECORDS
 The facts come from records of the U.S. Internal Revenue Service: Form 990-PF
-and Form 990 e-file data and the Exempt Organizations Business Master File.
-These are works of the U.S. Government and are in the public domain. No
-credit is required for them, and this licence does not restrict them.
+and Form 990 e-file data, the Exempt Organizations Business Master File and,
+when the files have the irs_* columns, the Automatic Revocation of Exemption
+List and Publication 78 data. These are works of the U.S. Government and are
+in the public domain. No credit is required for them, and this licence does
+not restrict them.
+
+NAMES IN THE GRANTS FILES
+The grants files name organizations only. A grant row is in a grants file
+only when its recipient is linked to an organization record, and the name in
+the file is the name on that record. Grant rows that are not linked are
+counted in foundation_years.csv.gz and are not named. A link can be wrong. If
+a row names a private person, report it so that it can be corrected.
 
 NO WARRANTY
 The files are provided as they are. They can contain errors made by the
@@ -517,17 +883,92 @@ rely on a figure.
 """
 
 
-def _dictionary(columns: list[tuple[str, tuple[str, ...], str]]) -> str:
+def _dictionary(columns: list[Column]) -> str:
     lines = ["| Column | Meaning |", "|---|---|"]
     lines += [f"| `{c}` | {meaning} |" for c, _views, meaning in columns]
     return "\n".join(lines)
 
 
+def _file_summary(f: dict) -> str:
+    """One plain sentence for a file. Used by the README and the release JSON."""
+    if f["kind"] == "foundations":
+        return ("One row for each U.S. private foundation: name, place, latest numbers, "
+                "and what its latest return says about applications.")
+    if f["kind"] == "foundation_years":
+        return ("One row for each foundation and fiscal year: revenue, expenses, assets, "
+                "giving, and how many of its grant rows are in the grants files.")
+    return (f"Grants that foundations reported for fiscal year {f['fiscal_year']}, one row "
+            "for each grant whose recipient is linked to an organization record. Other "
+            "grants are counted in foundation_years.csv.gz and are not named.")
+
+
+def _coverage_table(coverage: dict) -> str:
+    lines = ["| Fiscal year | Grant rows on file | In the grants file | Counted, not named "
+             "| Share in the grants file |",
+             "|---|---|---|---|---|"]
+    for y in coverage["by_fiscal_year"]:
+        fy = y["fiscal_year"] if y["fiscal_year"] is not None else "not stated"
+        share = ""
+        if y["grants_on_file"]:
+            pct = 100 * y["rows_in_file"] / y["grants_on_file"]
+            # "0%" would read as "none" when a few rows are in the file.
+            share = "0%" if not y["rows_in_file"] else "less than 1%" if pct < 1 else f"{pct:.0f}%"
+        lines.append(f"| {fy} | {y['grants_on_file']:,} | {y['rows_in_file']:,} "
+                     f"| {y['grants_on_file'] - y['rows_in_file']:,} | {share} |")
+    return "\n".join(lines)
+
+
 def _readme(m: dict) -> str:
-    f = {x["name"]: x for x in m["files"]}
-    sample = (f"\n> This is a SAMPLE of the first {m['limit']:,} foundations by EIN, "
-              "made with `--limit`. It is not the full list.\n" if m["limit"] else "")
+    files = m["files"]
+    grant_files = [f for f in files if f["kind"] == GRANTS_KIND]
+    optional = {o["id"]: o for o in m["optional_columns"]}
+    sample = ""
+    if m["limit"]:
+        sample = (f"\n> This is a SAMPLE of the first {m['limit']:,} foundations by EIN, "
+                  "made with `--limit`. It is not the full list.")
+        if m["grants_row_cap"]:
+            sample += (f" Each grants file holds at most {m['grants_row_cap']:,} rows "
+                       "in a sample.")
+        sample += "\n"
     years = m["fiscal_years"]
+    file_rows = "\n".join(
+        f"| `{f['name']}` | "
+        + ("One row for each private foundation." if f["kind"] == "foundations" else
+           "One row for each foundation and fiscal year." if f["kind"] == "foundation_years"
+           else f"One row for each linked grant of fiscal year {f['fiscal_year']}.")
+        + f" | {f['rows']:,} |" for f in files)
+    absent = [o for o in m["optional_columns"] if not o["present"]]
+    absent_note = ""
+    if absent:
+        absent_note = ("\n## Columns that are not in this build\n\n"
+                       + "\n".join(f"- {', '.join(f'`{c}`' for c in o['columns'])} "
+                                   f"(in `{o['file']}`): {o['reason']}." for o in absent)
+                       + "\n")
+    irs_note = ""
+    if optional["irs_standing"]["present"]:
+        as_of = optional["irs_standing"].get("lists_as_of") or {}
+        values = "\n".join(f"- `{v}`: {meaning}" for v, meaning in IRS_STANDING_VALUES)
+        irs_note = f"""
+## The IRS standing columns
+
+`irs_standing`, `irs_revocation_date` and `irs_on_pub78` say what three IRS
+lists show: the Exempt Organizations Business Master File, Publication 78
+data and the Automatic Revocation of Exemption List. They are not a legal
+opinion. Check with the IRS before you rely on them.
+
+- Automatic Revocation of Exemption List used here: {as_of.get('automatic_revocation_list') or 'date not available'}.
+- Publication 78 data used here: {as_of.get('publication_78') or 'date not available'}.
+
+The values of `irs_standing`:
+
+{values}
+
+The revocation list holds only automatic revocations (no return for three
+years in a row). It does not hold other kinds of revocation. An empty
+`irs_standing` means that the lists are not available for the foundation.
+"""
+    grants_dictionary = _dictionary(grant_columns(optional["link_basis"]["present"]))
+    foundations_dictionary = _dictionary(foundation_columns(optional["irs_standing"]["present"]))
     return f"""# Open Foundation List — {m['vintage']}
 {sample}
 A list of U.S. private foundations, built only from public IRS records.
@@ -537,16 +978,18 @@ Anyone can download it, use it and share it.
 
 | File | What it is | Rows |
 |---|---|---|
-| `foundations.csv.gz` | One row for each private foundation. | {f['foundations.csv.gz']['rows']:,} |
-| `foundation_years.csv.gz` | One row for each foundation and fiscal year. | {f['foundation_years.csv.gz']['rows']:,} |
+{file_rows}
 | `manifest.json` | Row counts, sha256 of each file, sources, how it was built. | |
 | `LICENSE.txt` | The licence and the credit line. | |
 
 The CSV files are gzip files. Excel, Google Sheets, R, pandas and DuckDB can
-open them. The text is UTF-8. The first line has the column names. The rows
-are sorted by `ein`.
+open them. The text is UTF-8. The first line has the column names.
+`foundations.csv.gz` and `foundation_years.csv.gz` are sorted by `ein`. The
+grants files are sorted by `funder_ein`, then `filing_object_id`, then
+`recipient_ein`, then `amount`.
 
-Fiscal years in these files: {years['first'] or 'none'} to {years['last'] or 'none'}.
+Fiscal years in `foundation_years.csv.gz`: {years['first'] or 'none'} to {years['last'] or 'none'}.
+Grants files in this build: {len(grant_files)}.
 
 ## How to read the files honestly
 
@@ -554,8 +997,8 @@ Fiscal years in these files: {years['first'] or 'none'} to {years['last'] or 'no
    the latest return says nothing about applications, or when no return is on
    file. It does not mean the foundation refuses applications.
 2. **Empty means not available.** An empty cell means this database does not
-   have the value. It does not mean zero. A `0` is a zero that the foundation
-   filed.
+   have the value. It does not mean zero. A `0` in a money column is a zero
+   that the foundation filed.
 3. **`grants_on_file` counts what this database holds.** It is not the number
    of grants the foundation made. It is empty when the database holds no grant
    rows for the foundation.
@@ -570,19 +1013,60 @@ Fiscal years in these files: {years['first'] or 'none'} to {years['last'] or 'no
    inbox that the foundation printed for applicants, such as `grants@`.
    The address of a named person is never published.
 8. **The return is the source.** Filers make mistakes. Use
-   `latest_filing_object_id` to find the original return at the IRS.
+   `latest_filing_object_id` or `filing_object_id` to find the original
+   return at the IRS.
+9. **The grants files do not hold every grant.** They hold only the grant
+   rows whose recipient is linked to an organization record. Read the next
+   section before you add up a grants file.
+
+## What the grants files hold, and what they leave out
+
+A foundation's return gives the name of each grant recipient as free text.
+Some recipients are private persons, for example a student with a
+scholarship. A public bulk file must not name them. For this reason:
+
+- A grant row is in a grants file only when this database has linked its
+  recipient to an organization record.
+- `recipient_name`, `recipient_city`, `recipient_state` and `recipient_ein`
+  come from that organization record. They are not the text that the
+  foundation typed.
+- Every other grant row is counted and is not named. The counts are in
+  `foundation_years.csv.gz`: `grants_linked_on_file`,
+  `grants_not_linked_on_file` and `amount_not_linked_on_file`.
+- "Not linked" does not mean that the recipient is a person. The recipient
+  can be an organization that this database could not link.
+- The sum of a grants file is less than what the foundations gave. Do not
+  use it as a total of giving. Use `grants_paid` in
+  `foundation_years.csv.gz` for that.
+- A link can be wrong. `purpose_text` is in the foundation's own words. If a
+  row names a private person, report it.
+
+How much of each fiscal year is in the grants files:
+
+{_coverage_table(m['grants_coverage'])}
 
 ## Columns of `foundations.csv.gz`
 
-{_dictionary(FOUNDATION_COLUMNS)}
-
+{foundations_dictionary}
+{irs_note}
 ## Columns of `foundation_years.csv.gz`
 
 {_dictionary(YEAR_COLUMNS)}
 
 If a foundation filed two returns that end in the same calendar year, the
-file keeps the return with the later end date.
+file keeps the return with the later end date. The grant counts are for the
+fiscal year, so they include the grant rows of both returns.
 
+`grants_linked_on_file` plus `grants_not_linked_on_file` is `n_grants_on_file`.
+A `0` in one of these two columns means that the database holds grant rows
+for the year and none of them is of that kind.
+
+## Columns of `{GRANTS_FILE_PATTERN}`
+
+One file for each fiscal year. One row for each linked grant.
+
+{grants_dictionary}
+{absent_note}
 ## How to cite
 
 > {ATTRIBUTION}. Open Foundation List, version {m['vintage']}.
@@ -600,8 +1084,9 @@ See `LICENSE.txt`.
   {', '.join(str(y) for y in m['index_years_covered']) or 'none'}.
 - Name, address, NTEE code and ruling year come from the IRS master file. It
   can be up to two years behind.
-- Grant rows are as the foundation typed them. Recipient names are not
-  cleaned in this file.
+- A grants file can hold a grant row of a fiscal year that has no row in
+  `foundation_years.csv.gz`. This happens when the grant table of a return is
+  loaded and its financial data is not.
 - A foundation with no EIN in the database is not in the list.
 
 ## How it was built
@@ -609,6 +1094,7 @@ See `LICENSE.txt`.
 Every value comes from a `public.*` view of the Open Funder Database. Those
 views show only records that may be republished. The export checks this
 before it writes a file. The checks and their results are in `manifest.json`.
+All files are read from the database at one moment.
 
 To build it again from the same database:
 
@@ -619,108 +1105,308 @@ uv run funderdb export foundations --out DIR
 The same database gives the same files, byte for byte. Compare the sha256
 values in `manifest.json` to check a copy.
 
-To report an error, name the return (its `latest_filing_object_id`) or the
-public record that shows the right value.
+To report an error, name the return (its `filing_object_id`) or the public
+record that shows the right value.
 """
+
+
+def release_document(manifest: dict, tag: str) -> dict:
+    """The JSON the website reads (apps/web/content/data-release.json): the
+    release tag, the vintage, and one entry for each CSV file with its
+    download link, size, sha256 and row count."""
+    if not _TAG.match(tag or ""):
+        raise ValueError("--tag must be a plain release name such as data-2026-10-08 "
+                         "(letters, digits, dot, dash, underscore)")
+    doc = {
+        "tag": tag,
+        "vintage": manifest["vintage"],
+        "published_at": manifest["generated_at"],
+        "index_years": manifest["index_years_covered"],
+        "licence": LICENCE_NAME,
+        "attribution": ATTRIBUTION,
+        "release_url": f"{RELEASES_URL}/tag/{tag}",
+        "files": [{
+            "name": f["name"],
+            "url": f"{RELEASES_URL}/download/{tag}/{f['name']}",
+            "bytes": f["bytes"],
+            "sha256": f["sha256"],
+            "rows": f["rows"],
+            "description": _file_summary(f),
+            # Not in the website's first contract: the columns this file
+            # really has, so a page can leave out an optional column that
+            # this build does not have.
+            "columns": f["columns"],
+        } for f in manifest["files"]],
+    }
+    if manifest["limit"]:
+        # A sample is not a release. The key marks the file so nobody ships it.
+        doc["sample_limit"] = manifest["limit"]
+    return doc
+
+
+def write_release_json(path: Path, manifest: dict, tag: str) -> dict:
+    """Write the release JSON in one step (a temporary file, then a rename)."""
+    doc = release_document(manifest, tag)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+    return doc
 
 
 # ---------------------------------------------------------------------------
 # The run
 # ---------------------------------------------------------------------------
 def run(out_dir: Path, *, limit: int | None = None, no_ledger: bool = False,
-        statement_timeout: str | None = None, echo=print) -> dict:
+        statement_timeout: str | None = None, tag: str | None = None,
+        release_json: Path | None = None, echo=print) -> dict:
     """Write ``out_dir/<vintage>/``. ``statement_timeout`` defaults to 20s for a
     ``limit`` sample (the cap of the app's read-only role, so a sample proves
-    the queries are cheap) and to 60min for the full list."""
+    the queries are cheap) and to 60min for the full list. With
+    ``release_json`` the JSON the website reads is written after everything
+    else succeeded; it needs ``tag``, the name of the release."""
     if limit is not None and limit <= 0:
         raise ValueError("--limit must be a positive number")
+    if release_json is not None and not tag:
+        raise ValueError("--release-json needs --tag, the name of the release "
+                         "(for example data-2026-10-08)")
+    if tag is not None and not _TAG.match(tag):
+        raise ValueError("--tag must be a plain release name such as data-2026-10-08 "
+                         "(letters, digits, dot, dash, underscore)")
     timeout = statement_timeout or ("20s" if limit else "60min")
-    queries = {"foundations": foundations_sql(limit), "foundation_years": years_sql(limit)}
-
-    def session(conn):
-        conn.read_only = True     # this export never writes through this session
-        cur = conn.cursor()
-        cur.execute(f"set local statement_timeout = '{timeout}'")
-        cur.execute("set local timezone = 'UTC'")
-        cur.execute("set local datestyle = 'ISO, MDY'")
-        return cur
-
-    checks = static_checks(queries)
-    with connect() as conn:
-        with session(conn) as cur:
-            checks += database_checks(cur)
-        conn.rollback()
-    for c in checks:
-        echo(f"  {c['result']} {c['id']}  {c['statement']}"
-             + (f"  -> {'; '.join(c['problems'][:6])}" if c["problems"] else ""))
-    if any(c["result"] == "FAIL" for c in checks):
-        raise SystemExit("\nBOUNDARY VIOLATION — a check failed. No files written.")
+    row_cap = GRANTS_SAMPLE_ROW_CAP if limit else None
 
     generated = datetime.now(timezone.utc).replace(microsecond=0)
     vintage = vintage_label(generated)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    _clean_stale_tmp(out_dir, echo=echo)
     tmp, final = out_dir / f".tmp-{vintage}", out_dir / vintage
-    tmp.mkdir()
-    echo(f"  writing {tmp} (published as {final.name} on success)")
-
+    if final.exists():
+        # The vintage is a time to the second. Stop before any work is done.
+        raise RuntimeError(f"a build named {vintage} is already in {out_dir}; "
+                           "wait one second and run again")
     files: list[dict] = []
-    for stem, columns in (("foundations", FOUNDATION_COLUMNS),
-                          ("foundation_years", YEAR_COLUMNS)):
-        with connect() as conn:
-            with session(conn) as cur:
-                meta = _write_csv_gz(cur, queries[stem], tmp / f"{stem}.csv.gz")
-            conn.rollback()
-        meta["columns"] = [c for c, _v, _m in columns]
-        meta["views"] = sorted({v for _c, views, _m in columns for v in views})
-        meta["order_by"] = "ein" if stem == "foundations" else "ein, fiscal_year"
-        files.append(meta)
-        echo(f"  {meta['rows']:>10,}  {meta['name']}")
+
+    with connect() as conn:
+        # One snapshot for every statement: the files must describe the same
+        # moment, or grants_linked_on_file would not add up to the grants
+        # files while a loader is writing. This export never writes through
+        # this session.
+        conn.read_only = True
+        conn.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
+        with conn.cursor() as cur:
+            cur.execute(f"set local statement_timeout = '{timeout}'")
+            cur.execute("set local timezone = 'UTC'")
+            cur.execute("set local datestyle = 'ISO, MDY'")
+
+            optional = detect_optional(cur)
+            option = {o["id"]: o for o in optional}
+            use = {o["id"]: o["present"] for o in optional}
+            allowed = ALLOWED_VIEWS + ((IRS_STANDING_VIEW,) if use["irs_standing"] else ())
+            columns = {
+                "foundations": foundation_columns(use["irs_standing"]),
+                "foundation_years": YEAR_COLUMNS,
+                GRANTS_KIND: grant_columns(use["link_basis"]),
+            }
+            queries = {
+                "foundations": foundations_sql(limit, use["irs_standing"]),
+                "foundation_years": years_sql(limit),
+                "grant_coverage": grant_coverage_sql(limit),
+                # The template of the per-year statements (year 0).
+                GRANTS_KIND: grants_sql(0, limit, row_cap, use["link_basis"]),
+            }
+            if use["irs_standing"]:
+                queries["irs_lists_as_of"] = irs_lists_as_of_sql()
+            checks = static_checks(queries, columns, allowed)
+            checks += database_checks(
+                cur, allowed, view_columns_used(use["irs_standing"], use["link_basis"]))
+            checks.sort(key=lambda c: c["id"])
+            for c in checks:
+                echo(f"  {c['result']} {c['id']}  {c['statement']}"
+                     + (f"  -> {'; '.join(c['problems'][:6])}" if c["problems"] else ""))
+            if any(c["result"] == "FAIL" for c in checks):
+                raise SystemExit("\nBOUNDARY VIOLATION — a check failed. No files written.")
+            for o in optional:
+                echo(f"  optional {', '.join(o['columns'])}: "
+                     f"{'included' if o['present'] else 'left out'} ({o['reason']})")
+
+            out_dir.mkdir(parents=True, exist_ok=True)
+            _clean_stale_tmp(out_dir, echo=echo)
+            tmp.mkdir()
+            echo(f"  writing {tmp} (published as {final.name} on success)")
+
+            def write(kind: str, name: str, sql: str, cols: list[Column], order_by: str) -> dict:
+                meta = _write_csv_gz(cur, sql, tmp / name)
+                meta["kind"] = kind
+                meta["columns"] = [c for c, _v, _m in cols]
+                meta["views"] = sorted({v for _c, views, _m in cols for v in views})
+                meta["order_by"] = order_by
+                files.append(meta)
+                echo(f"  {meta['rows']:>10,}  {meta['name']}")
+                return meta
+
+            write("foundations", "foundations.csv.gz", queries["foundations"],
+                  columns["foundations"], "ein")
+            write("foundation_years", "foundation_years.csv.gz", queries["foundation_years"],
+                  columns["foundation_years"], "ein, fiscal_year")
+            if use["irs_standing"]:
+                cur.execute(queries["irs_lists_as_of"])
+                as_of = cur.fetchone()
+                option["irs_standing"]["lists_as_of"] = {
+                    "automatic_revocation_list": as_of[0].isoformat() if as_of and as_of[0]
+                    else None,
+                    "publication_78": as_of[1].isoformat() if as_of and as_of[1] else None,
+                }
+            # One statement and one file for each fiscal year that has a
+            # linked grant. The coverage statement names those years and gives
+            # the row count each file must have; the same snapshot makes it
+            # exact. It runs after the two files above so that, on a cold
+            # cache, no statement of a sample has to read more than they did.
+            cur.execute(queries["grant_coverage"])
+            coverage_rows = cur.fetchall()
+            for fy, _grants, linked, *_rest in coverage_rows:
+                if fy is None or not linked:
+                    continue
+                meta = write(GRANTS_KIND, grants_file_name(fy),
+                             grants_sql(fy, limit, row_cap, use["link_basis"]),
+                             columns[GRANTS_KIND],
+                             "funder_ein, filing_object_id, recipient_ein, amount "
+                             "(then the grant row's id, so the order is total)")
+                meta["fiscal_year"] = int(fy)
+                meta["row_cap"] = row_cap
+                meta["row_cap_reached"] = bool(row_cap and linked > row_cap)
+                want = min(linked, row_cap) if row_cap else linked
+                if meta["rows"] != want:
+                    raise RuntimeError(
+                        f"{meta['name']}: {meta['rows']:,} rows written, but the coverage "
+                        f"count for fiscal year {fy} is {want:,}")
+        conn.rollback()
 
     # Facts about what was written, read back from the files themselves so the
     # manifest describes the bytes, not the intention.
+    by_kind = {f["kind"]: f for f in files if f["kind"] != GRANTS_KIND}
     dataset_set: set[str] = set()
     posture = {"accepts_applications": 0, "preselected_only": 0, "not_stated": 0}
+    seen_ids: set[str] = set()
+    standing_counts: dict[str, int] = {}
     for i, r in enumerate(_iter_rows(tmp / "foundations.csv.gz")):
-        if i == 0 and list(r.keys()) != files[0]["columns"]:
+        if i == 0 and list(r.keys()) != by_kind["foundations"]["columns"]:
             raise RuntimeError(
                 f"foundations.csv.gz columns {list(r.keys())} != the column dictionary")
+        if r["getfunded_id"] in seen_ids:
+            raise RuntimeError(
+                f"foundations.csv.gz has two rows for foundation {r['getfunded_id']}")
+        seen_ids.add(r["getfunded_id"])
         dataset_set.update(d for d in (r["source_dataset"] or "").split(";") if d)
         posture[r["application_posture"]] = posture.get(r["application_posture"], 0) + 1
+        if "irs_standing" in r:
+            key = r["irs_standing"] or "not_available"
+            standing_counts[key] = standing_counts.get(key, 0) + 1
+    if standing_counts:
+        option["irs_standing"]["irs_standing_counts"] = dict(sorted(standing_counts.items()))
     fy_set: set[int] = set()
     oid_year_set: set[int] = set()
+    linked_in_years: dict[int, int] = {}
     for i, r in enumerate(_iter_rows(tmp / "foundation_years.csv.gz")):
-        if i == 0 and list(r.keys()) != files[1]["columns"]:
+        if i == 0 and list(r.keys()) != by_kind["foundation_years"]["columns"]:
             raise RuntimeError(
                 f"foundation_years.csv.gz columns {list(r.keys())} != the column dictionary")
         if r["fiscal_year"]:
             fy_set.add(int(r["fiscal_year"]))
+            if r["grants_linked_on_file"]:
+                linked_in_years[int(r["fiscal_year"])] = (
+                    linked_in_years.get(int(r["fiscal_year"]), 0)
+                    + int(r["grants_linked_on_file"]))
         if r["filing_object_id"][:4].isdigit():
             oid_year_set.add(int(r["filing_object_id"][:4]))
+    basis_counts: dict[str, int] = {}
+    grants_by_fy: dict[int, dict] = {}
+    for f in files:
+        if f["kind"] != GRANTS_KIND:
+            continue
+        grants_by_fy[f["fiscal_year"]] = f
+        for i, r in enumerate(_iter_rows(tmp / f["name"])):
+            if i == 0 and list(r.keys()) != f["columns"]:
+                raise RuntimeError(
+                    f"{f['name']} columns {list(r.keys())} != the column dictionary")
+            # The rule of the grants files, checked on the bytes: every row
+            # names an organization record and belongs to this file's year.
+            if not (r["recipient_getfunded_id"] and r["recipient_name"] and r["funder_ein"]):
+                raise RuntimeError(
+                    f"{f['name']} row {i + 1}: no linked organization record or no funder EIN")
+            if r["fiscal_year"] != str(f["fiscal_year"]):
+                raise RuntimeError(f"{f['name']} row {i + 1}: fiscal year {r['fiscal_year']}")
+            if "link_basis" in r:
+                if r["link_basis"] and r["link_basis"] not in LINK_BASIS_VALUES:
+                    raise RuntimeError(
+                        f"{f['name']} row {i + 1}: link_basis {r['link_basis']!r} is not one "
+                        f"of {', '.join(LINK_BASIS_VALUES)}")
+                key = r["link_basis"] or "not_stated"
+                basis_counts[key] = basis_counts.get(key, 0) + 1
     datasets, fys, oid_years = sorted(dataset_set), sorted(fy_set), sorted(oid_year_set)
+
+    by_year = []
+    for fy, grants, linked, not_linked, amount_linked, amount_not_linked in coverage_rows:
+        f = grants_by_fy.get(fy)
+        in_years = linked_in_years.get(fy, 0) if fy is not None else 0
+        if in_years > linked:
+            raise RuntimeError(
+                f"fiscal year {fy}: foundation_years.csv.gz counts {in_years:,} linked "
+                f"grant rows, more than the {linked:,} the database holds")
+        by_year.append({
+            "fiscal_year": int(fy) if fy is not None else None,
+            "grants_on_file": int(grants),
+            "linked": int(linked),
+            "not_linked": int(not_linked),
+            "amount_linked": _money(amount_linked),
+            "amount_not_linked": _money(amount_not_linked),
+            "file": f["name"] if f else None,
+            "rows_in_file": f["rows"] if f else 0,
+            "linked_in_foundation_years": in_years,
+        })
+    coverage = {
+        "rule": ("a grant row is in a grants file only when its recipient is linked to an "
+                 "organization record that public.organizations shows; every other grant "
+                 "row is counted and not named"),
+        "linked_in_foundation_years_note": (
+            "the sum of grants_linked_on_file for the fiscal year; it is less than "
+            "`linked` when a return's grant rows are loaded and its financial data is not"),
+        "by_fiscal_year": by_year,
+        "totals": {
+            "grants_on_file": sum(y["grants_on_file"] for y in by_year),
+            "linked": sum(y["linked"] for y in by_year),
+            "not_linked": sum(y["not_linked"] for y in by_year),
+            "rows_in_files": sum(y["rows_in_file"] for y in by_year),
+        },
+    }
+    if basis_counts:
+        coverage["link_basis_counts"] = dict(sorted(basis_counts.items()))
 
     manifest = {
         "dataset": "open-foundation-list",
         "vintage": vintage,
         "generated_at": generated.isoformat(),
         "limit": limit,
+        "grants_row_cap": row_cap,
         "generator": {
             "tool": "funderdb export foundations",
             "git_commit": git_commit(),
             "git_commit_note": "HEAD as recorded in .git; uncommitted edits are not reflected",
             "statement_timeout": timeout,
+            "snapshot": "every file was read in one read-only REPEATABLE READ transaction",
         },
         "license": {
-            "compilation": "CC BY 4.0", "url": LICENSE_URL, "attribution": ATTRIBUTION,
+            "compilation": LICENCE_NAME, "url": LICENSE_URL, "attribution": ATTRIBUTION,
             "underlying_records": "U.S. Government works (IRS), public domain",
         },
-        "source_views": list(ALLOWED_VIEWS),
+        "source_views": list(allowed),
+        "optional_columns": optional,
         "source_datasets": datasets,
         "index_years_covered": oid_years,
         "index_years_method": ("the year at the start of each exported filing's IRS "
-                               "OBJECT_ID, which is the index year for 2021 and later"),
+                               "OBJECT_ID in foundation_years.csv.gz, which is the index "
+                               "year for 2021 and later"),
         "fiscal_years": {"first": fys[0] if fys else None, "last": fys[-1] if fys else None},
         "application_posture_counts": posture,
+        "grants_coverage": coverage,
         "boundary_checks": checks,
         "files": files,
         "row_count_method": "csv records (quoted newlines are field content), header excluded",
@@ -743,4 +1429,11 @@ def run(out_dir: Path, *, limit: int | None = None, no_ledger: bool = False,
                 conn, run_id, inserted=sum(x["rows"] for x in files),
                 notes=f"open foundation list {vintage}: "
                       + ", ".join(f"{x['name']} {x['rows']:,} rows" for x in files))
+
+    if release_json is not None:
+        write_release_json(release_json, manifest, tag)
+        echo(f"  wrote {release_json} (release {tag})")
+        if limit:
+            echo("  NOTE: this release JSON describes a SAMPLE made with --limit. "
+                 "Do not publish it.")
     return manifest

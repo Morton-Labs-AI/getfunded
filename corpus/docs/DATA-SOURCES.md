@@ -37,6 +37,105 @@ demotes an organization that has 990-PF grant evidence on file. Amounts are
 the most recent return the IRS has processed, which can lag by two years.
 Organizations that lost exemption disappear from the file (we keep the row).
 
+## IRS Automatic Revocation of Exemption List
+
+| | |
+|---|---|
+| Publisher | Internal Revenue Service (Tax Exempt Organization Search bulk data) |
+| URL | `https://apps.irs.gov/pub/epostcard/data-download-revocation.zip` |
+| Documentation | <https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads>, dataset guide <https://www.irs.gov/pub/irs-pdf/p5891.pdf> |
+| Cadence | about monthly, same filename |
+| Licence | U.S. Government work, public domain (`us_public_domain`) |
+| Cache | mutable, 30 days |
+| Command | `funderdb ingest irs-standing` (`--only revocation`, `--dry-run`, `--report`, `--refresh`) |
+| Dataset name | `irs_auto_revocation` |
+| Tables and views | `internal.irs_revocations`, `internal.irs_list_snapshots`, `internal.org_irs_standing`, `public.irs_revocations`, `public.org_irs_standing` |
+
+What it is: the organizations whose tax exemption was revoked by operation
+of law because they filed no annual return or notice for three years in a
+row. The IRS must publish this list.
+
+What we extract: EIN, legal name, exemption type, revocation date,
+revocation posting date and exemption reinstatement date. Nothing else
+leaves the file. The street, city, state, ZIP, country and
+doing-business-as name are not loaded and not printed.
+
+File layout: one pipe-delimited text file in the zip, UTF-8, no header
+row. The file starts with two blank lines and ends with one. Each data line
+has 12 fields. The loader prints and checks the first three data lines on
+every run and stops, with nothing loaded, when a line does not have 12
+fields or field 10 is not a date like `15-NOV-2017`.
+
+How it is loaded: every row of the file, not only EINs that the database
+already holds. Each load is a full snapshot in one transaction. Rows that
+the new file no longer carries are deleted, and
+`internal.irs_list_snapshots` records which file the table now holds. A
+load of the same file again changes nothing. A new file that holds under
+90% of the rows now loaded is refused, because it is probably cut off
+(`--allow-shrink` loads it as it is).
+
+Known limits:
+
+- It is the **automatic** revocation list only. A revocation after an IRS
+  examination is not in it.
+- An organization on the list can be recognized again. The file then
+  carries a reinstatement date, or the organization is in the master file
+  or on Publication 78. `internal.org_irs_standing` calls an organization
+  `revoked` only when it has a revocation row with no valid reinstatement
+  and it is on neither of the other two lists.
+- A reinstatement date counts only when it is on or after the revocation
+  date. 88 rows carry an earlier reinstatement date (a second revocation
+  after an earlier reinstatement).
+- The IRS says that a listed revocation date from 1 April 2020 to 14 July
+  2020 is wrong and should read 15 July 2020 (31,685 rows). The table keeps
+  the date as filed. The views add `effective_revocation_date` with the
+  corrected date.
+- `in_bmf` means "the organization row was last written by a master-file
+  load". This is correct while one master-file vintage is loaded. After the
+  next `ingest bmf --refresh`, an organization that left the master file
+  keeps its old file and stays `in_bmf = true`. Change the rule to "the
+  row's file belongs to the newest master-file vintage" before that refresh.
+- Standing is NULL for every organization until both this list and
+  Publication 78 are loaded.
+
+Measured on the file dated 2026-09-30: 1,247,069 rows, 1,227,606 EINs,
+1,065,369 EINs with no reinstatement date on the latest row.
+
+## IRS Publication 78 data
+
+| | |
+|---|---|
+| Publisher | Internal Revenue Service (Tax Exempt Organization Search bulk data) |
+| URL | `https://apps.irs.gov/pub/epostcard/data-download-pub78.zip` |
+| Documentation | <https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads>, code list <https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-deductibility-status-codes> |
+| Cadence | about monthly, same filename |
+| Licence | U.S. Government work, public domain (`us_public_domain`) |
+| Cache | mutable, 30 days |
+| Command | `funderdb ingest irs-standing` (`--only pub78`, `--dry-run`, `--report`, `--refresh`) |
+| Dataset name | `irs_pub78` |
+| Tables and views | `internal.irs_pub78`, `internal.irs_list_snapshots`, `internal.org_irs_standing`, `public.irs_pub78`, `public.org_irs_standing` |
+
+What it is: the organizations that the IRS lists as eligible to receive
+tax-deductible charitable contributions.
+
+What we extract: EIN and the deductibility status codes (`PC`, `PF`,
+`POF`, `SO`, `SONFI`, `SOUNK`, `EO`, `LODGE`, `GROUP`, `FORGN`, `UNKWN`,
+`FED`). The name, city, state and country are not loaded.
+
+File layout: one pipe-delimited text file in the zip, UTF-8, no header
+row, two blank lines at the start and one at the end, 6 fields per data
+line. The same three-line check applies.
+
+How it is loaded: every row, as a full snapshot in one transaction, the
+same as the revocation list.
+
+Known limits: absence from this list is not a negative on its own.
+Churches and the subordinate units of a group ruling can receive deductible
+gifts without being listed, and many master-file charities are not on it.
+A "doing business as" name is never in the file.
+
+Measured on the file dated 2026-09-10: 1,419,989 rows, one per EIN.
+
 ## IRS Form 990 series e-file index and XML
 
 | | |
@@ -224,6 +323,92 @@ returns in no index):
 | 2019 | 72,375 | 108 | 261,168 | 63 |
 | 2020 | 37,699 | 47,750 | 127,611 | 145,766 |
 
+### Repairing qualifying distributions
+
+Fact 7 above left a hole in data that was loaded before the parser read both
+names. On every Form 990-PF return of version 2018v3.x, 2019v5.x or 2020v4.x
+that was loaded before that fix, `qualifying_distributions` is empty in
+`internal.filing_financials`. The return states the amount. The old parser
+did not find it. New loads are correct. A loader does not read a filing a
+second time, so the old rows stay empty until they are repaired.
+
+`funderdb repair qualifying-distributions` repairs them. It does these steps:
+
+1. It reads the affected rows from the database with one read-only query:
+   Form 990-PF, one of the three versions, the column empty, and an object
+   id that starts with one of `--years` (default 2021, 2022, 2023).
+2. It groups the rows by the zip they were parsed from. Each row already
+   names that zip (`raw_file_id`), and `raw_files` has the URL, the size and
+   the sha256 of the zip. No index file is read and no zip name is guessed.
+3. For each zip it uses a copy that is on this machine: first the staging
+   folder (`data/raw/irs_990_xml/`), then each `--also-look-in` folder. If
+   there is no copy, it downloads the zip (resume and sha256, as all loaders
+   do). It does not start a download that would leave less free disk than
+   `--min-free-gb`.
+4. It compares the sha256 of the zip with the sha256 in `raw_files`. If they
+   are different, it does not use the zip, and the rows of that zip stay as
+   they are. This keeps the source of each row true: the repair does not
+   change `raw_file_id`.
+5. It reads only the affected returns from the zip, reads Part XII with the
+   same parser code that the loaders use, and fills the column, 5,000 rows
+   for each transaction.
+6. It writes one ledger row for each zip. The notes start with
+   `repair:qualifying-distributions` and hold the counts.
+7. With `--discard-zips` it deletes the zip, but only a zip that this
+   command downloaded.
+
+Rules that the command obeys:
+
+- It never changes a value that is not empty. The UPDATE statement checks
+  this itself.
+- A return that states no Part XII amount stays empty. The app shows "Not
+  available" for it. A return that states 0 gets 0.
+- It never writes, renames or deletes a file in an `--also-look-in` folder.
+- It never deletes a zip that was on disk before it ran.
+
+You can run the command again at any time. A row that was filled is not
+read again. A zip that is complete in the ledger is not opened or downloaded
+again. If a run stops in the middle of a zip, the next run does that zip
+again and reads only the rows that are still empty.
+
+| Option | Effect |
+|---|---|
+| `--dry-run` | Plan only: the zips, their sizes, the returns in each zip, what is on this machine, the total download and the free disk. It reads the database. It writes nothing and downloads nothing. |
+| `--also-look-in DIR` | An extra folder that can hold the zips. Read only. You can give it more than once. |
+| `--years 2021,2022,2023` | Object-id years of the returns to repair (the first four digits of the object id). |
+| `--limit-zips N` | Stop after N zips. |
+| `--min-free-gb 6` | The free disk that a download must leave. |
+| `--prefetch N` | Get up to N zips ahead with one worker thread. |
+| `--discard-zips` | Delete each zip that this command downloaded, after its ledger row is written. |
+| `--no-resume` | Do the zips again that the ledger marks complete. |
+
+When the repair is done, run `funderdb refresh-views`. The app reads the
+newest financials of each funder from a materialized view.
+
+Numbers for the hosted database, measured on 2026-10-08:
+
+- 127,702 returns were affected: 474 of version 2018v3.x, 12,610 of 2019v5.x
+  and 114,618 of 2020v4.x. Before the repair the column was empty on all of
+  them.
+- They were parsed from 17 zips (12.41 GB): `2021_TEOS_XML_01A` (108,644
+  returns), `2022_TEOS_XML_01A` (15,579), `2022_TEOS_XML_02A` (1,422), the
+  twelve `2023_TEOS_XML_*` zips (1,719), `2024_TEOS_XML_01A` (5) and
+  `2024_TEOS_XML_07A` (333).
+- Returns of the same versions whose object id starts with 2020 or an
+  earlier year were loaded later by `funderdb backfill`, with the corrected
+  parser. An empty value on those returns means that the return states no
+  amount. The default `--years` leaves them out.
+- 118,757 of the 127,702 returns state a Part XII amount (93.0%). The other
+  8,945 state none and stay empty after the repair. These two numbers were
+  read from the 17 zips before the repair ran. The return counts for each
+  zip and each version were the same in the zips and in the database.
+- Speed on a laptop: 2 GB of zip hashed each second, and 1,530 returns read
+  and parsed each second.
+
+If a download gives bytes that are not the registered ones, the command
+moves that file aside as `.corrupt_<name>` in the staging folder and reports
+the zip. Delete that file by hand when you have looked at it.
+
 ## SEC Form ADV — daily firm feed (IAPD)
 
 | | |
@@ -356,3 +541,58 @@ document per organization or program and embeds it with Voyage AI
 (`voyage-3.5`, 512 dimensions). Documents are derived rows whose provenance
 is the facts they summarise; the embedding run is ledgered, not
 raw-file-registered.
+
+## Derived: recipient aliases (filers as witnesses)
+
+| | |
+|---|---|
+| Publisher | this project: our own compilation of rows that are already in the database |
+| Inputs | Form 990 Schedule I grant rows and Form 990-PF grant rows in `internal.funding_events` |
+| Cadence | by hand, after a load of new returns |
+| Licence | CC BY 4.0 (`cc_by`), an original compilation. The input rows are U.S. public domain |
+| Command | `funderdb resolve aliases --build`, `--report`, `--sample N --out FILE`, `--apply`, `--unapply` |
+| Dataset name | `resolve_aliases` (the raw file is the rule manifest of the build) |
+| Tables | `internal.recipient_aliases`, `internal.recipient_alias_links`, view `public.recipient_aliases` |
+
+Not a download. A Form 990-PF names each grant recipient but gives no EIN. A
+charity that files Schedule I of Form 990 writes the EIN next to the name.
+The build reads the Schedule I rows whose EIN we hold and stores one row for
+each recipient name and state that two or more different filers wrote:
+
+- `n_filers` is the number of different filers that wrote the name and state
+  with the EIN of `org_id`.
+- `status` is `unanimous` when every filer wrote the same EIN, `dominant`
+  when more than one EIN was written and one has 5 or more filers and 95% or
+  more of all filers, and `contested` for the rest. A key is also
+  `contested` when the filers that wrote the name with no EIN we hold are
+  half as many as `n_filers` or more.
+- `witness_cities` holds the cities those filers wrote, and the
+  organization's own city.
+
+`--apply` links a 990-PF grant row to `org_id` only when all of these are
+true: the alias is `unanimous`, it has 3 or more filers, the row has the same
+normalized name and the same state, and the city on the row is in
+`witness_cities`. It writes one row in `internal.recipient_alias_links` for
+each grant row that it changes. `--unapply` removes those links again; it
+leaves a row alone if another job or a person changed the link after us.
+
+Rules that the command obeys:
+
+- It never links a Schedule I row. An unlinked Schedule I row can carry an
+  EIN that we do not hold.
+- It never applies a `dominant` or `contested` alias, or an alias with fewer
+  than 3 filers. `--min-filers` cannot go below 3.
+- It never changes a recipient name or an amount, and it never makes a new
+  organization row.
+- It stores no alias for filler text such as "SEE ATTACHED" or "VARIOUS"
+  (`internal.is_placeholder_recipient`), for a name shorter than 6
+  characters, or for a key that `internal.recipient_matches` already holds.
+- No model is called.
+
+Known limits: no person has labelled these links yet; run `--sample` and read
+the file before `--apply`. A name is sometimes written with the EIN of a
+parent body (a school with the EIN of its parish, a project with the EIN of
+its fiscal sponsor), so a link means "filers wrote this name with this
+organization's EIN", not "this is the same legal entity". An alias that
+already has links is not changed by a later `--build`; run `--unapply` first
+when you want it counted again.

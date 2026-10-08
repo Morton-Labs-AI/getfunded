@@ -71,6 +71,7 @@ options.
 | `ingest 990` | Public-charity Form 990 Schedule I grants. |
 | `ingest 990-detail` | Form 990 core-form financials, Part IX program/admin split and Part VII compensation from staged zips. |
 | `ingest websites` | Filer-stated websites from staged 990 and 990-PF XML. |
+| `ingest irs-standing` | IRS Automatic Revocation of Exemption List and Publication 78: is the organization still recognized? Loads every row as a full snapshot (`--dry-run` needs no database, `--report` is read-only, `--only revocation` or `--only pub78`). |
 | `ingest adv` | SEC Form ADV daily firm feed: registered and exempt-reporting advisers. |
 | `ingest adv-schedules` | SEC Form ADV monthly zips: Schedule A/B owners and 7.B.1 private funds. |
 | `ingest formd` | SEC Form D quarterly data sets: Reg D offerings, issuers, related persons. |
@@ -94,7 +95,7 @@ options.
 | `eval er` | Entity-resolution precision floors. |
 | `eval parity` | Spot-check filing financials against the ProPublica Nonprofit Explorer API (report only, needs network). |
 | `export public` | Export the `public.*` views as a hash-stable, versioned CSV dataset (`--verify-only` runs the assertions and writes nothing). |
-| `export foundations` | The Open Foundation List: two small CSV files of U.S. private foundations, read only from the `public.*` views (`--out DIR`, `--limit N`, `--no-ledger`). |
+| `export foundations` | The Open Foundation List: small CSV files of U.S. private foundations and their linked grants, read only from the `public.*` views (`--out DIR`, `--limit N`, `--no-ledger`, `--tag NAME`, `--release-json FILE`). |
 
 ## Backfilling older years
 
@@ -143,7 +144,7 @@ A second run of a finished year adds no rows.
 ## Open Foundation List
 
 The Open Foundation List is a small public download: every U.S. private
-foundation in the database, in two CSV files.
+foundation in the database, in a few CSV files.
 
 ```
 uv run funderdb export foundations --out data/open-foundation-list
@@ -156,6 +157,9 @@ It writes `DIR/<vintage>/` with:
   assets and giving, grants on file, application posture, public contact,
   link to the profile page);
 - `foundation_years.csv.gz`: one row for each foundation and fiscal year;
+- `foundation_grants_<fiscal_year>.csv.gz`: one file for each fiscal year, one
+  row for each grant whose recipient is linked to an organization record.
+  Every other grant is counted in `foundation_years.csv.gz` and is not named;
 - `README.md`, `LICENSE.txt` (CC BY 4.0 for the compilation; the IRS records
   are public domain) and `manifest.json` (row counts, sha256 of each file,
   sources, the git commit).
@@ -164,6 +168,7 @@ The export reads only the `public.*` views. It checks this before it writes a
 file, and it checks that the contact columns come only from
 `public.contact_channels`. Empty cells mean "not available", never zero.
 `not_stated` does not mean "closed". The same database gives the same bytes.
+`--tag NAME --release-json FILE` also writes the JSON file the website reads.
 
 `export public` is not changed by this command. Column dictionary and rebuild
 steps: [docs/OPEN-FOUNDATION-LIST.md](docs/OPEN-FOUNDATION-LIST.md).

@@ -6,6 +6,7 @@ import { Logo } from "@/components/brand/logo";
 import { AiBadge, AiCard } from "@/components/data/ai-badge";
 import { Missing } from "@/components/data/missing";
 import { Money } from "@/components/data/money";
+import { IrsRevokedNotice, IrsStandingChip } from "@/components/data/irs-standing-chip";
 import { Posture } from "@/components/data/posture";
 import { ProvenanceSeal } from "@/components/data/provenance-seal";
 import { SourceChip, SourceValue } from "@/components/data/source-chip";
@@ -53,6 +54,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatEin } from "@/lib/format";
+import type { IrsStanding } from "@/lib/queries/corpus/standing-types";
 
 import { CommandDemo, ToastDemo } from "./demos";
 
@@ -236,6 +238,87 @@ function DataClassTriad() {
   );
 }
 
+/** Placeholder IRS standings, one per state. The EINs are not real organizations. */
+const IRS_STANDING_BASE: IrsStanding = {
+  orgId: "00000000-0000-4000-8000-000000000000",
+  ein: "000000001",
+  standing: "listed",
+  inBmf: true,
+  bmfAsOf: "2026-07-25",
+  bmfAsOfKind: "retrieved",
+  bmfRulingDate: "1998-04-01",
+  masterFileAsOf: "2026-07-25",
+  onPub78: true,
+  pub78Codes: ["PF"],
+  pub78AsOf: "2026-09-10",
+  pub78AsOfKind: "irs_file_date",
+  revocationDate: null,
+  effectiveRevocationDate: null,
+  postingDate: null,
+  reinstatementDate: null,
+  reinstated: false,
+  revocationListAsOf: "2026-09-30",
+  revocationListAsOfKind: "irs_file_date",
+  provenance: {
+    source: "IRS master file (Exempt Organizations BMF)",
+    filingYear: null,
+    objectId: "row:EIN=000000001",
+    sha256: "3f9a1c2b7d5e4f60718293a4b5c6d7e8f9011223344556677889900aabbccdde",
+    href: null,
+    license: "U.S. Government public domain",
+  },
+};
+
+const IRS_NOT_IN_MASTER_FILE = { inBmf: false, bmfAsOf: null, bmfAsOfKind: null, bmfRulingDate: null } as const;
+const IRS_REVOCATION_SOURCE = "IRS Automatic Revocation of Exemption List";
+
+const IRS_STANDING_DEMOS: IrsStanding[] = [
+  IRS_STANDING_BASE,
+  {
+    ...IRS_STANDING_BASE,
+    ...IRS_NOT_IN_MASTER_FILE,
+    ein: "000000002",
+    standing: "revoked",
+    onPub78: false,
+    pub78Codes: [],
+    revocationDate: "2020-05-15",
+    effectiveRevocationDate: "2020-07-15",
+    postingDate: "2020-11-09",
+    provenance: { ...IRS_STANDING_BASE.provenance, source: IRS_REVOCATION_SOURCE, objectId: "row:EIN=000000002;rev=2020-05-15" },
+  },
+  {
+    ...IRS_STANDING_BASE,
+    ein: "000000003",
+    standing: "revoked_then_relisted",
+    revocationDate: "2017-11-15",
+    effectiveRevocationDate: "2017-11-15",
+    postingDate: "2018-03-12",
+    reinstatementDate: "2017-11-15",
+    reinstated: true,
+    provenance: { ...IRS_STANDING_BASE.provenance, source: IRS_REVOCATION_SOURCE, objectId: "row:EIN=000000003;rev=2017-11-15" },
+  },
+  {
+    ...IRS_STANDING_BASE,
+    ein: "000000004",
+    standing: "lists_disagree",
+    onPub78: false,
+    pub78Codes: [],
+    revocationDate: "2023-05-15",
+    effectiveRevocationDate: "2023-05-15",
+    postingDate: "2023-08-14",
+    provenance: { ...IRS_STANDING_BASE.provenance, source: IRS_REVOCATION_SOURCE, objectId: "row:EIN=000000004;rev=2023-05-15" },
+  },
+  {
+    ...IRS_STANDING_BASE,
+    ...IRS_NOT_IN_MASTER_FILE,
+    ein: "000000005",
+    standing: "not_listed",
+    onPub78: false,
+    pub78Codes: [],
+    provenance: { ...IRS_STANDING_BASE.provenance, source: "IRS Publication 78 data", objectId: "absent:EIN=000000005" },
+  },
+];
+
 function HonestyStates() {
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -275,6 +358,24 @@ function HonestyStates() {
           <Posture value={null} />
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Hover the third one: an absent statement is explained, not hidden.</p>
+      </Demo>
+      <Demo title="IRS standing (never revoked on one list alone)" className="md:col-span-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {IRS_STANDING_DEMOS.map((standing) => (
+            <IrsStandingChip key={standing.ein} standing={standing} />
+          ))}
+          <IrsStandingChip standing={null} />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {IRS_STANDING_DEMOS.map((standing) => (
+            <IrsStandingChip key={standing.ein} standing={standing} compact />
+          ))}
+        </div>
+        <IrsRevokedNotice standing={IRS_STANDING_DEMOS[1]} fy={2022} className="mt-3" />
+        <p className="mt-3 text-xs text-muted-foreground">
+          Click a chip for the dated IRS statement. The sixth chip has no data and renders nothing: until both IRS lists are loaded the
+          page says nothing, never &quot;listed&quot;. The last state is a neutral outline, not a warning. Placeholder EINs and dates.
+        </p>
       </Demo>
     </div>
   );
