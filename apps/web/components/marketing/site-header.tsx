@@ -21,6 +21,7 @@ const NAV = [
   { label: "Search", href: "/search" },
   { label: "Pricing", href: "/pricing" },
   { label: "Docs", href: "/docs" },
+  { label: "Data", href: "/data" },
   { label: "GitHub", href: site.github, external: true },
 ] as const;
 
@@ -74,7 +75,7 @@ export function SiteHeader() {
             <Link href="/signin">Sign in</Link>
           </Button>
           <Button asChild>
-            <Link href="/signup">Start free</Link>
+            <Link href="/signin">Start free</Link>
           </Button>
         </div>
 
@@ -110,7 +111,7 @@ export function SiteHeader() {
                   <Link href="/signin">Sign in</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/signup">Start free</Link>
+                  <Link href="/signin">Start free</Link>
                 </Button>
               </div>
             </SheetContent>

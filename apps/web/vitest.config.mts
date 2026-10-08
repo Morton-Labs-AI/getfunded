@@ -9,6 +9,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": root,
+      // Next.js resolves the bare `server-only` specifier inside its own
+      // bundler. Vite does not, so server-only modules (lib/db/app.ts,
+      // lib/workspace/context.ts, ...) map to Next's empty stub here.
+      "server-only": fileURLToPath(
+        new URL("./node_modules/next/dist/compiled/server-only/empty.js", import.meta.url),
+      ),
     },
   },
   test: {

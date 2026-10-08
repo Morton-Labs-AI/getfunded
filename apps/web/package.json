@@ -11,6 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
+    "db:ping": "node --env-file=.env.local scripts/db-ping.mjs",
+    "seed:demo": "node --env-file=.env.local scripts/seed-demo.mjs",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {

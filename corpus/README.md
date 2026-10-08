@@ -1,335 +1,349 @@
-# Open Funder Database
+# Open Funder Database — the `corpus/` pipeline
 
-Open, agent-maintained database of funders for deep-tech and public-benefit
-companies: private foundations (IRS 990/990-PF), VC/PE (SEC Form ADV, Form D),
-and federal non-dilutive programs (SBIR/STTR + curated seed) — built on a
-public-domain data spine so the core dataset is legally republishable.
+The Open Funder Database is a Postgres database of U.S. funders built only
+from public-domain government records: IRS Form 990, 990-PF and Schedule I
+e-file XML, the IRS Exempt Organizations Business Master File, SEC Form ADV
+and Form D, and SBIR/STTR award data. Every fact row points back to the
+sha256-hashed file it was parsed from and the exact record inside that file.
+The database also carries a hybrid (keyword + vector) semantic search over
+one document per funder, so a nonprofit can ask for "funders of work like
+mine" and get an answer grounded in filings.
 
-**Design principle (from the July 2026 research study):** aggressive in
-acquisition, conservative and rules-driven in republication. Paid enrichment
-(Stage 3) is internal-only, enforced structurally:
+It is for nonprofits looking for funders, and for anyone who wants to build
+on the data. This directory is the data half of the open-source GetFunded
+monorepo: the Python `funderdb` command here builds and refreshes the
+database, and the web app in `apps/web` reads it, read-only, to serve search
+and funder profiles. Code is Apache-2.0 ([../LICENSE](../LICENSE)); the
+published dataset is CC BY 4.0 ([../DATA-LICENSE.md](../DATA-LICENSE.md)).
+How the two halves fit: [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
-- Base tables live in the `internal` Postgres schema — never exposed via API.
-- `public.*` views filter through `raw_files → licensing_map`; only
-  `republishable` sources pass; contact channels additionally require explicit
-  `publishability = 'public'` and a non-`red` privacy tier.
-- A trigger makes vendor-sourced contact data impossible to mark public.
-- File-first ingestion: every input (bulk CSV, XML zip, API pull, hand-curated
-  seed) is sha256-hashed and registered in `internal.raw_files` before parsing.
-  Every fact row carries `raw_file_id` + `source_record_locator`.
+## Install in 15 minutes
 
-Database: Supabase project `open-funder-db` (ref `poznaikbjcgnthfmqueo`).
-Schema: [migrations/](migrations/) (plain SQL, applied via Supabase MCP).
+The full walk-through, written for non-developers, is
+[docs/SELF-INSTALL.md](docs/SELF-INSTALL.md). The short version:
 
-## Anti-ceremony rules
+1. **Install uv** (it brings its own Python 3.12+):
+   `curl -LsSf https://astral.sh/uv/install.sh | sh`
+2. **Get a Postgres 15 or 16 with pgvector.** Local Docker:
+   `docker run --name funderdb -e POSTGRES_USER=funderdb -e POSTGRES_PASSWORD=funderdb -e POSTGRES_DB=funderdb -p 5432:5432 -v funderdb-data:/var/lib/postgresql/data -d pgvector/pgvector:pg16`
+   A hosted free-tier Postgres (500 MB) is enough for the small profile.
+3. **Configure.** From this directory: `uv sync && cp .env.example .env`.
+   Set `DATABASE_URL` in `.env` to a session-mode connection string (the
+   loaders use `COPY`; a transaction pooler will not do). `SEC_USER_AGENT`
+   is only needed later, for the SEC sources.
+4. **Check the setup:** `uv run funderdb doctor`. Every line should read
+   `OK` or `WARN`; a `FAIL` names exactly what to fix.
+5. **Create the schema:** `uv run funderdb migrate` applies the 26 plain-SQL
+   files `migrations/0000` to `0025` (`--dry-run` shows the plan first).
+6. **Load the small dataset:** `uv run funderdb bootstrap --profile small`.
+   It chains `migrate`, `ingest seed`, `ingest bmf`, `ingest filings` for the
+   newest year, `ingest 990pf --limit 2000` and `status`. Your part is done
+   here; the download and parse run on their own for 20–45 minutes and
+   resume where they stopped if interrupted.
+7. **Look around:** `uv run funderdb status`, then connect any SQL tool and
+   query the `public.*` views described below.
 
-The April 2026 predecessor produced 60 files and zero rows. Inverted here:
+Going further: `uv run funderdb bootstrap --profile full` loads every source
+and every year (about 250 GB of staged IRS zips plus a 30–40 GB database,
+several days, fully resumable). `uv run funderdb embed sync` builds the
+semantic-search corpus and needs a `VOYAGE_API_KEY`; nothing else depends on
+it. Re-running an ingest reuses cached downloads until they age out, then
+stages a new file only if the bytes changed (`--refresh` checks now). After
+pulling new code: `uv sync && uv run funderdb migrate`.
 
-1. Real rows land before abstractions. Source N+1's code is not written until
-   source N's verification gate passes.
-2. No file is created before the next data-touching task needs it.
-3. If a gate slips >2 days, shrink the data slice — never retreat into
-   refactoring or schema redesign.
+## Command reference
 
-## Phase-2 gates (status 2026-08-08)
+`uv run funderdb --help` lists the groups; `--help` on any command shows its
+options.
 
-| Gate | Content | Status |
-|---|---|---|
-| G0 | Re-ingest + baseline on grown DB | ✅ |
-| G1 | Hybrid semantic search (148k-doc corpus, voyage-3.5@512, HNSW, `internal.hybrid_search`) | ✅ + **0011 regression fix**: filtered queries take an exact vector leg (HNSW post-filtering had silently zeroed minority-kind results; caught by `funderdb eval semantic`) |
-| G2 | 990-PF back-years | 🟡 2024 complete (126,982/126,982 indexed filings — zero missing; +1.7M grants); 2023/2022/2021 gated on the 16GB disk bump |
-| G3 | Full BMF exempt spine (2.26M orgs; never-demote-a-grantmaker) | ✅ |
-| G4 | Entity resolution | 🟡 recipients tiers 1–3 applied (886,763 grant rows); **funds gate RAN and FAILED** 2026-08-08 — 252 labels, 227/252 match, Wilson low 0.858 vs the >0.90 bar, so the `splink:% + gamma_people>=1` class is **not certifiable as defined**; no apply ran (`canonical_org_id` still 0), 25 human `not_match` pairs recorded as `rejected`, all 254 labels exported CC-BY; a tighter class needs a fresh stratum + fresh fixed-n sample; people job BUILT (org-evidence-gated auto-accept, the Eric Schmidt rule enforced twice), still downstream of a funds apply |
-| G5 | Schedule I (public-charity grants) | ✅ **status was stale — the ingest had already run** (discovered 2026-08-10 when an idempotent top-up pass added 0 rows): 4,147,721 grant rows from 79,230 charity grantmakers, 3,358,843 (81.0%) recipient-EIN-resolved, the rest as-reported text + NULL recipient_org_id (no stubs). Coverage is every 990 whose XML exists — the 77,883 unprocessed 990s are exactly the IRS zip-packaging backlog. F7's vetting gate (MIT: 792 distinct funders) runs on these rows |
-| G6 | UI v2 | 🟡 ungated commits shipped (recipient links, canonical plumbing incl. redirect + identifier union, shared YearBars, charity variant, /browse thesis blend, facts.ts + census prompt + /data ER section); **2026-08-08 merged to UI `main`**: blinded fund-pair labeling UI (dev-only) and Foundation Profiles v2 — profile v2 from existing data (geography, top-recipient rollups, paginated grants, corrected per-row 990 seals, NTEE staleness caveat), `similar_orgs` panel, and the dev-only human-gated website-enrichment flow; **`/person/[id]` shipped** — people chips link from every org type, but the people ER job has not run so every person is per-source and the cluster/redirect paths stay inert until the people precision gate certifies |
-| Suite v2 | `uv run funderdb eval all` — B1–B11 verbatim + S-series similarity + E-series semantic + ER floors | ✅ 29 PASS · 0 FAIL · 3 REPORT/SKIP (2026-08-08; link jobs SKIP until applied, B11 vacuous until a confirmed enrichment) |
-
-## Filing-layer gates (status 2026-08-09)
-
-The July 2026 research study asked whether we gather 990 data as richly as
-ProPublica displays it. We did not: the pipeline extracted officers and grants
-and **zero** financial-statement figures, had no filing entity, and silently
-double-counted amended returns. This phase closes that.
-
-| Gate | Content | Status |
-|---|---|---|
-| F1 | `internal.filings` spine (0013–0016): `processed_filings` promoted to a real filing entity (DLN, submission, batch, period dates, header, amendment state) + `filing_financials` / `filing_officers` / `filing_contributors` / `filing_application_info` + public views + `mv_org_latest_financials` | ✅ 675,806 990-PF + 1,881,691 990 index rows loaded, DLN on 100%; `ingest 990pf --year 2025` re-run reports 0 new (idempotency preserved across the rename) |
-| F2 | Amended-return supersession — **a live correctness bug**: amendments carry a new OBJECT_ID, so both copies' grant rows coexisted | ✅ 31,665 filings superseded (winner = greatest object_id; SUB_DATE is unusable — year-only in 2022+, garbage timestamps in 2021). B13 asserts both invariants at 0: no superseded filing retains event rows, no (ein, return_type, tax_period) group keeps two live filings |
-| F3 | Parser: 51 financial columns (Part I/II/III/VI/X/XI/XII/XIII/XV), return header, officer compensation/hours/benefits **incl. corporate trustees** (which never enter `internal.people`), grant addresses/ZIP/country/foundation-status/relationship, Schedule B, Part XV how-to-apply, future commitments as `event_type='grant_commitment'` | ✅ `tests/test_990pf_parse.py` 6/6 incl. the real Topfer member; dry-run coverage histogram across 6 returnVersions (2023v6.0–2025v4.0) shows **zero** zero-coverage columns |
-| F4 | Detail backfill over staged zips (`ingest 990pf-detail`; never downloads, never inserts grant rows — back-year grant volume stays behind the G2 disk gate) | ✅ **635,301/635,301 live 990-PFs (100%)** — 444,941 detailed in the final run (first attempt, no retries) · 1.44M officer rows · 258,763 Schedule B contributors · 411,840 Part XV rows · 181,551 `grant_commitment` rows · 7.26M grant rows enriched with address/ZIP/country/status/relationship. **0 XML parse errors, 0 filings missing officers, 0 missing financials.** The 35,648 filings that could not be detailed are exactly the documented IRS zip-packaging backlog (17,469 in 2025 + 18,179 in 2026) — indexed OBJECT_IDs whose XML the IRS has never published in a bulk zip |
-| F5 | UI v3: per-FY financial trends (revenue/expenses/assets/liabilities), Part I composition bars, filings-by-year index, `/filing/[objectId]` reconstruction (header, balance sheet, officers, grants, Schedule B, how-to-apply), and a raw-XML escape hatch streaming the original e-file out of the staged zip | ✅ zero-JS server-rendered; yauzl with a `7zz` Deflate64 fallback; verified light + dark |
-
-**Parity (REPORT-only, `eval parity`):** against ProPublica's Nonprofit
-Explorer API v2, revenue/expenses/total-assets agree **exactly** on the large
-majority of comparable filings. Two findings worth recording:
-
-1. Most non-comparable rows are filings **we hold and ProPublica has not
-   published yet** (e.g. EIN 27-5271301: their newest is FY2023, we carry
-   FY2024). The bulk-XML pipeline runs *ahead* of them on recent IRS releases.
-2. **Every** numeric disagreement is the same artifact: ProPublica reports
-   `1` where the return reports `0`. Across an 80-filing sample — 51 exact
-   agreements, 6 disagreements — all 6 were `ours=0 theirs=1`, with no
-   exceptions and no disagreement of any other shape. Two were checked
-   against the source document (EIN 86-1263907 FY2022 revenue,
-   88-3973214 FY2022 total assets EOY): both read `0` in the IRS XML
-   (`TotalRevAndExpnssAmt`, `TotalAssetsEOYAmt`). We match the filing. This is
-   why parity is REPORT-only and never gates.
-
-IRS filings are authoritative; ProPublica is a reference implementation and a
-validation layer, never a source of truth.
-
-**Coverage measured over parsed filings:** Schedule B 24% · Part XV
-application info 23% actionable (contact / materials / deadlines), with most of
-the remainder stating only that the foundation funds preselected organizations
-and accepts no unsolicited requests · officers on 100% (avg 3.3/filing, 20,273
-corporate-trustee rows).
-
-## F6 — discovery, tiered contacts, and the first public artifact (2026-08-09)
-
-F1–F5 put decision-grade data in the database that nothing could reach: of
-145,200 foundations with a parsed 990-PF, **101,773 state they fund only
-preselected organizations and 26,864 accept applications** — visible only by
-opening one filing at a time. Meanwhile `/browse` screened on the BMF asset
-snapshot, which **misses 8,880 foundations that actually distributed ≥$500k**.
-
-| Gate | Content | Status |
-|---|---|---|
-| G1 | `mv_org_application_posture` + `public.org_application_posture` + SQL contact classifiers (0018) | ✅ partition exact and total: 26,864 open · 101,773 preselected · 16,563 unknown of 145,200 |
-| G2 | **Closed a live contact leak**: `public.filing_application_info` (shipped in my own 0016) exposed `email`/`phone` for every Part XV row with none of `contact_channels`' three safety layers | ✅ both columns dropped from the view; the UI's filing page read the same untiered column and now uses the tiered query |
-| G3–G4 | Part XV contacts → `contact_channels`, tiered | ✅ **832 role inboxes + 30,547 phones public — the first `publishability='public'` rows in project history**; 6,742 named individuals withheld; 1,404 unparseable not loaded |
-| G5–G6 | `hybrid_search` rebuilt at 9 args (`app_postures`, `min_distributions`); `search_documents` filter columns; **`org_types` suite bug fixed** | ✅ one overload, grant intact; an impossible `org_types` now returns 0 rows where it previously returned 30 and passed for the wrong reason |
-| G7 | Corpus enrichment: posture sentence + Part XV narrative in `doc_text` | ✅ 116,322 docs re-embedded (25.2M tokens, ~$1.51); all 16 federal programs carry posture |
-| G8 | Browse posture/distribution facets, Applying section, tiered contact rendering, recipient-side vetting, analyst filters + fail-closed contact mask | ✅ verified on Topfer, Austin, Chicago, Denver |
-| G9 | `funderdb export public` — CC-BY dataset | ✅ **47,324,142 rows across 55 files, 2.9GB** (re-run after F7 and the gzip fix); all 7 boundary assertions pass *before* any byte is written, so the artifact existing is the proof |
-
-**The load-bearing correctness rule.** Posture comes from each org's latest
-**parsed** filing, never its latest filing. Using the latter lets the 35,648
-indexed-but-never-zip-packaged filings win and mislabels **3,806 open
-foundations as "unknown"** (unknown inflates 16,563 → 36,251). F3 gates it.
-
-**`unknown` is not `closed`.** It is an absence of a statement and covers every
-grantmaking public charity (Form 990 has no Part XV) — including the E5 fixture
-set. Nothing in the UI ever renders the word "closed".
-
-**A classifier correction applied the same day it was found.** The first load
-published 834 emails; the audit flagged `jdoe.email@example.com` at the *Woo*
-Family Foundation. Root cause: `mail`/`email` name a medium, not a role.
-Migration 0019 accepts them only as a whole local part, and re-running the
-loader **downgraded 834 → 832**. That is why the upsert scopes its `do update`
-to rows the loader owns — `do nothing` would have frozen the mistake forever.
-
-**Known limit found 2026-08-09, FIXED 2026-08-10:** 47 of 191,663 foundation
-search documents carried a NULL `app_posture`. They were stale rows for orgs
-whose grants disappeared (traceable to the F2 supersession sweep), which the
-builder no longer produced but the upsert never deleted. `embed sync` now
-prunes, scoped to `doc_kind`: foundation 191,663 → 191,616, NULL `app_posture`
-47 → 0, corpus 249,769 → 249,722.
-
-Two traps in that prune, both worth knowing before touching it. A row-
-constructor `NOT IN` deletes **nothing** — `program_id` is NULL for foundation,
-company and adviser docs and `org_id` is NULL for program docs, so the
-comparison yields NULL. And `is not distinct from`, which has exactly the right
-semantics, is **not joinable**, so the planner nested-loops the unindexed 191k
-temp table and blows the 30-minute timeout. The working form is equality over a
-`coalesce` nil-UUID sentinel plus `analyze _docs` — a temp table carries no
-statistics, so without the ANALYZE the planner can still choose a nested loop.
-The prune refuses outright above a 1% ceiling, since a builder returning a
-degenerate result would otherwise silently cost a full re-embed.
-
-Note `app_posture` is NULL for **all** 23,626 adviser and 34,464 company docs
-by design — only the foundation builder populates it. The staleness signal is
-foundation-specific.
-
-## F7 — public-charity core-form financials (2026-08-09)
-
-The weakest direction in the product was "a foundation vetting a nonprofit":
-1,881,691 Form 990 filings carried Schedule I grants but **no financials**, so
-charity profiles showed em-dashes where revenue and expenses belong and the
-program-vs-administrative expense split existed nowhere.
-
-| Gate | Content | Status |
-|---|---|---|
-| F7a | Migration 0021: 990 core-form columns on `filing_financials` (Part IX functional split, program-service revenue, headcount) + `related_org_compensation` on `filing_officers` | ✅ |
-| F7b | `ingest 990-detail` — Part I/VII/VIII/IX/X extraction, newest-first, resumable | ✅ **1,803,820 of 1,881,691 charity filings (95.9%)**, all six index years, every run first-attempt with no retries. The 77,871 remaining are exactly the IRS zip-packaging backlog, so coverage over filings whose XML exists is 100%. Database-wide: 2,443,977 financial rows and 22,000,950 officer rows |
-| F7c | Charity vetting surface + adaptive expense split + corrected honesty copy | ✅ Mount Sinai renders $4.65B revenue / $4.54B expenses at 91% program services; funders-of-record with concentration share; the "can't tell you yet" panel now appears only for genuinely unparsed charities |
-| F7d | `mv_org_latest_financials` refreshed by the 990 loader | ✅ **416,718 charity rows** (was 0 — the loader never refreshed it, so the browse distributions screen and the analyst cookbook were blind to 878,130 parsed filings). Found by running the cookbook query rather than trusting the design |
-
-**Why it was cheap downstream.** The 990's Part I summary maps one-to-one onto
-`filing_financials` columns that were return-type-agnostic from the start
-(`total_revenue`, `total_expenses`, `total_assets_eoy`, `net_assets_eoy`…), so
-`mv_org_latest_financials`, the browse distributions screen, the FY trend
-charts and the CC-BY export all lit up for charities **with no downstream
-change**. Only genuinely 990-specific concepts needed new columns.
-
-**The tripwire fired as designed.** F7's second clause asserted charity
-financials did *not* exist, precisely so that landing them would break the
-check and force the "what this profile can't tell you yet" copy to be updated
-instead of quietly going stale. It broke; the copy and the stale
-`KNOWN_LIMITS` entry were corrected, and the clause is now a coverage floor so
-the next extension still gets caught.
-
-**Export determinism defect found by testing it properly.** `GzipFile` writes
-the source filename into the gzip header, so a file's recorded sha256 depended
-on what it was *called*, not only what it contained — a rename would have
-silently invalidated a published hash. Fixed with `filename=""`; verified in
-the strong form (identical content under different filenames now yields the
-identical digest). The clean re-run this required **was done 2026-08-10** —
-every shipped file now carries FLG byte `00` (`1f8b0800...02ff`), so each
-recorded sha256 depends on content alone.
-
-**Benchmark v2:** one command — `uv run funderdb eval all` (subsets: `eval sql`,
-`eval semantic`, `eval er`). B-series executes verbatim from
-[benchmarks/queries.sql](benchmarks/queries.sql) (append-only record; the
-runner prints a paste-ready dated block); assertions live in
-[benchmarks/expectations.py](benchmarks/expectations.py). Link-job precision
-reports SKIP until a job applies; an uncertified (forced) apply reads as FAIL.
-
-## F8 — filer-stated websites (2026-08-10)
-
-The 08-07 handoff recorded "no IRS source carries website" as the reason
-foundation websites were 0% populated. Wrong for both form types:
-`WebsiteAddressTxt` sits in the Form 990 header and in 990-PF Part VII-A,
-in the same staged zips the filing layer already parses. First-party
-public-domain data — the filer states its own website — so it flows to
-`public.filings` and the CC-BY export, unlike the human-gated
-`publisher_website` enrichment (which stays internal and takes precedence
-in the UI when confirmed).
-
-Measured on the full backfill (all six index years, one pass, 0 XML errors):
-
-| | |
+| Command | What it does |
 |---|---|
-| filings parsed | 2,443,977 (100% of live XML; the 113,520 remainder is exactly the IRS zip-packaging backlog) |
-| websites stated | 2,091,271 (85.6%) |
-| usable after normalization | 1,255,366 (51.4%) |
-| orgs with a website (`internal.org_website`) | **294,416** |
+| `doctor` | Check Python, uv, Postgres extensions, `DATABASE_URL` reachability and disk space. |
+| `bootstrap --profile small\|full` | One-command self-install: check env, migrate, run a sized ingest, print status. |
+| `migrate` | Apply `migrations/*.sql` in order, recording each in `internal.schema_migrations` (`--dry-run`, `--to`, `--force`, `--baseline`). |
+| `status` | Recent ledger runs, row counts and database size. |
+| `stage bmf` | Download and hash-stage the four IRS BMF region CSVs; no database needed. |
+| `ingest seed` | Curated federal agencies and funding programs from `data/seed/*.csv`. |
+| `ingest bmf` | IRS Business Master File: the organization spine (`--all-orgs` for every exempt org). |
+| `ingest filings` | Filings spine from the annual IRS index CSVs (no zips) plus the amended-return supersession sweep. |
+| `ingest 990pf` | 990-PF officers and grants from the IRS bulk XML zips. |
+| `ingest 990pf-detail` | 990-PF financials, officers, Schedule B and how-to-apply from already-staged zips; never inserts grant rows. |
+| `ingest 990` | Public-charity Form 990 Schedule I grants. |
+| `ingest 990-detail` | Form 990 core-form financials, Part IX program/admin split and Part VII compensation from staged zips. |
+| `ingest websites` | Filer-stated websites from staged 990 and 990-PF XML. |
+| `ingest adv` | SEC Form ADV daily firm feed: registered and exempt-reporting advisers. |
+| `ingest adv-schedules` | SEC Form ADV monthly zips: Schedule A/B owners and 7.B.1 private funds. |
+| `ingest formd` | SEC Form D quarterly data sets: Reg D offerings, issuers, related persons. |
+| `ingest sbir` | SBIR/STTR award data: federal non-dilutive awards to small businesses. |
+| `contacts sync-part-xv` | 990-PF Part XV application contacts into `contact_channels`, tiered (`--dry-run` classifies and counts only). |
+| `contacts audit` | Publication invariants; every count must be 0. |
+| `embed sync` | Rebuild the search documents and embed the ones whose hash changed (Voyage AI). |
+| `resolve recipients` | Resolve grant recipients to organizations by EIN, then name+state tiers. |
+| `resolve funds` | Link ADV private-fund records to Form D issuers (Splink). |
+| `resolve people` | Dedupe people across sources, org-evidence-gated. |
+| `resolve label` | Interactively label a fixed-size sample of candidate pairs for a job. |
+| `resolve eval` | Precision gate for a job from its human labels (Wilson lower bound). |
+| `resolve export-labels` | Export `internal.er_labels` to `data/seed/er_labels/<job>.csv` (CC BY). |
+| `resolve backfill-overlap` | Recompute `people_overlap` on existing exact-name fund links without re-predicting. |
+| `resolve status` | Per-job link counts, label counts, gate progress, canonical totals. |
+| `eval all` | Run every benchmark series (`sql`, `semantic`, `er`). |
+| `eval sql` | B-series SQL benchmarks from `benchmarks/queries.sql`. |
+| `eval semantic` | E-series semantic and hybrid-search benchmarks (needs embeddings). |
+| `eval er` | Entity-resolution precision floors. |
+| `eval parity` | Spot-check filing financials against the ProPublica Nonprofit Explorer API (report only, needs network). |
+| `export public` | Export the `public.*` views as a hash-stable, versioned CSV dataset (`--verify-only` runs the assertions and writes nothing). |
 
-`normalize_website()` is deliberately conservative — junk set, host regex,
-alphabetic TLD, no interior whitespace, no e-mail addresses, no ports — a
-wrong website on a profile is worse than a missing one. Values like
-`guidestar.org` survive because the filer genuinely stated them; the enrich
-console's human gate is where editorial judgment happens.
+## What is in the database
 
-**F8 gates it** (`eval sql`): floors 1.1M filings / 270k orgs; zero
-junk/malformed values (the normalize contract re-run in SQL); zero
-precedence violations — an org's website comes from its newest PARSED,
-unsuperseded filing, mirroring F3's posture doctrine; a Hewlett fixture.
+### Two schemas
 
-## Phase-1 gates — ALL COMPLETE (2026-07-25)
+- **`internal.*`** is the base layer and is never exposed to an API. Core
+  entities: `organizations`, `org_identifiers`, `people`, `relationships`,
+  `funding_programs`, `funding_events`. The filing layer: `filings` (one row
+  per indexed 990 or 990-PF), `filing_financials`, `filing_officers`,
+  `filing_contributors`, `filing_application_info`, `org_website`. Contacts:
+  `contact_channels`. Provenance: `raw_files`, `ingestion_ledger`,
+  `licensing_map`, `schema_migrations`. Entity resolution: `entity_links`,
+  `er_labels`, `recipient_matches`. Search: `search_documents`. Internal-only
+  enrichment: `org_web_facts`. Materialized views `internal.mv_*` hold the
+  rollups the app reads (latest financials, application posture, totals), and
+  the functions `internal.hybrid_search` and `internal.similar_orgs` serve
+  search.
+- **`public.*`** is 14 views, the publishable projection. Each joins
+  `raw_files → licensing_map` and keeps only rows from republishable files:
+  `organizations`, `org_identifiers`, `people`, `relationships`,
+  `funding_programs`, `funding_events`, `filings`, `filing_financials`,
+  `filing_officers`, `filing_contributors`, `filing_application_info`,
+  `org_application_posture`, `org_financial_series`, `contact_channels`.
+  These are what you query and what the export reads.
 
-| Gate | Content | Status |
-|---|---|---|
-| G0 | Supabase project + schema (10 tables, 7 public views) + smoke-verified upsert/guard SQL | ✅ |
-| G1 | IRS EO BMF private foundations | ✅ 134,927 loaded (exact match to verified count), rerun-idempotency proven at scale |
-| G2 | Curated federal agencies + programs seed | ✅ 10 agencies + 16 programs; B1 returns all 7 fusion-relevant programs |
-| G3 | SEC Form ADV: 23,638 firms (17,050 RIA + 6,588 ERA) + 83k Schedule A/B people + 126k 7B1 funds | ✅ 3,268 classified `vc`, 4,015 `pe`; Lowercarbon fully shaped ($3.13B GAV, 25 funds) |
-| G4 | IRS 990-PF XML 2025–26 | ✅ 2.32M grants + 310k officers from 162,793 filings (35,648 index rows not yet zip-packaged by IRS — future re-runs pick up) |
-| G5 | SEC Form D 2024q1–2026q1 | ✅ 102,842 offerings (24,151 D/A amendments superseded — reconciles exactly), 119k issuers, 408k related persons |
-| G6 | SBIR/STTR awards | ✅ 205,836 awards, 100% agency-linked, 94% seed-program-linked; POC/PI contacts yellow-tier internal-only |
-| G7 | Benchmark suite | ✅ 10/10 (results below) |
+### Data classes
 
-**Final inventory:** 418,309 orgs (145,589 foundations · 23,638 advisers · 180,174
-funds · 68,890 companies · agencies) · 446,222 identifiers · 869,246 people ·
-995,135 relationships · **14,563,073 funding events** · 232,910 contact channels
-(zero public) · 16 programs · DB 2.9GB (Supabase Pro).
+| Class | Values and notes |
+|---|---|
+| Organization types | `private_foundation`, `public_charity`, `investment_adviser` (classified `vc` or `pe` where the schedules support it), `fund`, `company`, `gov_agency`; reserved: `family_office`, `angel_group`, `accelerator`, `corporate_vc`, `other`. |
+| Funding events | `grant` (990-PF Part XV and 990 Schedule I), `grant_commitment` (approved for future payment), `sbir_award`, `sttr_award`, `reg_d_offering`; reserved: `federal_grant`, `federal_contract`, `equity_investment`, `other`. |
+| Filings | one row per indexed return: object id, EIN, return type, tax period, DLN, batch, amendment state. Financial lines, officers (corporate trustees kept apart from people), Schedule B contributors, Part XV application info and the filer-stated website hang off it. |
+| People and relationships | officers, trustees, owners, executives, related persons, PIs and points of contact as reported per source; `owner_of`, `executive_of`, `manages_fund`, `adviser_to` edges. |
+| Contact channels | emails, phones and web forms, each with a privacy tier and a publishability flag (below). |
+| Search documents | one text document per foundation, adviser, company and program, with filter columns and a 512-dimension embedding. |
 
-## Benchmark results (2026-07-25)
+### Doctrines the data obeys
 
-| # | Benchmark | Result |
-|---|---|---|
-| B1 | Federal non-dilutive fusion programs | ✅ 7: DOE SBIR/STTR, INFUSE†, FES Milestone, FIRE, ARPA-E, SciDAC (†`funds_lab_not_company`) |
-| B2 | SBIR agencies | ✅ 5 seeded agencies; 193,883/205,836 awards program-linked |
-| B3 | Named VC targets | ✅ Lowercarbon = vc/ERA/CRD 162946/$3.13B/25 funds. Prelude Ventures: **documented absent from both ADV and Form D** (likely family-office-exempt). Fundable Fusion/Rutherford: absent, too small to file (documented) |
-| B4 | Climate/energy VC discovery | ✅ 92 advisers (name-text FTS only — thesis text/embeddings are Phase 2) |
-| B5 | Named philanthropy | ✅ 61 Schmidt-family foundations. Stellar Energy Foundation: **public charity** (BMF code 15, EIN 812567715) — outside private-foundation scope; motivates Phase-2 public-charity extension |
-| B6 | Energy/science foundations >$10M assets | ✅ 75 |
-| B7 | IL science/energy foundations >$10M | ✅ 4 |
-| B8 | Grants-paid evidence (fusion) | ✅ Schmidt→MIT PSFC $6M · Schmidt→UW fusion materials $1.2M · Simons→Princeton "Hidden Symmetries and Fusion Energy" $610k · Simons→PPPL $500k; 4,535 energy/science grants from 1,712 foundations |
-| B9 | Recent Reg D raisers | ✅ 17,166 offerings in last 12 months; 17,595 VC-fund offerings total |
-| B10 | Provenance round-trip | ✅ **0 orphans** across all five fact tables |
+1. **Unknown is not closed.** Application posture is `open`,
+   `preselected_only` or `unknown`. `unknown` means the return carries no
+   Part XV statement at all; every grantmaking public charity is `unknown`
+   because Form 990 has no Part XV. No view, export or ranking may treat it
+   as a refusal.
+2. **Missing is not $0.** `NULL` means the line is absent from the return;
+   `0` means the filer reported zero. The two are never coalesced.
+3. **Superseded filings are filtered.** An amended return gets a new object
+   id; within one (EIN, return type, tax period) the greatest object id is
+   the live filing. Losers keep their detail rows (still viewable) but lose
+   their funding events (never double-counted). Per-year aggregates filter
+   `superseded_by_object_id is null`.
+4. **Contacts publish by affirmative act.** `contact_channels` carries
+   `privacy_tier` (`green` role desk, `yellow` professional contact from a
+   filing, `red` never) and `publishability` (`public` or `internal_only`,
+   default internal). The public view requires `public`, not `red`, and a
+   republishable licence. Role inboxes such as `grants@` publish; a named
+   person's address is withheld by policy, not by absence.
+5. **Vendor and scraped facts are never republished.** Files licensed
+   `vendor_internal_only` or `publisher_website` cannot reach a `public.*`
+   view, a trigger refuses to mark their contacts public, and the export
+   asserts that no public view reads `org_web_facts`.
 
-## Running
+## Data sources
+
+URLs, cache policy and the known limits of each source:
+[docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
+
+| Source | Publisher | What we take | Cadence | Licence |
+|---|---|---|---|---|
+| EO Business Master File | IRS | identity, address, subsection, foundation code, NTEE, asset/income/revenue | ~monthly | public domain |
+| Form 990 / 990-PF e-file index and XML | IRS | filings spine; 990-PF officers, grants, 51 financial lines, Schedule B, Part XV; 990 Schedule I grants, core financials, Part IX split, Part VII compensation; filer websites | index through the year, zips in batches | public domain |
+| Form ADV daily feed | SEC | registered and exempt-reporting advisers, AUM, private-fund flag | daily | public domain |
+| Form ADV monthly filing zips | SEC | Schedule A/B owners and executives, 7.B.1 private funds, vc/pe classification | monthly | public domain |
+| Form D quarterly data sets | SEC | issuers, Reg D offerings, related persons | quarterly | public domain |
+| SBIR/STTR awards | SBA | awardee companies, awards, PIs and contacts (internal only) | irregular | public domain |
+| Federal agencies and programs | this project | 10 agencies, 16 non-dilutive programs | by pull request | CC BY 4.0 |
+| Entity-resolution labels | this project | human match / not-match decisions | by pull request | CC BY 4.0 |
+
+The SEC sources require `SEC_USER_AGENT` naming your organisation and a
+contact address, and refuse to run without it.
+
+## Coverage and scale: one reference deployment (2026-08)
+
+These are measured numbers from one full-profile deployment in August 2026.
+They describe what that database held, not what every install will hold or
+what the pipeline promises: your counts depend on which sources and years
+you load and on what the IRS has published by then.
+
+| | Measured |
+|---|---|
+| Organizations | 2.26M exempt organizations (full BMF spine); 145,200 private foundations with a parsed 990-PF; 23,638 SEC advisers; 180,174 private funds; 68,890 companies |
+| Filings | 2.56M indexed (675,806 990-PF + 1,881,691 990); 2,443,977 parsed with financials, which was 100% of returns whose XML the IRS had published; 113,520 indexed returns had no XML yet |
+| Officers | 22.0M `filing_officers` rows; officers present on 100% of parsed filings |
+| Funding events | 14.6M rows at the mid-year inventory (990-PF grants, Form D offerings, SBIR/STTR awards); the Schedule I load then added 4.15M public-charity grant rows (81% recipient-EIN-resolved), the 2024 990-PF year 1.7M, and future commitments 181,551 |
+| Other filing detail | 258,763 Schedule B contributor rows; 411,840 Part XV application rows; 294,416 organizations with a filer-stated website |
+| Application posture | of 145,200 foundations: 26,864 open, 101,773 preselected only, 16,563 unknown |
+| Public contacts | 832 role inboxes and 30,547 phones published; 6,742 named individuals withheld |
+| Search documents | 249,722 (191,616 foundations, 23,626 advisers, 34,464 companies, 16 programs), voyage-3.5 at 512 dimensions, HNSW index |
+| Export | 47.3M rows across 55 gzipped CSV files, 2.9 GB |
+
+## Provenance and licensing
+
+Every fact traces back along one chain:
 
 ```
-uv sync
-cp .env.example .env       # add DATABASE_URL (direct connection — see .env.example)
-uv run funderdb stage bmf              # download + hash-stage (no DB needed)
-uv run funderdb ingest bmf --dry-run   # parse + count locally (no DB needed)
-uv run funderdb ingest bmf             # IRS foundations
-uv run funderdb ingest seed            # federal agencies + programs
-uv run funderdb ingest adv             # SEC ADV firm spine (daily feed)
-uv run funderdb ingest adv-schedules   # owners + private funds (monthly zips)
-uv run funderdb ingest 990pf           # 990-PF officers + grants (2026+2025)
-uv run funderdb ingest formd           # Form D offerings (2024q1->present)
-uv run funderdb ingest sbir            # SBIR/STTR awards
-uv run funderdb ingest filings         # filing spine from index CSVs (no zips)
-                                       #   + amended-return supersession sweep
-uv run funderdb ingest 990pf-detail    # 990-PF financials/officers/Sched B/
-                                       #   how-to-apply from ALREADY-STAGED zips
-uv run funderdb ingest 990pf-detail --dry-run --limit 2000
-                                       #   per-returnVersion field-coverage
-                                       #   histogram — the schema-drift detector
-uv run funderdb contacts sync-part-xv --dry-run   # classify, count, write nothing
-uv run funderdb contacts sync-part-xv   # Part XV contacts -> contact_channels, tiered
-uv run funderdb contacts audit          # publication invariants (every count must be 0)
-uv run funderdb export public --verify-only      # boundary assertions, no files
-uv run funderdb export public           # CC-BY dataset export
-uv run funderdb eval parity             # ProPublica API spot-check (REPORT-only)
-uv run funderdb status                 # ledger + row counts
+dataset name → source URL → sha256-hashed immutable file → licence code
+            → ingestion-ledger run → row (raw_file_id + source_record_locator)
 ```
 
-## Known limits (Phase 2 targets)
+- `internal.raw_files` has one row per distinct file ever ingested, keyed by
+  sha256, with its licence code and three separate timestamps (fetched,
+  publisher last-modified, parsed), so a re-parse can never make old data
+  look fresh. Staged files live under `data/raw/<dataset>/<sha256[:12]>_<name>`
+  next to a `.meta.json` and an append-only `manifest.jsonl`.
+- Every fact row carries `raw_file_id` and `source_record_locator`
+  (`row:EIN=…`, `row:CRD=…`, or an element path inside the 990 XML).
+- `internal.licensing_map` decides republication once per file:
+  `us_public_domain`, `cc0`, `cc_by` and `odbl` pass; `community_unverified`,
+  `vendor_internal_only` and `publisher_website` never do.
 
-- ADV-side and Form-D-side records of the same fund are separate org rows
-  (different ID systems) — the Splink entity-resolution job.
-- FTS matches names/titles only ("fusion" also matches bone/protein fusion);
-  embeddings + hybrid search are research-plan Stage 2.
-- Yet-to-occur Form D first sales carry null `event_date` (filing-date fallback
-  is a candidate refinement); a handful of filer-entered absurd amounts survive
-  in the Reg D tail.
-- ~~Financial-statement extraction is 990-PF only~~ — stale since F7
-  (2026-08-09): public-charity 990 core-form financials shipped, 1.8M filings.
-  Still true within it: the 990 pass does not extract Part IX line 1
-  (GrantsAndSimilarAmountsPaid), so `total_grants_paid` is 990-PF-only and
-  giving-ranked surfaces are foundations-only until Schedule I events land.
-- 990-EZ, 990-T, 990-N, Pub. 78, auto-revocations, and determination letters
-  are not ingested. Highest-paid-employee and contractor compensation tables
-  (which use different element names from the officer group) are parsed but
-  not stored.
-- No pixel-faithful filing render: `/filing/[objectId]` is a structured
+Full description: [docs/PROVENANCE.md](docs/PROVENANCE.md). Licence terms
+and the attribution line for reuse: [../DATA-LICENSE.md](../DATA-LICENSE.md)
+(the compilation is CC BY 4.0; the underlying government records are public
+domain and need no credit).
+
+### Export
+
+```
+uv run funderdb export public --verify-only   # the seven boundary assertions, no files
+uv run funderdb export public                 # writes data/export/<vintage>/
+```
+
+The seven assertions (X1–X7) run before any byte is written: every exported
+contact is an intended public row; none comes from a non-republishable file;
+no public email belongs to a named individual; `filing_application_info`
+exposes no email or phone column; every exported relation is a `public` view;
+no exported view reads `org_web_facts`; and the public contact count equals
+the internal count of public rows. One failure aborts with a nonzero exit.
+Files are written with `COPY … ORDER BY <unique key>` and gzip `mtime=0`, so
+a re-run is byte-identical. `manifest.json` is written last and records
+per-file hashes, record counts, per-source licences, the assertion results,
+the git commit and the newest applied migration. `people` and
+`relationships` are not exported until people entity resolution certifies.
+
+## Evaluation and tests
+
+```
+uv run pytest -q              # unit tests, no database needed, under a second
+uv run funderdb eval all      # benchmark suite, needs a loaded database
+```
+
+The unit tests cover the 990-PF and Schedule I parsers, the migration runner
+(numbering, uniqueness, every granted role exists, hash conflicts), staging
+vintage and refresh rules, export record counting, the CLI and `doctor`.
+
+`eval all` runs three series. `sql` executes `benchmarks/queries.sql`
+verbatim (an append-only record; assertions live in
+`benchmarks/expectations.py`). `semantic` checks hybrid-search behaviour and
+needs embeddings. `er` checks entity-resolution precision floors; it reports
+SKIP until a link job is applied, and a forced, uncertified apply reads as
+FAIL. `eval parity` compares filing financials with an outside reference and
+never gates: the IRS filing is the source of truth.
+
+Before tagging a release, replay the migrations from zero against an empty
+pgvector Postgres ([docs/MIGRATIONS.md](docs/MIGRATIONS.md)). That is the
+only proof that the files, not just a live database, describe the schema.
+
+## Known limits
+
+- **Entity resolution is not applied.** ADV-side and Form D-side records of
+  the same fund are separate organizations and `canonical_org_id` is unset.
+  The funds link job ran its precision gate and did not certify (227 of 252
+  labelled pairs matched; Wilson lower bound 0.858 against a 0.90 bar), so
+  nothing was applied. People are per-source, which is why `people` and
+  `relationships` stay out of the export. Recipient resolution (EIN, then
+  name+state tiers) has run on 990-PF grants; 81% of Schedule I rows resolve
+  by EIN and the rest keep the as-reported text with a NULL recipient.
+- **Not ingested:** 990-EZ, 990-N, 990-T, paper returns, Publication 78,
+  auto-revocations and determination letters. Highest-paid-employee and
+  contractor compensation tables are parsed but not stored.
+- **Grants-paid totals are 990-PF only.** The 990 pass does not extract
+  Part IX line 1, so `total_grants_paid` and giving-ranked views cover
+  foundations only.
+- **The IRS zip backlog.** At any time tens of thousands of indexed returns
+  have no published XML. They sit in the filings spine with nothing attached
+  and are picked up by a later run.
+- **Back-year 990-PF grant rows** are loaded for the newest index years
+  only; earlier years carry filings, financials and officers. Loading their
+  grant rows needs disk, not code.
+- **Form D** names the issuer, never the investors, so it is not a deal
+  graph. Offerings whose first sale is yet to occur have a NULL event date,
+  and a few filer-entered absurd amounts survive in the tail.
+- **Coverage inside parsed 990-PFs:** Schedule B is present on 24% of
+  filings; Part XV application information is actionable (a contact,
+  materials or a deadline) on 23%, most of the rest stating only that the
+  foundation funds preselected organizations.
+- **No pixel-faithful filing render.** The app's filing page is a structured
   reconstruction from parsed fields plus the original XML, not the IRS MeF
-  XSL stylesheet output.
-- Supabase linter flags the `public.*` views as SECURITY DEFINER — owner-rights
-  filtered views, intentional. **Correction (2026-08-10, migration 0024):**
-  "nothing granted to `anon`" was never true in production — Supabase default
-  privileges had granted ALL on every view, and the Data API is enabled, so the
-  anonymous read API has been live since the views were created. The boundary
-  held (views serve only the licensing-filtered projection). 0024 revoked the
-  write-shaped grants, keeping SELECT deliberately; rate limiting is the gap
-  that remains before announcing the API. Every future `create view public.*`
-  must repeat the revoke until the API phase changes the defaults.
+  stylesheet output.
+- **Keyword search matches names and titles only,** so a topic word also
+  hits unrelated organizations with that word in their name. Semantic search
+  needs the optional embedding step.
+- **Public views on hosted Postgres.** The `public.*` views are owner-rights
+  filtered views. On a host that auto-exposes the `public` schema through a
+  data API, migration 0024 revokes write-shaped grants from the API roles and
+  keeps SELECT on purpose; every new `create view public.*` must repeat that
+  revoke. Rate limiting of that anonymous API belongs to the app, not here.
 
-## Operational notes
+## Engineering history
 
-- **Connection**: use the direct host `db.poznaikbjcgnthfmqueo.supabase.co` (IPv6)
-  for bulk loads. The session pooler intermittently kills large COPY streams
-  with `SSL error: bad record mac` — reconfirmed 2026-08-09, when the
-  990-PF detail pass died mid-COPY on the pooler and ran clean on the direct
-  host. `ingest 990pf-detail` is chunk-committed and re-entrant, so a killed
-  run resumes from `details_parsed_at` at no cost; wrap long backfills in a
-  bounded retry loop rather than babysitting them.
-- **Filer-entered numbers need headroom**: a Schedule B `ContributorNum` of
-  `20250001` overflowed `smallint` on first real-data contact (migration 0017
-  widened it; the parser also clamps out-of-range values to NULL). Assume any
-  filer-controlled numeric can be absurd.
-- **Size policy**: `raw_source` JSONB is stored only on low-volume rows (seed,
-  future ADV firms); BMF foundations and all funding_events carry locator +
-  hashed staged file instead (measured 2026-07-25: raw_source on 135k BMF rows
-  cost ~150MB of a 500MB free-tier budget).
+Lessons kept from the build-out, each the result of a real defect.
 
-## Provenance contract
-
-Every fact traces to: dataset name → source URL → sha256-hashed immutable file
-→ license code → ingestion-ledger run. Curated seeds are CC-BY (our original
-compilation); government filings are U.S. public domain. Seed-file award
-figures and URLs are curated estimates pending founder review.
+- **Amended returns supersede.** An amendment gets a new object id, so a
+  naive load keeps both copies and double-counts every grant. The index's
+  submission date is unusable for ordering (year-only in some years, garbage
+  timestamps in others); the greatest object id wins. Losers lose their
+  funding events and keep their detail rows, and the benchmark suite asserts
+  both invariants at zero.
+- **Posture comes from the latest PARSED filing, never the latest filing.**
+  Letting an indexed-but-never-packaged filing win mislabelled about 3,800
+  open foundations as unknown and more than doubled the unknown count. The
+  same rule governs filer-stated websites.
+- **`mail` and `email` name a medium, not a role.** The first contact load
+  published an address of the form `<initial><surname>.email@…` as a role
+  inbox because `email` matched as a token. The classifier now accepts those
+  words only as a whole local part, and the loader's upsert scopes its
+  `do update` to rows it owns so a re-run can downgrade a published row;
+  `do nothing` would have frozen the mistake forever.
+- **The `NOT IN` / coalesce prune trap.** Pruning stale search documents with
+  a row-constructor `NOT IN` deleted nothing, because one key column is NULL
+  for every document kind and the comparison yields NULL. `is not distinct
+  from` has the right semantics but is not joinable, so the planner
+  nested-looped a 191k-row temp table past the statement timeout. The
+  working form is equality over a `coalesce` nil-UUID sentinel plus `ANALYZE`
+  on the temp table (it has no statistics otherwise). The prune refuses above
+  a 1% ceiling so a degenerate builder cannot cost a full re-embed.
+- **Filtered vector search needs an exact leg.** HNSW post-filtering
+  silently returned zero results for minority document kinds under a filter,
+  so `hybrid_search` runs an exact vector scan for filtered queries. The
+  semantic benchmark caught it.
+- **Export determinism.** `GzipFile` writes the source filename into the gzip
+  header, so a file's sha256 depended on what it was called. Fixed with
+  `filename=""` and `mtime=0`, verified in the strong form: identical content
+  under different names yields the identical digest.
+- **Filer-entered numbers need headroom.** A Schedule B contributor number
+  overflowed `smallint` on first contact with real data. Assume any
+  filer-controlled numeric can be absurd; the parser clamps out-of-range
+  values to NULL.
+- **Trust the query, not the design.** A materialized view the loader never
+  refreshed left 878,130 parsed charity filings invisible to the browse
+  screen; running the documented query found it. One benchmark clause is
+  written to break when a planned extension lands, so stale copy must change.
+- **Bulk loads want a session connection.** Transaction poolers can kill
+  long `COPY` streams mid-run. Every long ingest is chunk-committed and
+  re-entrant, so a killed run resumes at no cost; wrap backfills in a bounded
+  retry loop rather than watching them.

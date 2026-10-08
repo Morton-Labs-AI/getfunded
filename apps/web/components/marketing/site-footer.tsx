@@ -20,18 +20,21 @@ const COLUMNS: { heading: string; links: FooterLink[] }[] = [
     heading: "Open source",
     links: [
       { label: "GitHub", href: site.github, external: true },
-      { label: "Data and schema", href: "/docs/data" },
-      { label: "Data license", href: "/docs/license" },
-      { label: "Contributing", href: `${site.github}/blob/main/CONTRIBUTING.md`, external: true },
+      { label: "Why open source", href: "/open-source" },
+      { label: "The data", href: "/data" },
+      { label: "Data license", href: "/docs/data-sources-and-license" },
+      { label: "Self-install", href: "/docs/self-install" },
+      { label: "Contributing", href: "/docs/governance-and-contributing" },
     ],
   },
   {
     heading: "Company",
     links: [
       { label: "About", href: "/about" },
+      { label: "Contact", href: "/contact" },
       { label: "Privacy", href: "/privacy" },
       { label: "Terms", href: "/terms" },
-      { label: "Contact", href: "/contact" },
+      { label: "Security", href: "/docs/security-and-privacy" },
     ],
   },
 ];
