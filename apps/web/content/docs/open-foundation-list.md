@@ -19,7 +19,7 @@ The list comes from the returns that private foundations file with the IRS. Thos
 |---|---|---|
 | `foundations.csv.gz` | One foundation | Build a list of foundations to look at: name, place, latest numbers, what it says about applications. |
 | `foundation_years.csv.gz` | One foundation in one fiscal year | See how giving and assets changed from year to year, and how many of its grants are in the grants files. |
-| `foundation_grants_2023.csv.gz` and one file for each other fiscal year | One grant to an organization we could match | See which organizations a foundation gave to, how much, and for what purpose. |
+| `foundation_grants_2023.csv.gz` and one file for each other fiscal year | One grant to an organization we could match | See which organizations a foundation gave to, and how much. |
 
 The meaning of every column is in the table on [the list page](/foundations#columns). That table is the only copy, so it always matches the files.
 
@@ -65,7 +65,7 @@ The list says what the returns say, and nothing more. Keep these four rules.
 1. **`not_stated` does not mean closed.** It means the latest return says nothing about applications. That is a missing statement, not a refusal. Do not remove these foundations from your list as if they had said no.
 2. **An empty cell means not available, never zero.** When a line is missing from the return, the cell is empty. A `0` in the file is a real zero that the foundation reported. Do not fill empty cells with 0 before you add numbers up.
 3. **Amended returns replace the originals.** When a foundation files a corrected return for the same year, the list uses the newer one. Nothing is counted twice.
-4. **Contact details are for shared inboxes and office phones only.** An email or a phone number appears only when the filing lists a shared inbox, such as grants@, or an office phone. A named person's address is left out.
+4. **Contact details are for shared inboxes and office phones only.** An email or a phone number appears only when the filing lists a shared inbox, such as grants@, or an office phone. A named person's address is left out. A contact is not an invitation. Check `application_posture` first: a foundation that funds preselected organizations only can still have a contact in the file.
 
 ## Read the grants files honestly
 
@@ -73,9 +73,19 @@ The grants files have three more rules.
 
 1. **The grants files do not list every grant.** A foundation types the name of each recipient on its return. Some recipients are private people, such as a student with a scholarship. So a grant is listed only when we matched its recipient to an organization record. Every other grant is counted and is not named.
 2. **Do not use a grants file as a total of giving.** The sum of a grants file is less than what the foundations gave. For the total, use `grants_paid` in `foundation_years.csv.gz`. In the same file, `grants_linked_on_file` and `grants_not_linked_on_file` show how many grants of each year are in the grants file and how many are not.
-3. **A match can be wrong.** The recipient name, city and state come from the organization record we matched. They are not the text on the return. The purpose is in the foundation's own words. Use `filing_object_id` to find the return before you rely on a row.
+3. **A match can be wrong.** The recipient name, city and state come from the organization record we matched. They are not the text on the return. Use `filing_object_id` to find the return before you rely on a row.
 
 If a row names a private person, tell us. Use the link in "Found a mistake?" below.
+
+## What we leave out on purpose
+
+The files are public and anyone may copy them. So three things are held back.
+
+1. **The purpose of each grant.** A foundation writes the purpose in its own words, and those words can name a private person, such as a gift in memory of someone. The purpose is not in the files. You can read it on the foundation's page (the `profile_url` column, or [Search](/search)). A later release can add it after a privacy review.
+2. **Contact details inside a deadline.** `application_deadline_text` is empty when the filed text holds an email address or a phone number.
+3. **The "in care of" part of a name.** Some names on IRS records end with "C/O" or "%" and the name of a person, a bank or a firm. The files give the name without that part.
+
+Each release counts the deadlines it made empty and the names it cut. The counts are in the release's `manifest.json`, under `withheld`.
 
 ## Check that your download is complete
 
@@ -90,7 +100,7 @@ If the result is the same as the full fingerprint, your file is complete and unc
 
 ## How to cite
 
-The list is published under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). You may use it, share it and change it. You must credit the source. The IRS records underneath are public domain and need no credit.
+The list is published under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). You may use it, share it and change it. You must credit the source. The license covers our work on the list: which records we chose, how we arranged them, and the columns we worked out from them. The facts come from public records. Facts are not subject to copyright, and the license does not restrict them.
 
 1. Go to **How to cite** on [the list page](/foundations#downloads).
 2. Choose **Copy citation**. The line names the source, the release, the release date, the page address and the license.

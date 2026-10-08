@@ -76,7 +76,7 @@ export const LIST_IRS_STANDING_VALUES: Array<{ value: string; meaning: string }>
   {
     value: "revoked",
     meaning:
-      "Automatically revoked: on the IRS Automatic Revocation of Exemption List with no reinstatement after it, and on neither of the other two lists.",
+      "Automatically revoked: on the IRS Automatic Revocation of Exemption List with no reinstatement after it, and not in Publication 78. It is also not in the IRS master file, or the copy of the master file used for the release is older than the day the IRS posted the revocation. This does not mean that the foundation has shut down: see irs_filed_after_revocation.",
   },
   {
     value: "revoked_then_relisted",
@@ -85,7 +85,7 @@ export const LIST_IRS_STANDING_VALUES: Array<{ value: string; meaning: string }>
   {
     value: "lists_disagree",
     meaning:
-      "On the automatic revocation list with no reinstatement after it, and also in the IRS master file or Publication 78. The lists do not agree, and we do not choose between them.",
+      "On the automatic revocation list with no reinstatement after it, and also in Publication 78, or in a copy of the IRS master file that is not older than the day the IRS posted the revocation. The lists do not agree, and we do not choose between them.",
   },
 ];
 
@@ -93,7 +93,7 @@ export const LIST_IRS_STANDING_VALUES: Array<{ value: string; meaning: string }>
 const NOT_IN_EVERY_RELEASE = "This column is not in every release.";
 
 /**
- * The three IRS standing columns of `foundations.csv.gz`. A release has them
+ * The four IRS standing columns of `foundations.csv.gz`. A release has them
  * only when the two IRS lists were loaded before the export ran
  * (`optional_columns` in the release's manifest.json says so).
  */
@@ -107,6 +107,15 @@ export const IRS_STANDING_LIST_COLUMNS: ListColumn[] = [
   {
     name: "irs_revocation_date",
     meaning: `The date of its latest automatic revocation, when the IRS list has one. A foundation that was reinstated later still has a date here, so read irs_standing with it. ${NOT_IN_EVERY_RELEASE}`,
+    optional: true,
+  },
+  {
+    name: "irs_filed_after_revocation",
+    meaning: `Whether the foundation filed a return for a tax year after the date in irs_revocation_date. A foundation that loses its tax-exempt status must still file, so a later return does not show that the IRS reinstated it. Empty when the IRS list has no revocation for it. ${NOT_IN_EVERY_RELEASE}`,
+    values: [
+      { value: "t", meaning: "We hold a return for a tax year after the revocation date." },
+      { value: "f", meaning: "We hold no return for a tax year after the revocation date." },
+    ],
     optional: true,
   },
   {
@@ -170,7 +179,10 @@ export const FOUNDATION_LIST_FILES: ListFile[] = [
         name: "ein",
         meaning: "The Employer Identification Number: the nine-digit number the IRS gives each organization. It can start with a zero.",
       },
-      { name: "name", meaning: "The foundation’s name on IRS records." },
+      {
+        name: "name",
+        meaning: "The foundation’s name on IRS records. When a record adds “C/O” or “%” and another name at the end (in care of), that part is left out.",
+      },
       { name: "city", meaning: "The city of its mailing address." },
       { name: "state", meaning: "The two-letter state of its mailing address." },
       { name: "zip", meaning: "The ZIP code of its mailing address." },
@@ -216,9 +228,18 @@ export const FOUNDATION_LIST_FILES: ListFile[] = [
           { value: "f", meaning: "The return has an application section, but it does not say how to apply." },
         ],
       },
-      { name: "application_deadline_text", meaning: "The deadline, in the foundation’s own words from the return." },
-      { name: "public_contact_email", meaning: "A shared inbox, such as grants@, when the return lists one." },
-      { name: "public_contact_phone", meaning: "An office phone number, when the return lists one." },
+      {
+        name: "application_deadline_text",
+        meaning: "The deadline, in the foundation’s own words from the return. Empty when that text holds an email address or a phone number.",
+      },
+      {
+        name: "public_contact_email",
+        meaning: "A shared inbox, such as grants@, when the application part of the return lists one. A contact is not an invitation: check application_posture first.",
+      },
+      {
+        name: "public_contact_phone",
+        meaning: "A phone number, when the application part of the return lists one. A contact is not an invitation: check application_posture first.",
+      },
       { name: "latest_filing_object_id", meaning: "The IRS id of the latest return, so you can find the exact filing." },
       {
         name: "latest_filing_tax_period",
@@ -304,12 +325,14 @@ export const FOUNDATION_LIST_FILES: ListFile[] = [
       { name: "recipient_getfunded_id", meaning: "Our own id for that organization record." },
       {
         name: "recipient_name",
-        meaning: "The name on that organization record. It is not the text the foundation typed on its return.",
+        meaning: "The name on that organization record. It is not the text the foundation typed on its return. An “in care of” part at the end of a name is left out.",
       },
       { name: "recipient_city", meaning: "The city on that organization record." },
-      { name: "recipient_state", meaning: "The two-letter state on that organization record." },
+      {
+        name: "recipient_state",
+        meaning: "The state on that organization record. It is two letters on an IRS record. A record from another public source can have the full name of the state.",
+      },
       { name: "amount", meaning: "The amount of the grant as the foundation reported it, in U.S. dollars." },
-      { name: "purpose_text", meaning: "The purpose of the grant, in the foundation’s own words from the return." },
       { name: "fiscal_year", meaning: "The calendar year in which the foundation’s fiscal year ended." },
       { name: "filing_object_id", meaning: "The IRS id of the return the grant comes from, so you can find the exact filing." },
     ],
@@ -364,7 +387,7 @@ export const READING_RULES: Array<{ title: string; body: string }> = [
   },
   {
     title: "Contact details are for shared inboxes and office phones only.",
-    body: "An email or a phone number appears only when the filing lists a shared inbox, such as grants@, or an office phone. A named person’s address is left out.",
+    body: "An email or a phone number appears only when the filing lists a shared inbox, such as grants@, or an office phone. A named person’s address is left out. A contact is not an invitation. Check application_posture first: a foundation that funds preselected organizations only can still have a contact here.",
   },
 ];
 
@@ -376,7 +399,7 @@ export const READING_RULES: Array<{ title: string; body: string }> = [
 export const GRANTS_READING_RULES: Array<{ title: string; body: string }> = [
   {
     title: "The grants files do not list every grant.",
-    body: "A foundation types the name of each recipient on its return, and some recipients are private people, such as a student with a scholarship. So a grant is listed only when we matched its recipient to an organization record. Every other grant is counted in foundation_years.csv.gz and is not named.",
+    body: "A foundation types the name of each recipient on its return, and some recipients are private people, such as a student with a scholarship. So a grant is listed only when we matched its recipient to an organization record. Every other grant is counted in foundation_years.csv.gz and is not named. The purpose of each grant is not in the files, because that text can name a private person. You can read it on the foundation’s page on GetFunded. A later release can add it after a privacy review.",
   },
   {
     title: "Do not use a grants file as a total of giving.",
@@ -384,7 +407,7 @@ export const GRANTS_READING_RULES: Array<{ title: string; body: string }> = [
   },
   {
     title: "A match can be wrong.",
-    body: "The recipient name, city and state come from the organization record we matched, not from the text on the return. Check the return (filing_object_id) before you rely on a row. The purpose is in the foundation’s own words.",
+    body: "The recipient name, city and state come from the organization record we matched, not from the text on the return. Check the return (filing_object_id) before you rely on a row.",
   },
 ];
 

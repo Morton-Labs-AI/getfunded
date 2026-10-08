@@ -4,16 +4,27 @@
  * Pure, like lib/search/sql.ts: it builds text and touches no pool.
  *
  * URL key:   standing
- * Values:    hide_revoked  hide organizations whose IRS standing is "revoked"
+ * Values:    hide_revoked  hide organizations whose IRS standing is "revoked",
+ *                          except those that filed returns for later tax years
  *            (absent)      no standing filter. This is the default: nothing is
  *                          ever hidden unless the reader asks for it.
  *            not_revoked   an older spelling of hide_revoked. It is still read
  *                          and is written back as hide_revoked.
  *
  * What "revoked" means is decided in ONE place, the corpus view
- * internal.org_irs_standing (corpus migration 0028): on the IRS automatic
- * revocation list, not reinstated on or after that revocation, and on neither
- * the IRS master file nor Publication 78. The filter therefore keeps:
+ * internal.org_irs_standing (corpus migrations 0028 and 0032): on the IRS
+ * automatic revocation list, not reinstated on or after that revocation, and
+ * not on Publication 78. It is also not in the IRS master file, or the only
+ * copy of the master file that names it is older than the day the IRS posted
+ * the revocation (0032: the newer IRS list wins).
+ *
+ * One group of revoked organizations is NOT hidden: those that filed returns
+ * for tax years after the revocation date (`filed_after_revocation` in the
+ * same view, 0032). They are still on the IRS list as revoked, and the page
+ * says so, but they kept filing, so a search must not lose them.
+ *
+ * The filter therefore keeps:
+ *   - revoked organizations with a return for a later tax year;
  *   - organizations where the IRS lists disagree (both facts are shown);
  *   - organizations that were revoked once and are recognized again;
  *   - organizations on no list at all (an absence is not a finding);
@@ -41,6 +52,11 @@
  *      0028 and getfunded_0013 are applied the view is not readable, and a
  *      query that names it would fail; with the probe the filter is simply
  *      off, the page says so, and the deploy order does not matter.
+ *
+ *   4. Corpus 0032 adds the column `filed_after_revocation`. The predicate
+ *      also runs on a database that does not have 0032 yet (see
+ *      excludeRevokedSql). There it hides every revoked organization, as it
+ *      did before 0032.
  */
 import { z } from "zod";
 
@@ -70,18 +86,34 @@ const ALIAS_RE = /^[a-z_][a-z0-9_]*$/;
 
 /**
  * SQL predicate, true for every organization EXCEPT the automatically revoked
- * ones. `orgAlias` is the alias of internal.organizations in the surrounding
- * query (`o` everywhere in lib/search/sql.ts). No parameters.
+ * ones that have no return for a later tax year. `orgAlias` is the alias of
+ * internal.organizations in the surrounding query (`o` everywhere in
+ * lib/search/sql.ts). No parameters.
  *
- * It reads only `standing`, so Postgres drops the view's file and licence
- * joins; what is left is index lookups by primary key.
+ * It reads only `standing` and, for a revoked organization,
+ * `filed_after_revocation`. Postgres drops the view's file and licence joins;
+ * what is left is index lookups by primary key, plus one lookup of the
+ * organization's returns by EIN when it is revoked.
+ *
+ * WHY THE EXTRA LEVEL. `filed_after_revocation` is written WITHOUT the `irs.`
+ * prefix on purpose. SQL looks a bare column name up in the nearest query
+ * level first, so on a database with corpus 0032 it is the view's column. On
+ * a database without 0032 the view has no such column, and the name falls
+ * back to the constant `false` one level out (`before_0032`). The statement
+ * is therefore valid on both, and the deploy order does not matter. Do not
+ * add the `irs.` prefix and do not move `before_0032` into the inner `from`.
+ * When every database has 0032, this can become one level:
+ * `irs.standing = 'revoked' and irs.filed_after_revocation is not true`.
  */
 export function excludeRevokedSql(orgAlias = "o"): string {
   if (!ALIAS_RE.test(orgAlias)) throw new Error(`excludeRevokedSql: not a plain SQL alias: ${orgAlias}`);
   return `not exists (
-      select 1 from internal.org_irs_standing irs
-      where irs.org_id = ${orgAlias}.id
-        and irs.standing = 'revoked')`;
+      select 1 from (select false as filed_after_revocation) before_0032
+      where exists (
+        select 1 from internal.org_irs_standing irs
+        where irs.org_id = ${orgAlias}.id
+          and irs.standing = 'revoked'
+          and filed_after_revocation is not true))`;
 }
 
 /** The predicate for a parsed value, or null when there is nothing to add. */

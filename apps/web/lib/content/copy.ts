@@ -207,10 +207,13 @@ export const WEBSITE_FROM_REGISTRY = "From a registry source";
 
 /**
  * Beside the location when the organization is not in the IRS master file and
- * its address was taken from the header of one of its own returns.
+ * its city, state and ZIP code were taken from the header of one of its own
+ * returns. Only those three are copied: the street line of a return can name
+ * a person, so it is never copied to a profile. The string says "city and
+ * state" because that is what the header shows.
  */
 export const ADDRESS_FROM_RETURN = (fy: number | null) =>
-  fy ? `Address as stated on its FY${fy} return` : "Address as stated on one of its returns";
+  fy ? `City and state as stated on its FY${fy} return` : "City and state as stated on one of its returns";
 export const ADDRESS_FROM_RETURN_FILING_ID = (objectId: string) => `IRS filing id ${objectId}`;
 
 export const NOT_FOUND_TITLE = "We could not find that funder";

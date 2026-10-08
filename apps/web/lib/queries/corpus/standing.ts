@@ -5,8 +5,9 @@ import "server-only";
  *
  * One doctrine, kept in the database: every rule (which list wins, when a
  * reinstatement counts, the corrected 2020 revocation dates, "nothing until
- * BOTH lists are loaded") is in the view internal.org_irs_standing, corpus
- * migration 0028. This file only reads that view and shapes the row.
+ * BOTH lists are loaded", "a master-file copy older than the revocation does
+ * not count") is in the view internal.org_irs_standing, corpus migrations 0028
+ * and 0032. This file only reads that view and shapes the row.
  *
  *   - `getFunderStanding(orgId)` returns null when the organization has no
  *     EIN, is not a foundation or charity, or the two IRS lists are not both
@@ -14,6 +15,10 @@ import "server-only";
  *   - The app role reads the view after web migration getfunded_0013. The
  *     grant is probed, so deploying the app before the migration is safe:
  *     the reader returns null until the grant is there.
+ *   - Corpus migration 0032 adds two columns to the view:
+ *     filed_after_revocation and latest_tax_period_end. They are probed too.
+ *     On a database without 0032 the readers ask for NULL in their place, so
+ *     the deploy order does not matter here either.
  *   - The dataset name, URL and licence of the deciding file come through the
  *     view (it runs with its owner's rights). The file fingerprint comes from
  *     internal.raw_files (id, sha256), the same way every other seal gets it.
@@ -45,33 +50,68 @@ type Sql = postgres.Sql | postgres.TransactionSql;
 const PROBE_RETRY_MS = 60_000;
 
 let standingReadable = false;
+let standingRefined = false;
 let standingProbedAt = 0;
 
 /**
- * Whether this process may read internal.org_irs_standing (corpus 0028 is
- * applied and getfunded_0013 granted it). Written so it cannot raise inside
- * the caller's transaction. The search filter in lib/search/standing-filter.ts
- * must only be added to a query when this is true.
+ * One catalog read for both questions: may this process read the view, and
+ * does the view have the two columns of corpus 0032? Written so it cannot
+ * raise inside the caller's transaction. A "yes" is kept; a "no" is asked
+ * again after PROBE_RETRY_MS.
  */
-export async function canReadIrsStanding(sql: Sql): Promise<boolean> {
-  if (standingReadable) return true;
-  if (standingProbedAt && Date.now() - standingProbedAt < PROBE_RETRY_MS) return false;
+async function probeIrsStanding(sql: Sql): Promise<void> {
+  if (standingReadable && standingRefined) return;
+  if (standingProbedAt && Date.now() - standingProbedAt < PROBE_RETRY_MS) return;
   try {
-    const rows = await sql<{ ok: boolean | null }[]>`
+    const rows = await sql<{ ok: boolean | null; refined: boolean | null }[]>`
       select case when to_regclass('internal.org_irs_standing') is null then false
-                  else has_table_privilege('internal.org_irs_standing', 'select') end as ok`;
-    standingReadable = rows[0]?.ok === true;
+                  else has_table_privilege('internal.org_irs_standing', 'select') end as ok,
+             (select count(*) = 2 from pg_attribute a
+               where a.attrelid = to_regclass('internal.org_irs_standing')
+                 and a.attname in ('filed_after_revocation', 'latest_tax_period_end')
+                 and not a.attisdropped) as refined`;
+    standingReadable = standingReadable || rows[0]?.ok === true;
+    standingRefined = standingRefined || (rows[0]?.ok === true && rows[0]?.refined === true);
   } catch {
-    standingReadable = false;
+    // Keep what an earlier probe found; a failed read proves nothing new.
   }
   standingProbedAt = Date.now();
+}
+
+/**
+ * Whether this process may read internal.org_irs_standing (corpus 0028 is
+ * applied and getfunded_0013 granted it). The search filter in
+ * lib/search/standing-filter.ts must only be added to a query when this is true.
+ */
+export async function canReadIrsStanding(sql: Sql): Promise<boolean> {
+  await probeIrsStanding(sql);
   return standingReadable;
+}
+
+/**
+ * Whether the view has the columns corpus 0032 adds (filed_after_revocation,
+ * latest_tax_period_end). False until that migration is applied.
+ */
+export async function hasIrsStandingRefinements(sql: Sql): Promise<boolean> {
+  await probeIrsStanding(sql);
+  return standingRefined;
 }
 
 /** Test seam: forget the probe result. */
 export function resetIrsStandingProbeForTests(): void {
   standingReadable = false;
+  standingRefined = false;
   standingProbedAt = 0;
+}
+
+/**
+ * The two columns of corpus 0032, or typed NULLs in their place on a database
+ * that does not have them yet. `alias` is the view's alias in our own SQL.
+ */
+function refinementColumns(sql: Sql, refined: boolean, alias = "s") {
+  return refined
+    ? sql`${sql(alias)}.filed_after_revocation, ${sql(alias)}.latest_tax_period_end::text as latest_tax_period_end`
+    : sql`null::boolean as filed_after_revocation, null::text as latest_tax_period_end`;
 }
 
 export type StandingRow = {
@@ -99,6 +139,10 @@ export type StandingRow = {
   source_record_locator: string | null;
   license_name: string | null;
   sha256: string | null;
+  /** Corpus 0032. Absent or null on a database without it, and when there is no revocation row. */
+  filed_after_revocation?: boolean | null;
+  /** Corpus 0032. Absent or null on a database without it, and when no return is on file. */
+  latest_tax_period_end?: string | null;
 };
 
 function dateKind(v: string | null): IrsDateKind {
@@ -139,6 +183,8 @@ export function toIrsStanding(r: StandingRow): IrsStanding | null {
     reinstated: r.reinstated === true,
     revocationListAsOf: r.revocation_list_as_of,
     revocationListAsOfKind: dateKind(r.revocation_list_as_of_kind),
+    filedAfterRevocation: r.filed_after_revocation === true,
+    latestTaxPeriodEnd: r.latest_tax_period_end ?? null,
     provenance: {
       source: irsSourceLabel(r.source_dataset),
       filingYear: null,
@@ -160,6 +206,7 @@ export async function readFunderStanding(sql: Sql, orgId: string): Promise<IrsSt
   if (!(await canReadIrsStanding(sql))) return null;
   const sha = await canReadRawFileHash(sql);
   const hash = rawFileHash(sql, sha, "s.raw_file_id", "irsrf");
+  const refinements = refinementColumns(sql, await hasIrsStandingRefinements(sql));
   const rows = await sql<StandingRow[]>`
     select s.org_id::text as org_id, s.ein, s.standing,
            s.in_bmf, s.bmf_as_of::text as bmf_as_of, s.bmf_as_of_kind,
@@ -172,6 +219,7 @@ export async function readFunderStanding(sql: Sql, orgId: string): Promise<IrsSt
            s.revocation_list_as_of::text as revocation_list_as_of, s.revocation_list_as_of_kind,
            s.pub78_as_of::text as pub78_as_of, s.pub78_as_of_kind,
            s.source_dataset, s.source_url, s.source_record_locator, s.license_name,
+           ${refinements},
            ${hash.column} as sha256
     from internal.org_irs_standing s
     ${hash.join}
@@ -208,6 +256,7 @@ export async function readStandingsByOrg(sql: Sql, orgIds: readonly string[]): P
   if (!(await canReadIrsStanding(sql))) return {};
   const sha = await canReadRawFileHash(sql);
   const hash = rawFileHash(sql, sha, "s.raw_file_id", "irsrf");
+  const refinements = refinementColumns(sql, await hasIrsStandingRefinements(sql));
   const rows = await sql<StandingRow[]>`
     select distinct on (s.org_id)
            s.org_id::text as org_id, s.ein, s.standing,
@@ -221,6 +270,7 @@ export async function readStandingsByOrg(sql: Sql, orgIds: readonly string[]): P
            s.revocation_list_as_of::text as revocation_list_as_of, s.revocation_list_as_of_kind,
            s.pub78_as_of::text as pub78_as_of, s.pub78_as_of_kind,
            s.source_dataset, s.source_url, s.source_record_locator, s.license_name,
+           ${refinements},
            ${hash.column} as sha256
     from internal.org_irs_standing s
     ${hash.join}

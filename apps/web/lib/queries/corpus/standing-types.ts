@@ -4,7 +4,8 @@
  * the server / client boundary. The reader is lib/queries/corpus/standing.ts.
  *
  * The values and their rules live in one place: the corpus view
- * internal.org_irs_standing (corpus/migrations/0028_irs_standing.sql).
+ * internal.org_irs_standing (corpus/migrations/0028_irs_standing.sql, refined
+ * by 0032_irs_standing_refinements.sql).
  */
 import type { Provenance } from "./types";
 
@@ -12,9 +13,12 @@ export const IRS_STANDINGS = ["listed", "revoked", "revoked_then_relisted", "lis
 
 /**
  *  - listed                 no revocation row; in the IRS master file or on Publication 78
- *  - revoked                automatically revoked, not reinstated, on neither other list
+ *  - revoked                automatically revoked, not reinstated, not on Publication 78, and either
+ *                           not in the master file, or named only by a master-file copy that is
+ *                           older than the day the IRS posted the revocation (`inBmf` is then true)
  *  - revoked_then_relisted  automatically revoked once; reinstated or ruled on again, and listed today
- *  - lists_disagree         on the revocation list AND listed elsewhere, with nothing that explains it
+ *  - lists_disagree         on the revocation list AND listed elsewhere, with nothing that explains it:
+ *                           Publication 78 lists it, or the master-file copy is not older than the posting
  *  - not_listed             on neither list. Never a statement that the organization has shut down.
  */
 export type IrsStandingValue = (typeof IRS_STANDINGS)[number];
@@ -60,6 +64,17 @@ export type IrsStanding = {
 
   revocationListAsOf: string;
   revocationListAsOfKind: IrsDateKind;
+
+  /**
+   * True when we hold a return for a tax year after the revocation date
+   * (corpus 0032). It does not mean the IRS reinstated the organization: an
+   * organization that loses its exemption must still file. Absent or false
+   * when there is no revocation, no such return, or the database does not
+   * have corpus 0032 yet.
+   */
+  filedAfterRevocation?: boolean;
+  /** End of the newest tax year we hold a return for (corpus 0032). Null or absent when not on record. */
+  latestTaxPeriodEnd?: string | null;
 
   /**
    * The file the answer came from: the revocation list when a revocation row

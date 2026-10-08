@@ -1,4 +1,4 @@
-import { ArrowUpRight, CircleHelp, FileCheck, History, Landmark, Scale, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, CircleHelp, FileCheck, FileClock, History, Landmark, Scale, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -8,16 +8,17 @@ import {
   IRS_REVOCATION_DATE_NOTE_URL,
   IRS_STANDING_CHIP_ARIA,
   IRS_STANDING_FACT_LABELS,
-  IRS_STANDING_LABELS,
   IRS_STANDING_TITLE,
   IRS_TEOS_LINK_LABEL,
   IRS_TEOS_LINK_NOTE,
   IRS_TEOS_URL,
   hasCorrectedRevocationDate,
+  hasFiledAfterRevocation,
   irsDecidingFileDate,
   irsListsDisagreeApplyNote,
   irsRevokedApplyNote,
   irsStandingChipLabel,
+  irsStandingShortLabel,
   irsStandingStatement,
   pub78ClassLabels,
 } from "@/lib/content/irs-standing-copy";
@@ -29,14 +30,27 @@ import { cn } from "@/lib/utils";
  * Colour is never the only signal: every state has its own icon and its own
  * words. `not_listed` is deliberately a neutral outline chip, never a warning
  * colour: being on no list is an absence, not a finding.
+ *
+ * One exception inside "revoked": an organization with returns on file for
+ * tax years after the revocation date gets the warning tone, a different icon
+ * and extra words ("returns on file for later years"). The IRS statement is
+ * the same; what differs is that the organization kept filing.
  */
-const STATE: Record<IrsStandingValue, { variant: "source" | "danger" | "warning" | "outline"; Icon: LucideIcon }> = {
+type ChipState = { variant: "source" | "danger" | "warning" | "outline"; Icon: LucideIcon };
+
+const REVOKED_LATER_RETURNS: ChipState = { variant: "warning", Icon: FileClock };
+
+const STATE: Record<IrsStandingValue, ChipState> = {
   listed: { variant: "source", Icon: FileCheck },
   revoked: { variant: "danger", Icon: ShieldAlert },
   revoked_then_relisted: { variant: "outline", Icon: History },
   lists_disagree: { variant: "warning", Icon: Scale },
   not_listed: { variant: "outline", Icon: CircleHelp },
 };
+
+function chipState(standing: IrsStanding): ChipState {
+  return hasFiledAfterRevocation(standing) ? REVOKED_LATER_RETURNS : STATE[standing.standing];
+}
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -132,6 +146,11 @@ export function IrsStandingDetails({ standing, className }: { standing: IrsStand
               <time dateTime={s.reinstatementDate}>{formatDate(s.reinstatementDate)}</time>
             </Fact>
           ) : null}
+          {hasFiledAfterRevocation(s) && s.latestTaxPeriodEnd ? (
+            <Fact label={IRS_STANDING_FACT_LABELS.latestReturn}>
+              <time dateTime={s.latestTaxPeriodEnd}>{formatDate(s.latestTaxPeriodEnd)}</time>
+            </Fact>
+          ) : null}
           {classes.length > 0 ? <Fact label={IRS_STANDING_FACT_LABELS.pub78Class}>{classes.join("; ")}</Fact> : null}
         </dl>
       ) : null}
@@ -203,8 +222,8 @@ export function IrsStandingChip({
   className?: string;
 }) {
   if (!standing) return <>{fallback}</>;
-  const { variant, Icon } = STATE[standing.standing];
-  const label = compact ? IRS_STANDING_LABELS[standing.standing] : irsStandingChipLabel(standing);
+  const { variant, Icon } = chipState(standing);
+  const label = compact ? irsStandingShortLabel(standing) : irsStandingChipLabel(standing);
 
   return (
     <Popover>
@@ -213,6 +232,7 @@ export function IrsStandingChip({
           type="button"
           data-slot="irs-standing-chip"
           data-standing={standing.standing}
+          data-filed-after-revocation={hasFiledAfterRevocation(standing) ? "" : undefined}
           className={cn("max-w-full cursor-pointer rounded-sm text-left", className)}
           aria-label={IRS_STANDING_CHIP_ARIA(label)}
         >
@@ -234,9 +254,11 @@ export function IrsStandingChip({
 }
 
 /**
- * The one sentence that sits above the posture explainer in "Can I apply?"
- * when the IRS automatically revoked the organization. Renders nothing for
- * every other standing, and nothing when standing is unknown.
+ * The note that sits above the posture explainer in "Can I apply?" when the
+ * IRS automatically revoked the organization. Renders nothing for every other
+ * standing, and nothing when standing is unknown. An organization with
+ * returns on file for tax years after the revocation date gets the warning
+ * tone and icon, not the danger ones: the note then says it kept filing.
  */
 export function IrsRevokedNotice({
   standing,
@@ -252,13 +274,20 @@ export function IrsRevokedNotice({
   className?: string;
 }) {
   if (!standing || standing.standing !== "revoked") return null;
+  const laterReturns = hasFiledAfterRevocation(standing);
+  const Icon = laterReturns ? FileClock : ShieldAlert;
   return (
     <p
       role="note"
       data-slot="irs-revoked-notice"
-      className={cn("flex items-start gap-2 rounded-md bg-danger-tint px-3 py-2 text-sm leading-relaxed text-ink-2", className)}
+      data-filed-after-revocation={laterReturns ? "" : undefined}
+      className={cn(
+        "flex items-start gap-2 rounded-md px-3 py-2 text-sm leading-relaxed text-ink-2",
+        laterReturns ? "bg-warning-tint" : "bg-danger-tint",
+        className,
+      )}
     >
-      <ShieldAlert className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />
+      <Icon className={cn("mt-0.5 size-4 shrink-0", laterReturns ? "text-warning" : "text-danger")} aria-hidden />
       <span>{irsRevokedApplyNote(standing, fy, hasDetails)}</span>
     </p>
   );

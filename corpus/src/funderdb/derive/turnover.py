@@ -7,7 +7,7 @@ a new request, and it is never turned into a score, a tier or a label. The
 table it fills (``internal.funder_recipient_turnover``, migration 0029) has no
 such column.
 
-The rule, in the order it is applied (rule_version ``turnover-v1``; the same
+The rule, in the order it is applied (rule_version ``turnover-v2``; the same
 text goes into the run manifest that every written row points at):
 
 1. Rows: ``internal.funding_events`` with ``event_type = 'grant'`` and a
@@ -18,26 +18,50 @@ text goes into the run manifest that every written row points at):
    recipient_name))`` is false. "SEE ATTACHED", "VARIOUS" and the like are
    counted apart and are never recipients. The function comes from migration
    0027; this job stops when it is missing.
-3. Names are compared after cleaning: ``norm_name``, then a leading "THE " and
+3. A named row is to an INDIVIDUAL when the filer wrote so in the box for the
+   recipient's foundation status (``recipient_foundation_status``: "I",
+   "IND", "INDIVIDUAL", "STUDENT"; see INDIVIDUAL_STATUS_*) and our records
+   do not link the row to an organisation. A scholarship fund lists a new
+   class of students every year; counting them would say "none of its
+   recipients is on the earlier lists" about a fund that takes no requests
+   from organisations. Individual rows are left out of the year's list and
+   of the earlier lists. The relationship box is not used: filers write
+   "NONE" there for organisations and people alike. A filer that leaves the
+   status box empty for a person is not caught; the page says so.
+4. Names are compared after cleaning: ``norm_name``, then a leading "THE " and
    one trailing entity suffix (``recipients.STRIPPABLE_SUFFIXES``) are
-   dropped.
-4. A recipient is one organisation when any row with that cleaned name is
-   linked to one (``recipient_org_id``), otherwise one cleaned name.
-5. A recipient of fiscal year FY is SEEN BEFORE when the same foundation's
-   lists for FY-1, FY-2 and FY-3 hold (a) the same cleaned name, in any
-   state, or (b) a row linked to the same organisation, or (c) a cleaned
-   name that is at least 0.8 trigram-similar, in the same state. Rule (c)
-   keeps a respelling ("BOYS & GIRLS CLUB OF ..." / "BOYS AND GIRLS CLUB
-   OF ...", 0.92) from looking new. It does not catch a short one ("FEED
-   MORE" / "FEEDMORE", 0.58), and it can join two different recipients
-   with near-identical names in one state. False "new" is the harmful
-   direction, so every tie goes to "seen before".
-6. A row is written ONLY when the foundation has a named row in FY and in
-   each of FY-1, FY-2 and FY-3. Otherwise nothing is written: unknown stays
-   unknown and is never stored as zero.
-7. A foundation whose lists would need more than SIMILAR_COMPARISON_CAP name
-   comparisons in step 5(c) is set aside and gets no row. The run output
-   counts them. (None is expected on real lists; see the constant.)
+   dropped. The SQUEEZED name is the cleaned name with everything that is
+   not a letter or a digit removed, so "ST JUDE S CHILDREN S ..." and
+   "ST JUDE S CHILDRENS ..." are one name, and so are "FEED MORE" and
+   "FEEDMORE".
+5. A recipient is one organisation when any row with that squeezed name is
+   linked to one (``recipient_org_id``), otherwise one squeezed name.
+6. A recipient of fiscal year FY is SEEN BEFORE when the same foundation's
+   lists for FY-1, FY-2 and FY-3 hold (a) the same squeezed name, or (b) a
+   row linked to the same organisation, or (c) a cleaned name that is at
+   least 0.8 trigram-similar. The state on the row is NOT compared in any of
+   the three: filers write one recipient under its head office in one year
+   and under a local office in the next. Rule (c) keeps a respelling
+   ("BOYS & GIRLS CLUB OF ..." / "BOYS AND GIRLS CLUB OF ...", 0.92) from
+   looking new. It does not catch a recipient that adds a chapter name
+   ("ALS ASSOCIATION" / "ALS ASSOCIATION <chapter>", about 0.5), and it can
+   join two different recipients with near-identical names. False "new" is
+   the harmful direction, so every tie goes to "seen before".
+7. A row is written ONLY when the foundation has a named row that is not an
+   individual row in FY and in each of FY-1, FY-2 and FY-3. Otherwise
+   nothing is written: unknown stays unknown and is never stored as zero.
+8. No row is written either when the lists are MOSTLY individuals: more than
+   half of the named rows of FY, or of the four years together, are
+   individual rows. The count of the few organisations on such a list would
+   not describe the foundation. The run output counts what rules 7 and 8
+   leave out because of individual rows.
+9. A foundation whose lists would need more than SIMILAR_COMPARISON_CAP name
+   comparisons in step 6(c) is set aside and gets no row. The run output
+   counts them.
+
+What changed from ``turnover-v1``: rules 3 and 8 are new; rule 6 compared the
+cleaned name in (a) and required the same state in (c). A run with this
+version replaces the v1 rows slice by slice.
 
 How it runs: 256 slices of ``funder_org_id`` by its first byte (a range scan
 on ``ix_events_funder``), one transaction per slice. Each slice copies its
@@ -49,7 +73,15 @@ Sizes to know: foundations per slice are even (about 380 to 510), rows are
 not. The median slice holds about 30,000 grant rows; slice 117 (0x75) holds
 about 1.45 million because one foundation filed lists of that size. That is
 why every slice sets its own statement timeout and memory guards, and why
-``--slice 117 --dry-run`` exists.
+``--slice 117 --dry-run`` exists. Run that dry run before a full run: with
+no state in rule 6(c) that one foundation is compared across all its states
+at once, and it may go over SIMILAR_COMPARISON_CAP. It is then set aside
+(no row), which is the safe result.
+
+Run order: this job reads ``recipient_org_id`` and the grant rows as they are
+now. Run it AFTER the backfill, the reconcile and ``resolve recipients`` have
+finished, and after ``refresh-views``. ``--report`` prints a warning when the
+history view or the stored rows are older than the newest loaded return.
 """
 
 from __future__ import annotations
@@ -68,7 +100,7 @@ from ..config import get_settings
 from ..db import connect
 from ..resolve.recipients import _MEMORY_GUARDS, STRIPPABLE_SUFFIXES
 
-RULE_VERSION = "turnover-v1"
+RULE_VERSION = "turnover-v2"
 DEFAULT_FYS: tuple[int, ...] = (2023, 2024, 2025)
 N_SLICES = 256
 WINDOW_YEARS = 3          # the table's check constraint fixes this at three
@@ -86,6 +118,18 @@ DRY_RUN_SLICES: tuple[int, ...] = (0, 1)
 CURSOR_MAX_AGE_HOURS = 12
 LEDGER_NAME = "derive_turnover"
 
+# When a grant row is to an individual (rule 3). Tested on the foundation
+# status box, upper case and trimmed. Live values read 2026-10-08 on 8 of 256
+# slices: "I" 7,352 rows of 255 foundations, "INDIVIDUAL" 441, "STUDENT" 71,
+# "IND" 14, "I INDIVIDUAL PERSON" 14. "N/A" and "NONE" (4,583 rows) are NOT
+# used: filers write them for organisations too. "INDEP" and "INDIGENT" do
+# not match. The negation test keeps "NOT AN INDIVIDUAL" out.
+# Check of the rule on those slices: of 7,900 rows it marks, 166 (2.1%) were
+# linked to an organisation; those rows are not treated as individuals.
+INDIVIDUAL_STATUS_EXACT = r"^(I|IND\.?|STUDENTS?)$"
+INDIVIDUAL_STATUS_WORD = r"\mINDIV"
+INDIVIDUAL_STATUS_NEGATION = r"\m(NO|NOT|NON)\M"
+
 PLACEHOLDER_FN = "internal.is_placeholder_recipient(text)"
 TABLE = "internal.funder_recipient_turnover"
 HISTORY_VIEW = "internal.mv_org_posture_history"
@@ -95,15 +139,23 @@ RULE_TEXT: tuple[str, ...] = (
     "of non-superseded filings, for the target fiscal year and the three fiscal years before it.",
     "A row is named when internal.is_placeholder_recipient(internal.norm_name(recipient_name)) "
     "is false. Placeholder rows are counted apart and are never recipients.",
+    "A named row is an individual row when the filer wrote I, IND, INDIVIDUAL or STUDENT in "
+    "the box for the recipient's foundation status (recipient_foundation_status) and the row "
+    "is not linked to an organisation. Individual rows are left out of the target year's list "
+    "and of the earlier lists. A person the filer did not mark this way is not caught.",
     "Names are compared after cleaning: norm_name, then a leading 'THE ' and one trailing "
-    "entity suffix are dropped.",
-    "A recipient is one organisation when any row with that cleaned name is linked to one "
-    "(recipient_org_id), otherwise one cleaned name.",
+    "entity suffix are dropped. The squeezed name is the cleaned name without anything that "
+    "is not a letter or a digit.",
+    "A recipient is one organisation when any row with that squeezed name is linked to one "
+    "(recipient_org_id), otherwise one squeezed name.",
     "A recipient is seen before when the same foundation's lists for the three earlier fiscal "
-    "years hold the same cleaned name in any state, or a row linked to the same organisation, "
-    "or a cleaned name at least 0.8 trigram-similar in the same state.",
-    "A row is written only when the foundation has a named row in the target year and in each "
-    "of the three earlier years. Otherwise no row is written; unknown is never stored as zero.",
+    "years hold the same squeezed name, or a row linked to the same organisation, or a cleaned "
+    "name at least 0.8 trigram-similar. The state on the row is not compared.",
+    "A row is written only when the foundation has a named row that is not an individual row "
+    "in the target year and in each of the three earlier years. Otherwise no row is written; "
+    "unknown is never stored as zero.",
+    "No row is written either when more than half of the named rows of the target year, or of "
+    "the four years together, are individual rows.",
     "No row is written either for a foundation whose lists would need more than "
     f"{SIMILAR_COMPARISON_CAP:,} name comparisons in the similar-name step.",
     "The result is a count from past returns. It is not a score and says nothing about "
@@ -114,9 +166,13 @@ RULE_TEXT: tuple[str, ...] = (
 # "fail": each rests on a small sample.
 #   "range": samples taken 2026-10-08 with an EARLIER, looser rule (no name
 #       cleaning, no organisation-or-name match, no similar-name guard).
-#   "slice": one slice (0x3c, 293 foundations) read 2026-10-08 with THIS rule,
-#       before the back-year load finished: 231 'preselected only', 61 'open'.
-# The rule here counts fewer recipients as new than the looser one did.
+#   "slice": one slice (0x3c, 293 foundations) read 2026-10-08 with rule
+#       turnover-v1, before the back-year load finished: 231 'preselected
+#       only', 61 'open'.
+# turnover-v2 counts fewer recipients as new than v1 (squeezed names, no
+# state in the similar-name rule) and leaves out lists of individuals, so
+# "none new" should sit a little above these shares and "3 or more new" a
+# little below. Replace the slice figures after the first full v2 run.
 REPORT_REFERENCE: dict[str, dict[str, str]] = {
     "preselected_only": {"three_range": "36 to 45", "none_range": "30 to 38",
                          "three_slice": "37.2", "none_slice": "40.7"},
@@ -155,17 +211,26 @@ def _cursor_path() -> Path:
 # The one read of the big table. `enable_seqscan = off` is set around it so a
 # stale row estimate can never turn a 1-in-256 range scan into a full scan of
 # funding_events, 256 times.
+#
+# `indiv`: the filer marked the recipient as an individual and the row is not
+# linked to an organisation (rule 3). `cn` is the cleaned name, `sq` the
+# squeezed one (rule 4); `sq` falls back to `cn` for a name with no letter or
+# digit. The recipient's state is not read: no rule compares it.
 _ROWS = """
 create temp table _tv_rows on commit drop as
-select s.funder_org_id, s.fy, s.oid, s.rorg, s.st, s.amount,
+select s.funder_org_id, s.fy, s.oid, s.rorg, s.amount,
        internal.is_placeholder_recipient(s.nn) as unnamed,
-       btrim(regexp_replace(regexp_replace(s.nn, '^THE\\s+', ''), %(suffix_re)s, '')) as cn
+       (s.rorg is null
+        and (s.fs ~ %(ind_exact)s
+             or (s.fs ~ %(ind_word)s and s.fs !~ %(ind_neg)s))) as indiv,
+       c.cn,
+       coalesce(nullif(regexp_replace(c.cn, '[^[:alnum:]]+', '', 'g'), ''), c.cn) as sq
 from (
   select fe.funder_org_id,
          fe.fiscal_year as fy,
          split_part(fe.source_record_key, ':', 2) as oid,
          fe.recipient_org_id as rorg,
-         nullif(upper(btrim(fe.recipient_state)), '') as st,
+         upper(btrim(coalesce(fe.recipient_foundation_status, ''))) as fs,
          fe.amount,
          internal.norm_name(fe.recipient_name) as nn
   from internal.funding_events fe
@@ -175,6 +240,9 @@ from (
     and fe.source_record_key like 'irs990pf:%%'
     and fe.fiscal_year between %(fy_lo)s and %(fy_hi)s
 ) s
+cross join lateral (
+  select btrim(regexp_replace(regexp_replace(s.nn, '^THE\\s+', ''), %(suffix_re)s, '')) as cn
+) c
 """
 
 # The filings behind the slice's rows: a few thousand primary-key lookups.
@@ -199,74 +267,108 @@ create temp table _tv_fy on commit drop as
 select funder_org_id, fy,
        count(*)::int as n_rows,
        (count(*) filter (where unnamed))::int as n_unnamed,
-       (count(*) filter (where not unnamed))::int as n_named,
-       sum(amount) filter (where not unnamed) as amount_named
+       (count(*) filter (where not unnamed and indiv))::int as n_indiv,
+       (count(*) filter (where not unnamed and not indiv))::int as n_named,
+       sum(amount) filter (where not unnamed and not indiv) as amount_named
 from _tv_rows
 group by funder_org_id, fy
 """
 
-# The write rule: a named row in the target year and in each of the three
-# years before it. Inner joins, so a missing year means no row at all.
-_TARGET = """
-create temp table _tv_target on commit drop as
+# Every foundation-year with a named row (individual or not) in the target
+# year and in each of the three years before it. Inner joins, so a missing
+# year means no row at all. `left_out` says why a foundation-year gets no
+# turnover row because of its individual rows (rules 7 and 8); NULL means it
+# goes on. Kept as its own table so the run can count what was left out.
+_TARGET_ALL = """
+create temp table _tv_target_all on commit drop as
 select t.funder_org_id, t.fy, t.n_rows, t.n_unnamed, t.amount_named,
-       (p1.n_unnamed + p2.n_unnamed + p3.n_unnamed)::int as window_unnamed
+       (p1.n_unnamed + p2.n_unnamed + p3.n_unnamed)::int as window_unnamed,
+       (t.n_indiv + p1.n_indiv + p2.n_indiv + p3.n_indiv)::int as indiv_rows,
+       case
+         when t.n_indiv > t.n_named
+           or (t.n_indiv + p1.n_indiv + p2.n_indiv + p3.n_indiv)
+              > (t.n_named + p1.n_named + p2.n_named + p3.n_named)
+           then 'mostly_individuals'
+         when least(t.n_named, p1.n_named, p2.n_named, p3.n_named) < 1
+           then 'year_of_individuals_only'
+       end as left_out
 from _tv_fy t
 join _tv_fy p1 on p1.funder_org_id = t.funder_org_id and p1.fy = t.fy - 1
 join _tv_fy p2 on p2.funder_org_id = t.funder_org_id and p2.fy = t.fy - 2
 join _tv_fy p3 on p3.funder_org_id = t.funder_org_id and p3.fy = t.fy - 3
 where t.fy = any(%(fys)s)
-  and t.n_named >= 1 and p1.n_named >= 1 and p2.n_named >= 1 and p3.n_named >= 1
+  and t.n_named + t.n_indiv >= 1 and p1.n_named + p1.n_indiv >= 1
+  and p2.n_named + p2.n_indiv >= 1 and p3.n_named + p3.n_indiv >= 1
+"""
+
+# The write rule: what is left has a named, non-individual row in all four
+# years, and its lists are not mostly individuals.
+_TARGET = """
+create temp table _tv_target on commit drop as
+select funder_org_id, fy, n_rows, n_unnamed, amount_named, window_unnamed
+from _tv_target_all
+where left_out is null
+"""
+
+_INDIVIDUALS = """
+select fy,
+       (count(*) filter (where left_out = 'mostly_individuals'))::int,
+       (count(*) filter (where left_out = 'year_of_individuals_only'))::int,
+       (count(*) filter (where left_out is null and indiv_rows > 0))::int,
+       coalesce(sum(indiv_rows) filter (where left_out is null), 0)::bigint
+from _tv_target_all
+group by fy
 """
 
 _CUR = """
 create temp table _tv_cur on commit drop as
-select r.funder_org_id, r.fy, r.cn, r.st, r.rorg, sum(r.amount) as amount
+select r.funder_org_id, r.fy, r.cn, r.sq, r.rorg, sum(r.amount) as amount
 from _tv_rows r
 join _tv_target t on t.funder_org_id = r.funder_org_id and t.fy = r.fy
-where not r.unnamed
-group by r.funder_org_id, r.fy, r.cn, r.st, r.rorg
+where not r.unnamed and not r.indiv
+group by r.funder_org_id, r.fy, r.cn, r.sq, r.rorg
 """
 
 _PRIOR = """
 create temp table _tv_prior on commit drop as
-select r.funder_org_id, r.fy, r.cn, r.st, r.rorg
+select r.funder_org_id, r.fy, r.cn, r.sq, r.rorg
 from _tv_rows r
 join (select distinct funder_org_id from _tv_target) t on t.funder_org_id = r.funder_org_id
-where not r.unnamed
-group by r.funder_org_id, r.fy, r.cn, r.st, r.rorg
+where not r.unnamed and not r.indiv
+group by r.funder_org_id, r.fy, r.cn, r.sq, r.rorg
 """
 
-# One row per cleaned name in a target year, with the recipient it belongs
+# One row per squeezed name in a target year, with the recipient it belongs
 # to: the organisation when any row with that name is linked, else the name.
 _NAME = """
 create temp table _tv_name on commit drop as
-select funder_org_id, fy, cn,
-       coalesce('o:' || min(rorg::text), 'n:' || cn) as ukey,
+select funder_org_id, fy, sq,
+       coalesce('o:' || min(rorg::text), 'n:' || sq) as ukey,
        sum(amount) as amount
 from _tv_cur
-group by funder_org_id, fy, cn
+group by funder_org_id, fy, sq
 """
 
 _SEEN_DDL = """
 create temp table _tv_seen (
-  funder_org_id uuid, fy smallint, cn text, how text
+  funder_org_id uuid, fy smallint, sq text, how text
 ) on commit drop
 """
 
-# (a) the same cleaned name on an earlier list, in any state.
+# (a) the same squeezed name on an earlier list. Two cleaned names that are
+# equal have the same squeezed name, so this also covers "the same name".
 _SEEN_NAME = """
 insert into _tv_seen
-select distinct c.funder_org_id, c.fy, c.cn, 'name'
+select distinct c.funder_org_id, c.fy, c.sq, 'name'
 from _tv_name c
-join _tv_prior p on p.funder_org_id = c.funder_org_id and p.cn = c.cn
+join _tv_prior p on p.funder_org_id = c.funder_org_id and p.sq = c.sq
 where p.fy between c.fy - 3 and c.fy - 1
 """
 
 # (b) a row linked to the same organisation on an earlier list.
 _SEEN_ORG = """
 insert into _tv_seen
-select distinct c.funder_org_id, c.fy, c.cn, 'org'
+select distinct c.funder_org_id, c.fy, c.sq, 'org'
 from _tv_cur c
 join _tv_prior p on p.funder_org_id = c.funder_org_id and p.rorg = c.rorg
 where c.rorg is not null
@@ -277,88 +379,88 @@ _USEEN = """
 create temp table _tv_useen on commit drop as
 select distinct n.funder_org_id, n.fy, n.ukey
 from _tv_name n
-join _tv_seen s on s.funder_org_id = n.funder_org_id and s.fy = n.fy and s.cn = n.cn
+join _tv_seen s on s.funder_org_id = n.funder_org_id and s.fy = n.fy and s.sq = n.sq
 """
 
-# Names (with the states they were written under) of recipients that are not
-# seen before by (a) or (b). Only these go to the similar-name step. `stk` is
-# the state with '' for "no state", so "same state" is a plain equality.
+# Cleaned names of recipients that are not seen before by (a) or (b). Only
+# these go to the similar-name step. `sq` leads back to the recipient.
 _CAND = """
 create temp table _tv_cand on commit drop as
-select distinct c.funder_org_id, c.fy, c.cn, coalesce(c.st, '') as stk
+select distinct c.funder_org_id, c.fy, c.cn, c.sq
 from _tv_cur c
-join _tv_name n on n.funder_org_id = c.funder_org_id and n.fy = c.fy and n.cn = c.cn
+join _tv_name n on n.funder_org_id = c.funder_org_id and n.fy = c.fy and n.sq = c.sq
 left join _tv_useen u
   on u.funder_org_id = n.funder_org_id and u.fy = n.fy and u.ukey = n.ukey
 where u.ukey is null
 """
 
 # The earlier names the candidates can be compared with: same foundation,
-# same state, one row per name with the fiscal years it appears in.
+# one row per cleaned name with the fiscal years it appears in.
 _PSIM = """
 create temp table _tv_psim on commit drop as
-select row_number() over ()::int as pid, x.funder_org_id, x.stk, x.cn, x.fys,
+select row_number() over ()::int as pid, x.funder_org_id, x.cn, x.fys,
        cardinality({trgm}.show_trgm(x.cn)) as ntg
 from (
-  select p.funder_org_id, coalesce(p.st, '') as stk, p.cn,
-         array_agg(distinct p.fy) as fys
+  select p.funder_org_id, p.cn, array_agg(distinct p.fy) as fys
   from _tv_prior p
-  join (select distinct funder_org_id, stk from _tv_cand) c
-    on c.funder_org_id = p.funder_org_id and c.stk = coalesce(p.st, '')
-  group by p.funder_org_id, coalesce(p.st, ''), p.cn
+  join (select distinct funder_org_id from _tv_cand) c
+    on c.funder_org_id = p.funder_org_id
+  group by p.funder_org_id, p.cn
 ) x
 """
 
-# The candidate names, one row per (foundation, state, name), each with its
-# set of trigrams (pg_trgm's own: similarity() is shared / union of these).
+# The candidate names, one row per (foundation, name), each with its set of
+# trigrams (pg_trgm's own: similarity() is shared / union of these).
 _CN = """
 create temp table _tv_cn on commit drop as
-select row_number() over ()::int as cid, c.funder_org_id, c.stk, c.cn,
+select row_number() over ()::int as cid, c.funder_org_id, c.cn,
        {trgm}.show_trgm(c.cn) as tg
-from (select distinct funder_org_id, stk, cn from _tv_cand) c
+from (select distinct funder_org_id, cn from _tv_cand) c
 """
 
-# How many earlier names of one foundation in one state carry each trigram.
+# How many earlier names of one foundation carry each trigram.
 _DF = """
 create temp table _tv_df on commit drop as
-select t.funder_org_id, t.stk, t.tok, count(*)::int as df
+select t.funder_org_id, t.tok, count(*)::int as df
 from (
-  select funder_org_id, stk, unnest({trgm}.show_trgm(cn)) as tok
+  select funder_org_id, unnest({trgm}.show_trgm(cn)) as tok
   from _tv_psim
 ) t
-group by t.funder_org_id, t.stk, t.tok
+group by t.funder_org_id, t.tok
 """
 
-# (c) a similar name in the same state on an earlier list, WITHOUT comparing
-# every candidate with every earlier name.
+# (c) a similar name on an earlier list, WITHOUT comparing every candidate
+# with every earlier name.
 #
 # The filter is exact, not a guess. similarity(a, b) >= 0.8 means the two
 # trigram sets share at least 80% of their union, so b holds at least 80% of
 # a's trigrams: at most floor(n/5) of a's n trigrams can be missing from b.
 # Take ANY floor(n/5)+1 trigrams of a and at least one of them is in b. We
-# take the RAREST ones (fewest earlier names of that foundation and state
-# carry them), so each candidate meets only the few earlier names that share
+# take the RAREST ones (fewest earlier names of that foundation carry
+# them), so each candidate meets only the few earlier names that share
 # a rare trigram with it. A trigram no earlier name carries (df 0) is kept in
 # the ranking and matches nothing, which is right: enough of those and no
 # earlier name can reach 0.8. Every pair that survives is then checked with
 # the real similarity().
 #
-# All joins are equality joins on (foundation, state, trigram), so the work
-# stays inside one state of one foundation. That is what keeps the
-# 1.4-million-row foundation affordable.
+# All joins are equality joins on (foundation, trigram), so the work stays
+# inside one foundation. turnover-v1 also kept it inside one state; without
+# the state a very large list meets more earlier names per trigram, and the
+# cap below (_TOO_LARGE) is what bounds it: the count of comparisons is known
+# before any name is compared.
 _CTOK = """
 create temp table _tv_ctok on commit drop as
-select x.cid, x.funder_org_id, x.stk, x.tok, x.df, x.n
+select x.cid, x.funder_org_id, x.tok, x.df, x.n
 from (
-  select c.cid, c.funder_org_id, c.stk, c.tok, c.n,
+  select c.cid, c.funder_org_id, c.tok, c.n,
          coalesce(d.df, 0) as df,
          row_number() over (partition by c.cid order by coalesce(d.df, 0), c.tok) as rk
   from (
-    select cid, funder_org_id, stk, cardinality(tg) as n, unnest(tg) as tok
+    select cid, funder_org_id, cardinality(tg) as n, unnest(tg) as tok
     from _tv_cn
   ) c
   left join _tv_df d
-    on d.funder_org_id = c.funder_org_id and d.stk = c.stk and d.tok = c.tok
+    on d.funder_org_id = c.funder_org_id and d.tok = c.tok
 ) x
 where x.rk <= x.n / 5 + 1
   and x.df > 0
@@ -386,16 +488,16 @@ _COMPARISONS = "select coalesce(sum(df), 0)::bigint from _tv_ctok"
 # pair), so it runs last, on what is left.
 _SEEN_SIMILAR = """
 insert into _tv_seen
-select distinct cd.funder_org_id, cd.fy, cd.cn, 'similar'
+select distinct cd.funder_org_id, cd.fy, cd.sq, 'similar'
 from (
-  select funder_org_id, stk, cn, fys, ntg, unnest({trgm}.show_trgm(cn)) as tok
+  select funder_org_id, cn, fys, ntg, unnest({trgm}.show_trgm(cn)) as tok
   from _tv_psim
 ) p
 join _tv_ctok k
-  on k.funder_org_id = p.funder_org_id and k.stk = p.stk and k.tok = p.tok
+  on k.funder_org_id = p.funder_org_id and k.tok = p.tok
 join _tv_cn c on c.cid = k.cid
 join _tv_cand cd
-  on cd.funder_org_id = c.funder_org_id and cd.stk = c.stk and cd.cn = c.cn
+  on cd.funder_org_id = c.funder_org_id and cd.cn = c.cn
 where p.ntg * 5 >= k.n * 4
   and k.n * 5 >= p.ntg * 4
   and p.fys && array[cd.fy - 1, cd.fy - 2, cd.fy - 3]::smallint[]
@@ -410,12 +512,12 @@ select n.funder_org_id, n.fy, n.ukey,
        coalesce(bool_or(s.similar), false) as seen_similar
 from _tv_name n
 left join (
-  select funder_org_id, fy, cn,
+  select funder_org_id, fy, sq,
          bool_or(how <> 'similar') as exact,
          bool_or(how = 'similar') as similar
   from _tv_seen
-  group by funder_org_id, fy, cn
-) s on s.funder_org_id = n.funder_org_id and s.fy = n.fy and s.cn = n.cn
+  group by funder_org_id, fy, sq
+) s on s.funder_org_id = n.funder_org_id and s.fy = n.fy and s.sq = n.sq
 group by n.funder_org_id, n.fy, n.ukey
 """
 
@@ -502,6 +604,12 @@ from _tv_final
 
 _SUMMARY_KEYS = ("funder_years", "recipients", "new", "seen_similar_only",
                  "none_new", "three_or_more_new", "window_has_unnamed", "no_filing_id")
+# From _INDIVIDUALS: foundation-years with no row because of individual rows
+# (two reasons), those that keep a row with individual rows left out, and
+# how many individual rows those kept ones left out.
+_INDIVIDUAL_KEYS = ("left_out_mostly_individuals", "left_out_year_of_individuals_only",
+                    "kept_with_individual_rows", "individual_rows_left_out")
+_ALL_KEYS = _SUMMARY_KEYS + _INDIVIDUAL_KEYS
 
 
 # ---------------------------------------------------------------------------
@@ -567,6 +675,9 @@ def _compute_slice(cur: psycopg.Cursor, n: int, fys: tuple[int, ...],
 
     cur.execute("set local enable_seqscan = off")
     cur.execute(_ROWS, {"lo": lo, "hi": hi, "suffix_re": _suffix_regex(),
+                        "ind_exact": INDIVIDUAL_STATUS_EXACT,
+                        "ind_word": INDIVIDUAL_STATUS_WORD,
+                        "ind_neg": INDIVIDUAL_STATUS_NEGATION,
                         "fy_lo": min(fys) - WINDOW_YEARS, "fy_hi": max(fys)})
     rows_read = cur.rowcount
     cur.execute("set local enable_seqscan = on")
@@ -583,7 +694,11 @@ def _compute_slice(cur: psycopg.Cursor, n: int, fys: tuple[int, ...],
 
     cur.execute(_FY)
     cur.execute("analyze _tv_fy")
-    cur.execute(_TARGET, {"fys": list(fys)})
+    cur.execute(_TARGET_ALL, {"fys": list(fys)})
+    cur.execute(_INDIVIDUALS)
+    individuals = {int(r[0]): dict(zip(_INDIVIDUAL_KEYS, (int(v) for v in r[1:])))
+                   for r in cur.fetchall()}
+    cur.execute(_TARGET)
     targets = cur.rowcount
     cur.execute("analyze _tv_target")
     for step in (_CUR, _PRIOR):
@@ -632,6 +747,11 @@ def _compute_slice(cur: psycopg.Cursor, n: int, fys: tuple[int, ...],
     cur.execute(_SLICE_SUMMARY)
     by_fy = {int(r[0]): dict(zip(_SUMMARY_KEYS, (int(v) for v in r[1:])))
              for r in cur.fetchall()}
+    # A fiscal year can have every foundation left out, so it is in
+    # `individuals` and not in the summary. Every entry gets every key.
+    for fy in set(by_fy) | set(individuals):
+        by_fy[fy] = {**dict.fromkeys(_ALL_KEYS, 0), **by_fy.get(fy, {}),
+                     **individuals.get(fy, {})}
     return {"slice": n, "rows_read": rows_read, "rows_superseded": rows_superseded,
             "funder_years": targets - set_aside, "set_aside": set_aside,
             "similar_candidates": candidates, "comparisons": comparisons,
@@ -673,13 +793,20 @@ def _fy_lines(by_fy: dict[int, dict]) -> list[str]:
             f"similar-name rule kept {s['seen_similar_only']:,} from looking new ({sim}) · "
             f"{s['window_has_unnamed']:,} with placeholder rows in the window · "
             f"{s['no_filing_id']:,} without a filing id")
+        left_out = s["left_out_mostly_individuals"] + s["left_out_year_of_individuals_only"]
+        out.append(
+            f"            individuals: {left_out:,} foundations get NO row "
+            f"({s['left_out_mostly_individuals']:,} with lists that are mostly individuals, "
+            f"{s['left_out_year_of_individuals_only']:,} with a year that lists only "
+            f"individuals) · {s['kept_with_individual_rows']:,} keep a row with "
+            f"{s['individual_rows_left_out']:,} individual rows left out")
     return out
 
 
 def _add(total: dict[int, dict], by_fy: dict[int, dict]) -> None:
     for fy, s in by_fy.items():
-        t = total.setdefault(fy, dict.fromkeys(_SUMMARY_KEYS, 0))
-        for k in _SUMMARY_KEYS:
+        t = total.setdefault(fy, dict.fromkeys(_ALL_KEYS, 0))
+        for k in _ALL_KEYS:
             t[k] += s[k]
 
 
@@ -787,6 +914,13 @@ def run(fys: Iterable[int] = DEFAULT_FYS, slices: Iterable[int] | None = None,
                 "fiscal_years": fys,
                 "window_years": WINDOW_YEARS,
                 "similarity_min": SIMILARITY_MIN,
+                "individual_status": {"column": "recipient_foundation_status",
+                                      "exact": INDIVIDUAL_STATUS_EXACT,
+                                      "word": INDIVIDUAL_STATUS_WORD,
+                                      "unless": INDIVIDUAL_STATUS_NEGATION,
+                                      "and": "recipient_org_id is null"},
+                "squeezed_name": "cleaned name without anything that is not a letter or a digit",
+                "state_compared": False,
                 "similar_comparison_cap": SIMILAR_COMPARISON_CAP,
                 "strippable_suffixes": STRIPPABLE_SUFFIXES,
                 "placeholder_function": PLACEHOLDER_FN,
@@ -966,8 +1100,56 @@ order by fy
 """
 
 
+# Is the history view in step with the tables? Postgres keeps no refresh time
+# for a materialized view, so the test is on the contents: the view counts
+# every parsed, non-superseded Form 990-PF with an organisation (0029's `pf`
+# rows), so the sum of n_returns must equal the count of those rows now. The
+# second statement reads internal.filings once (about half a minute on the
+# live database); it runs under its own time limit and the report goes on
+# without it when the limit is reached.
+_REPORT_VIEW_RETURNS = f"""
+select coalesce(sum(n_returns), 0)::bigint, count(*)::bigint from {HISTORY_VIEW}
+"""
+
+_REPORT_BASE_RETURNS = """
+select count(*)::bigint, max(f.details_parsed_at) at time zone 'utc'
+from internal.filings f
+join internal.filing_financials ff on ff.object_id = f.object_id
+where f.org_id is not null
+  and f.return_type = '990PF'
+  and f.superseded_by_object_id is null
+"""
+FRESHNESS_TIMEOUT = "3min"
+
+_REPORT_RULES = f"""
+select rule_version, count(*)::int from {TABLE} group by 1 order by 1
+"""
+
+
+def _view_freshness(conn: psycopg.Connection, cur: psycopg.Cursor) -> dict | None:
+    """Returns in the view against returns in the tables now. None when the
+    count could not be made inside FRESHNESS_TIMEOUT."""
+    cur.execute(_REPORT_VIEW_RETURNS)
+    in_view, view_rows = cur.fetchone()
+    try:
+        with conn.transaction():          # a savepoint: a timeout undoes only this
+            cur.execute(f"set local statement_timeout = '{FRESHNESS_TIMEOUT}'")
+            for guard in _MEMORY_GUARDS:
+                cur.execute(guard)
+            cur.execute(_REPORT_BASE_RETURNS)
+            in_tables, newest = cur.fetchone()
+    except psycopg.errors.QueryCanceled:
+        return None
+    finally:
+        if not conn.broken:
+            cur.execute("set local statement_timeout = '5min'")
+    return {"in_view": int(in_view), "view_rows": int(view_rows),
+            "in_tables": int(in_tables), "newest_parsed": newest}
+
+
 def report(echo: Echo = print) -> None:
-    """Counts with a timestamp. Reads two small relations; changes nothing."""
+    """Counts with a timestamp. Reads two small relations, and counts the
+    Form 990-PF returns once for the freshness check; changes nothing."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute("set transaction read only")
         cur.execute("set local statement_timeout = '5min'")
@@ -987,6 +1169,26 @@ def report(echo: Echo = print) -> None:
         (n, same, open_pre, pre_open, silent_earlier, all_silent, one_return,
          phrase) = cur.fetchone()
         echo(f"A. {HISTORY_VIEW}: {n:,} foundations with a parsed Form 990-PF")
+        fresh = _view_freshness(conn, cur)
+        newest_parsed = fresh["newest_parsed"] if fresh else None
+        if fresh is None:
+            echo(f"   NOTE: could not check in {FRESHNESS_TIMEOUT} whether this view is up to "
+                 "date (the database is busy). Run `uv run funderdb refresh-views` if returns "
+                 "were loaded after the last refresh.")
+        elif fresh["in_view"] != fresh["in_tables"]:
+            diff = fresh["in_tables"] - fresh["in_view"]
+            echo(f"   WARNING: this view is OUT OF DATE. It holds {fresh['in_view']:,} returns; "
+                 f"the tables hold {fresh['in_tables']:,} now "
+                 f"({abs(diff):,} {'more' if diff > 0 else 'fewer'}"
+                 + (f"; the newest return was read {newest_parsed:%Y-%m-%d %H:%M} UTC"
+                    if newest_parsed else "")
+                 + ").")
+            echo("            Run `uv run funderdb refresh-views`, then read this report again. "
+                 "The lines of A and C below describe the old contents, and the page shows "
+                 "them.")
+        else:
+            echo(f"   The view is in step with the tables: {fresh['in_view']:,} parsed, "
+                 "non-superseded Form 990-PF returns in both.")
         if n:
             def pct(v: int) -> str:
                 return f"{100.0 * v / n:.1f}%"
@@ -1000,7 +1202,9 @@ def report(echo: Echo = print) -> None:
                  f"{silent_earlier:,} ({pct(silent_earlier)}; about 1.5% expected)")
             echo(f"   not stated on any return: {all_silent:,} ({pct(all_silent)})")
             echo(f"   only one return: {one_return:,} ({pct(one_return)})")
-            echo(f"   'open' now with a restrictive phrase in the Part XV text: {phrase:,}")
+            echo(f"   'open' now with a restrictive phrase in the Part XV text: {phrase:,} "
+                 "(kept for analysis; the page does not show it, because the matched words "
+                 "often do not mean a limit)")
         echo("")
 
         cur.execute(_REPORT_TOTALS)
@@ -1009,6 +1213,21 @@ def report(echo: Echo = print) -> None:
         if not totals:
             echo("   no rows yet. Run `uv run funderdb derive turnover`.")
             return
+        cur.execute(_REPORT_RULES)
+        other_rules = [(rv, k) for rv, k in cur.fetchall() if rv != RULE_VERSION]
+        if other_rules:
+            echo("   WARNING: " + ", ".join(f"{k:,} rows were written by rule {rv}"
+                                            for rv, k in other_rules)
+                 + f". The rule is {RULE_VERSION} now. Run `uv run funderdb derive turnover` "
+                   "again; it replaces them.")
+        oldest_row = min(row[8] for row in totals)
+        if newest_parsed and oldest_row and newest_parsed > oldest_row:
+            read_at = f"{newest_parsed:%Y-%m-%d %H:%M}"
+            computed_at = f"{oldest_row:%Y-%m-%d %H:%M}"
+            echo(f"   WARNING: the newest Form 990-PF return was read {read_at} UTC, after "
+                 f"the oldest row here was computed ({computed_at} UTC). Rows can be out of "
+                 "date. Run `uv run funderdb derive turnover` again, after the backfill and "
+                 "`uv run funderdb resolve recipients` are done.")
         for (fy, nf, rec, new, sim, win, noid, unnamed, c0, c1) in totals:
             would_be_new = int(new) + int(sim)
             sim_pct = f"{100.0 * int(sim) / would_be_new:.1f}%" if would_be_new else "-"
@@ -1033,10 +1252,10 @@ def report(echo: Echo = print) -> None:
         echo("   Reference for FY2023 (small samples; a share outside them means look, "
              "not fail):")
         for posture, ref in REPORT_REFERENCE.items():
-            echo(f"   {posture:<18} one slice with this rule, 2026-10-08: 3 or more new "
+            echo(f"   {posture:<18} one slice with rule turnover-v1, 2026-10-08: 3 or more new "
                  f"{ref['three_slice']}% · none new {ref['none_slice']}%")
             echo(f"   {'':<18} earlier, looser rule: 3 or more new {ref['three_range']}% · "
                  f"none new {ref['none_range']}%")
-        echo("   This rule counts fewer recipients as new than the looser one (name "
-             "cleaning, the organisation match, the similar-name guard).")
+        echo(f"   {RULE_VERSION} counts fewer recipients as new than both (squeezed names, no "
+             "state in the similar-name rule) and writes no row for lists of individuals.")
         conn.rollback()

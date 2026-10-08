@@ -1,10 +1,10 @@
-"""Address as stated on the latest return.
+"""City, state and zip as stated on the latest return.
 
 An organisation that was created from an e-filed return and is not in the IRS
 master file has no address on its row. Its returns do: every return header
 carries the filer's own address, and the detail pass stores it on
-``internal.filings``. This job copies that address to the organisation row
-and says so in two columns (migration 0030):
+``internal.filings``. This job copies the CITY, STATE and ZIP of that address
+to the organisation row and says so in two columns (migration 0030):
 
     address_basis      'filing_header'
     address_object_id  the IRS OBJECT_ID of the return the address came from
@@ -28,24 +28,43 @@ same text goes into the run manifest):
    and its state is one of VALID_STATE_CODES. Otherwise nothing is written.
    The job does not go back to an older return: a newest return that gives a
    foreign address says the older United States address is out of date.
-4. What is written: street (line 1 and line 2 with one space between them, as
-   filed), city (upper case, as the IRS master file writes it), state, and
-   zip as ``12345`` or ``12345-6789`` when the return gives 5 or 9 digits
-   (empty otherwise; no digit is added, so there is no ``-0000``).
+4. What is written: city (upper case, as the IRS master file writes it),
+   state, and zip as ``12345`` or ``12345-6789`` when the return gives 5 or 9
+   digits (empty otherwise; no digit is added, so there is no ``-0000``).
+   NO STREET IS WRITTEN, and this job does not read the street lines at all.
+   The street line of a return can name a person ("C/O <name> ...") or be a
+   trustee's home, and an organisation's street address from a return is not
+   copied to its profile. Search by state and the Open Foundation List need
+   city, state and zip only. The filed line stays where it was: on the
+   return named in ``address_object_id``.
 5. Nothing else on the row changes. The organisation keeps its own
    ``raw_file_id`` and ``source_record_locator``. No row is deleted.
 
-The address is frozen at the return that was newest when ``--apply`` ran.
-``--report`` counts the rows whose return is no longer the newest one (a
-later return was loaded, or an amended return replaced it). ``--unapply``
-followed by ``--apply`` brings them up to date.
+``--unapply`` clears exactly what ``--apply`` wrote: city, state, zip and the
+two columns, on the rows that still carry the basis. It does not touch the
+street column. The trigger of migration 0030 takes the basis off a row the
+moment another loader writes its address (even the same values), so
+``--unapply`` never clears an address the master file wrote.
+
+Two known limits, both counted by ``--report``:
+
+* The address is frozen at the return that was newest when ``--apply`` ran.
+  A later return can be loaded, or an amended return can replace it.
+* "Newest" means newest PARSED. A newer return can be on file and not parsed
+  yet (the detail pass has not reached it, or it failed), and then the
+  address is the one on an older return. Measured 2026-10-08 on a quarter of
+  the organisations, during the back-year load: 448 of 12,231 (3.7%). Run the
+  detail pass before ``--apply`` to keep that share small.
+
+``--unapply`` followed by ``--apply`` brings both kinds up to date.
 
 How it runs: 256 slices of the organisation id by its first byte, one short
 transaction per slice, each with its own statement timeout, lock timeout and
-the memory guards of ``resolve/recipients.py``. A slice reads about 200
-organisations through ``ix_orgs_state`` and one index probe per organisation
-on ``ix_filings_org``. ``--apply`` is safe to run again: it only fills rows
-that are still empty, so a second run changes 0 rows.
+the memory guards of ``resolve/recipients.py``. A slice is one range scan of
+the primary key (about 8,800 organisations) and, for each one that has no
+address, two index probes on ``ix_filings_org``. ``--apply`` is safe to run
+again: it only fills rows that are still empty, so a second run changes 0
+rows.
 """
 
 from __future__ import annotations
@@ -99,12 +118,15 @@ RULE_TEXT: tuple[str, ...] = (
     "The filer address of that return is used only when its country is empty or US and its "
     "state is a two-letter code of a United States state or territory. Otherwise nothing is "
     "written; the job does not go back to an older return.",
-    "Written: street (line 1 and line 2 joined by one space, as filed), city in upper case, "
-    "state, and zip as 12345 or 12345-6789 when the return gives 5 or 9 digits, else empty.",
+    "Written: city in upper case, state, and zip as 12345 or 12345-6789 when the return gives "
+    "5 or 9 digits, else empty. No street is written: an organisation's street address from a "
+    "return is not copied to its profile, because that line can name a person.",
     "Also written: address_basis 'filing_header' and address_object_id, the IRS OBJECT_ID of "
     "the return. The organisation's own raw_file_id and source_record_locator do not change.",
-    "Unapply sets street, city, state and zip back to empty exactly where address_basis is "
-    "'filing_header', and clears the two columns. No row is deleted.",
+    "Unapply sets city, state and zip back to empty exactly where address_basis is "
+    "'filing_header', and clears the two columns. It does not touch street. No row is deleted.",
+    "Known limit: newest means newest parsed. When a newer return is on file and not parsed "
+    "yet, the address is the one on the older, parsed return. The report counts these rows.",
     "The address values are public-domain IRS data. This manifest and the choice of return "
     "are our compilation (CC BY).",
 )
@@ -123,7 +145,7 @@ _NON_DIGIT = re.compile(r"\D")
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Address:
-    street: str | None
+    """What this job writes. There is no street field on purpose (rule 4)."""
     city: str | None
     state: str
     zip: str | None
@@ -146,11 +168,11 @@ def format_zip(raw: str | None) -> str | None:
     return None
 
 
-def address_from_header(line1: str | None, line2: str | None, city: str | None,
-                        state: str | None, zip_code: str | None,
+def address_from_header(city: str | None, state: str | None, zip_code: str | None,
                         country: str | None) -> tuple[Address | None, str]:
-    """The address to write for one return header, and why not when there is
-    none. The second value is ``ok``, ``foreign``, ``no_state`` or ``bad_state``."""
+    """The city, state and zip to write for one return header, and why not when
+    there is none. The second value is ``ok``, ``foreign``, ``no_state`` or
+    ``bad_state``. The street lines of the header are not an input."""
     if (country or "").strip().upper() not in US_COUNTRY_CODES:
         return None, "foreign"
     if not (state or "").strip():
@@ -158,10 +180,8 @@ def address_from_header(line1: str | None, line2: str | None, city: str | None,
     code = state_code(state)
     if code is None or code not in VALID_STATE_CODES:
         return None, "bad_state"
-    street = _clean(" ".join(p for p in (line1, line2) if p))
     city_clean = _clean(city)
-    return Address(street=street,
-                   city=city_clean.upper() if city_clean else None,
+    return Address(city=city_clean.upper() if city_clean else None,
                    state=code,
                    zip=format_zip(zip_code)), "ok"
 
@@ -173,16 +193,22 @@ def address_from_header(line1: str | None, line2: str | None, city: str | None,
 # non-superseded return (or NULLs when it has none). `{basis_guard}` is the
 # address_basis test; it is left out only for a dry run on a database that
 # does not have migration 0030 yet, where every row would pass it.
+#
+# The street lines (filer_addr_line1, filer_addr_line2) are not selected: the
+# job does not write them (rule 4), so it does not read them either.
+#
+# `newest_object_id` is the newest non-superseded return of ANY parse state.
+# It is only counted, never used for the address: when it differs from
+# `object_id`, a newer return is on file that the detail pass has not parsed.
 _CANDIDATES = """
 select o.id, o.org_type,
        f.object_id, f.tax_period,
-       f.filer_addr_line1, f.filer_addr_line2, f.filer_city,
-       f.filer_state, f.filer_zip, f.filer_country
+       f.filer_city, f.filer_state, f.filer_zip, f.filer_country,
+       nw.object_id as newest_object_id
 from internal.organizations o
 left join lateral (
   select fl.object_id, fl.tax_period,
-         fl.filer_addr_line1, fl.filer_addr_line2, fl.filer_city,
-         fl.filer_state, fl.filer_zip, fl.filer_country
+         fl.filer_city, fl.filer_state, fl.filer_zip, fl.filer_country
   from internal.filings fl
   where fl.org_id = o.id
     and fl.details_parsed_at is not null
@@ -192,6 +218,15 @@ left join lateral (
            fl.object_id desc
   limit 1
 ) f on true
+left join lateral (
+  select fl.object_id
+  from internal.filings fl
+  where fl.org_id = o.id
+    and fl.superseded_by_object_id is null
+  order by fl.tax_period_end desc nulls last, fl.tax_period desc nulls last,
+           fl.object_id desc
+  limit 1
+) nw on true
 where o.id >= %(lo)s::uuid and o.id <= %(hi)s::uuid
   and o.state is null and o.city is null and o.street is null and o.zip is null
   {basis_guard}
@@ -201,14 +236,15 @@ _BASIS_GUARD = "and o.address_basis is null"
 
 # The write. Every guard of the read is repeated here, on the row as it is at
 # the moment of the update: a row that another writer filled in between is
-# skipped, and so is a return that was superseded in between.
+# skipped, and so is a return that was superseded in between. `street` is
+# tested (it must be empty) and never set.
 _WRITE = """
 update internal.organizations o
-set street = v.street, city = v.city, state = v.state, zip = v.zip,
+set city = v.city, state = v.state, zip = v.zip,
     address_basis = %(basis)s, address_object_id = v.object_id
-from unnest(%(ids)s::uuid[], %(streets)s::text[], %(cities)s::text[],
+from unnest(%(ids)s::uuid[], %(cities)s::text[],
             %(states)s::text[], %(zips)s::text[], %(oids)s::text[])
-     as v(id, street, city, state, zip, object_id)
+     as v(id, city, state, zip, object_id)
 where o.id = v.id
   and o.state is null and o.city is null and o.street is null and o.zip is null
   and o.address_basis is null
@@ -227,9 +263,11 @@ where o.id >= %(lo)s::uuid and o.id <= %(hi)s::uuid
 group by o.org_type
 """
 
+# Clears what --apply wrote and nothing else: `street` is not in the list.
+# The basis changes in this statement, so the 0030 trigger does not run.
 _UNAPPLY = """
 update internal.organizations o
-set street = null, city = null, state = null, zip = null,
+set city = null, state = null, zip = null,
     address_basis = null, address_object_id = null
 where o.id >= %(lo)s::uuid and o.id <= %(hi)s::uuid
   and o.address_basis = %(basis)s
@@ -256,6 +294,9 @@ select o.org_type,
        count(*)::int as n,
        (count(*) filter (where l.object_id is distinct from o.address_object_id))::int
          as not_newest,
+       (count(*) filter (where nw.object_id is distinct from l.object_id))::int
+         as newer_not_parsed,
+       (count(*) filter (where o.street is not null))::int as with_street,
        min(left(a.tax_period, 4)), max(left(a.tax_period, 4))
 from internal.organizations o
 left join internal.filings a on a.object_id = o.address_object_id
@@ -270,6 +311,15 @@ left join lateral (
            fl.object_id desc
   limit 1
 ) l on true
+left join lateral (
+  select fl.object_id
+  from internal.filings fl
+  where fl.org_id = o.id
+    and fl.superseded_by_object_id is null
+  order by fl.tax_period_end desc nulls last, fl.tax_period desc nulls last,
+           fl.object_id desc
+  limit 1
+) nw on true
 where o.address_basis = %(basis)s
 group by o.org_type
 order by 2 desc, 1
@@ -358,6 +408,7 @@ def _bump(counter: dict, key, by: int = 1) -> None:
 
 def _new_stats() -> dict:
     return {"candidates": {}, "usable": {}, "written": {}, "reasons": {},
+            "newer_unparsed": {},
             "zip_empty": 0, "city_empty": 0, "by_fy": {}, "examples": []}
 
 
@@ -367,18 +418,21 @@ def _apply_slice(cur: psycopg.Cursor, n: int, *, write: bool, basis_guard: bool)
     stats = _new_stats()
     cur.execute(_CANDIDATES.format(basis_guard=_BASIS_GUARD if basis_guard else ""),
                 {"lo": lo, "hi": hi})
-    ids, streets, cities, states, zips, oids = [], [], [], [], [], []
+    ids, cities, states, zips, oids = [], [], [], [], []
     for (org_id, org_type, object_id, tax_period,
-         line1, line2, city, state, zip_code, country) in cur.fetchall():
+         city, state, zip_code, country, newest_object_id) in cur.fetchall():
         _bump(stats["candidates"], org_type)
         if object_id is None:
             _bump(stats["reasons"], (org_type, "no_parsed_return"))
             continue
-        address, reason = address_from_header(line1, line2, city, state, zip_code, country)
+        address, reason = address_from_header(city, state, zip_code, country)
         if address is None:
             _bump(stats["reasons"], (org_type, reason))
             continue
         _bump(stats["usable"], org_type)
+        if newest_object_id != object_id:
+            # A newer return is on file and the detail pass has not parsed it.
+            _bump(stats["newer_unparsed"], org_type)
         _bump(stats["by_fy"], (tax_period or "")[:4] or "?")
         stats["zip_empty"] += address.zip is None
         stats["city_empty"] += address.city is None
@@ -386,13 +440,12 @@ def _apply_slice(cur: psycopg.Cursor, n: int, *, write: bool, basis_guard: bool)
             stats["examples"].append((str(org_id), org_type, object_id,
                                       (tax_period or "")[:4] or "?", address))
         ids.append(org_id)
-        streets.append(address.street)
         cities.append(address.city)
         states.append(address.state)
         zips.append(address.zip)
         oids.append(object_id)
     if write and ids:
-        cur.execute(_WRITE, {"basis": BASIS, "ids": ids, "streets": streets,
+        cur.execute(_WRITE, {"basis": BASIS, "ids": ids,
                              "cities": cities, "states": states, "zips": zips,
                              "oids": oids})
         for (org_type,) in cur.fetchall():
@@ -418,7 +471,7 @@ def _unapply_slice(cur: psycopg.Cursor, n: int, *, write: bool) -> dict:
 
 
 def _merge(total: dict, part: dict) -> None:
-    for key in ("candidates", "usable", "written", "reasons", "by_fy"):
+    for key in ("candidates", "usable", "written", "reasons", "newer_unparsed", "by_fy"):
         for k, v in part[key].items():
             _bump(total[key], k, v)
     total["zip_empty"] += part["zip_empty"]
@@ -545,10 +598,21 @@ def _apply_lines(total: dict, write: bool) -> list[str]:
                    "the return")
         out.append("  fiscal year of the return used: "
                    + " · ".join(f"{fy}: {n:,}" for fy, n in sorted(total["by_fy"].items())))
+        newer = _sum(total["newer_unparsed"])
+        out.append(f"  of the {usable:,} usable: {newer:,} "
+                   f"({100.0 * newer / usable:.1f}%) have a newer return on file that is not "
+                   "parsed yet, so the address is the one on an older return"
+                   + (" (" + ", ".join(f"{t}: {n:,}" for t, n in
+                                       sorted(total["newer_unparsed"].items())) + ")"
+                      if newer else ""))
+        if newer:
+            out.append("  Run the detail pass first to make that number small, or run "
+                       "--unapply and --apply again after it.")
+        out.append("  Written: city, state and zip. No street is written (the street line of "
+                   "a return can name a person).")
     for org_id, org_type, object_id, fy, a in total["examples"]:
         out.append(f"  example: {org_type} {org_id} <- return {object_id} (FY{fy}): "
-                   f"{a.street or '(no street)'} | {a.city or '(no city)'} | {a.state} | "
-                   f"{a.zip or '(no zip)'}")
+                   f"{a.city or '(no city)'} | {a.state} | {a.zip or '(no zip)'}")
     return out
 
 
@@ -569,6 +633,7 @@ def _notes(total: dict, **extra) -> str:
         "written": total["written"],
         "not_usable": {f"{t}:{r}": n for (t, r), n in sorted(total["reasons"].items())},
         "zip_left_empty": total["zip_empty"], "no_city_on_return": total["city_empty"],
+        "newer_return_not_parsed": total["newer_unparsed"],
         "by_fiscal_year": dict(sorted(total["by_fy"].items())),
         **extra,
     })
@@ -601,7 +666,7 @@ def run(action: str = "apply", slices: Iterable[int] | None = None,
 
         rfid: int | None = None
         run_id: int | None = None
-        label = "address from the latest return" if action == "apply" else "unapply"
+        label = "city, state and zip from the latest return" if action == "apply" else "unapply"
         if dry_run:
             echo(f"DRY RUN, {label} ({RULE_VERSION}): {len(todo)} slice(s). Nothing is written.")
             if not has_columns:
@@ -702,7 +767,8 @@ def report(echo: Echo = print) -> None:
             no_state = cur.fetchall()
         conn.rollback()
 
-        echo(f"Address from the latest return ({RULE_VERSION}), measured {now:%Y-%m-%d %H:%M} UTC")
+        echo(f"City, state and zip from the latest return ({RULE_VERSION}), "
+             f"measured {now:%Y-%m-%d %H:%M} UTC")
         echo("Counts move with every ingest.")
         echo("")
         echo("A. Organisations with no state")
@@ -748,13 +814,23 @@ def report(echo: Echo = print) -> None:
         conn.rollback()
         if written:
             echo(f"   {'org type':<20} {'rows':>10} {'return no longer newest':>24} "
-                 f"{'fiscal years':>14}")
-            for org_type, n, stale, fy_min, fy_max in written:
-                echo(f"   {org_type:<20} {n:>10,} {stale:>24,} "
+                 f"{'newer return not parsed':>24} {'fiscal years':>14}")
+            for org_type, n, stale, unparsed, _street, fy_min, fy_max in written:
+                echo(f"   {org_type:<20} {n:>10,} {stale:>24,} {unparsed:>24,} "
                      f"{(fy_min or '?') + '-' + (fy_max or '?'):>14}")
-            echo("   `return no longer newest`: a later return was loaded, or an amended return "
-                 "replaced it.")
-            echo("   Run --unapply and then --apply to bring those rows up to date.")
+            echo("   `return no longer newest`: a later return was loaded and parsed, or an "
+                 "amended return replaced it.")
+            echo("   `newer return not parsed`: a newer return is on file and the detail pass "
+                 "has not parsed it.")
+            echo("   Run the detail pass, then --unapply and --apply, to bring those rows up "
+                 "to date.")
+            with_street = sum(row[4] for row in written)
+            if with_street:
+                echo(f"   WARNING: {with_street:,} of these rows have a street. This job writes "
+                     "none, and the 0030 trigger takes the basis off a row when another loader "
+                     "writes its address. Check that the trigger is in place.")
+            else:
+                echo("   No row with this basis has a street, as the rule says.")
         else:
             echo("   none. Run `uv run funderdb derive org-address --apply`.")
         if runs:

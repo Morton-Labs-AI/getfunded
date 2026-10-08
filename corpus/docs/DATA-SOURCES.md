@@ -552,7 +552,7 @@ raw-file-registered.
 | Licence | CC BY 4.0 (`cc_by`), an original compilation. The input rows are U.S. public domain |
 | Command | `funderdb resolve aliases --build`, `--report`, `--sample N --out FILE`, `--apply`, `--unapply` |
 | Dataset name | `resolve_aliases` (the raw file is the rule manifest of the build) |
-| Tables | `internal.recipient_aliases`, `internal.recipient_alias_links`, view `public.recipient_aliases` |
+| Tables | `internal.recipient_aliases`, `internal.recipient_alias_links`, views `public.recipient_aliases` and `public.recipient_alias_links` (migration 0034) |
 
 Not a download. A Form 990-PF names each grant recipient but gives no EIN. A
 charity that files Schedule I of Form 990 writes the EIN next to the name.
@@ -576,6 +576,49 @@ normalized name and the same state, and the city on the row is in
 each grant row that it changes. `--unapply` removes those links again; it
 leaves a row alone if another job or a person changed the link after us.
 
+How to tell that a grant row was linked this way: a grant row whose `id` is
+in `internal.recipient_alias_links` was linked by filer consensus. The open
+form of that table is the view `public.recipient_alias_links` (`event_id`,
+`alias_id`, `recipient_org_id`, `link_basis`, `n_filers`, `alias_status`,
+`linked_at`). `event_id` is `public.funding_events.id`, and `link_basis` is
+always `filer_consensus`. The view shows a row only while the grant row still
+points at the organization of the alias, and only when both rows may be
+republished. A grant row that is not in the view was not linked this way: its
+link came with the return (an EIN on Schedule I) or from the name matcher.
+Join `alias_id` to `public.recipient_aliases.id` to read the evidence.
+`public.funding_events` has no link-basis column of its own; the grants table
+is too large to rewrite for it.
+
+A later `--build` and an alias that already has links: the alias keeps its
+`org_id`, because the links were made to that organization and `--unapply`
+compares with it. Its `status` and its counts are counted again from the new
+evidence. If the filers no longer support it (a second EIN appeared, the
+filers now point at another organization, fewer than 2 filers are left, or
+the name matcher now holds the key), the status becomes `contested` and
+`n_filers` is the number of filers that still write the name with the EIN of
+`org_id` (0 when none does; `top_share` is then empty). `--apply` links
+nothing new through such an alias. The links it already made stay until
+`--unapply`. `--report` prints how many linked aliases are no longer
+supported and how many grant rows are linked through them.
+
+`--apply` and `--unapply` work in batches of alias ids. The first batch has
+`--batch` ids (default 500). The next batches are larger while a batch is
+fast and half as large when a batch is slow. A batch that passes
+`--batch-timeout` seconds (default 300) writes nothing and is done again at
+half the size. One alias that is too slow alone gets a longer limit; if the
+longest limit is not enough, the alias is skipped, the other aliases are
+still done, and the command ends with an error that lists the skipped ids.
+The command says "finished" only when every alias id was visited.
+
+A command that was stopped can be run again. It continues where it stopped
+only if its cursor file (`data/resolve/aliases_apply_cursor.json` or
+`aliases_unapply_cursor.json`) belongs to the same work: the same direction,
+the same last `--build`, no `--apply` or `--unapply` in the other direction
+since, and for `--apply` no finished load of returns since. If not, it prints
+why and starts at the first alias. That is always correct; it only takes
+longer. `--apply` links the rows that are in the database when it runs, so
+run it again after each load of returns.
+
 Rules that the command obeys:
 
 - It never links a Schedule I row. An unlinked Schedule I row can carry an
@@ -584,26 +627,30 @@ Rules that the command obeys:
   than 3 filers. `--min-filers` cannot go below 3.
 - It never changes a recipient name or an amount, and it never makes a new
   organization row.
-- It stores no alias for filler text such as "SEE ATTACHED" or "VARIOUS"
-  (`internal.is_placeholder_recipient`), for a name shorter than 6
-  characters, or for a key that `internal.recipient_matches` already holds.
+- It stores no alias for filler text such as "SEE ATTACHED", "VARIOUS",
+  "UNKNOWN" or "GRANTS UNDER 5,000" (`internal.is_placeholder_recipient`,
+  second version in migration 0034), for a name shorter than 6 characters,
+  or for a key that `internal.recipient_matches` already holds. The name
+  "OTHERS" alone is not on the filler list, because an organization with
+  exactly that name is in the database.
 - No model is called.
 
 Known limits: no person has labelled these links yet; run `--sample` and read
 the file before `--apply`. A name is sometimes written with the EIN of a
 parent body (a school with the EIN of its parish, a project with the EIN of
 its fiscal sponsor), so a link means "filers wrote this name with this
-organization's EIN", not "this is the same legal entity". An alias that
-already has links is not changed by a later `--build`; run `--unapply` first
-when you want it counted again.
+organization's EIN", not "this is the same legal entity". There is no
+command that removes only the links of aliases that are no longer supported;
+`--unapply` removes all links, and `--apply` then makes the supported ones
+again.
 
-## Derived: address from the latest return
+## Derived: city, state and ZIP code from the latest return
 
 | | |
 |---|---|
 | Publisher | this project: a copy of values that are already in the database |
-| Inputs | the filer address in the header of each parsed return (`internal.filings.filer_*`) |
-| Cadence | by hand, after a load of new returns |
+| Inputs | the city, state, ZIP code and country in the header of each parsed return (`internal.filings.filer_city`, `filer_state`, `filer_zip`, `filer_country`) |
+| Cadence | by hand, after a load of new returns and after the detail pass |
 | Licence | CC BY 4.0 (`cc_by`) for the rule manifest. The address values are U.S. public domain |
 | Command | `funderdb derive org-address --dry-run`, `--apply`, `--report`, `--unapply` |
 | Dataset name | `derive_org_address` (the raw file is the rule manifest) |
@@ -611,14 +658,26 @@ when you want it counted again.
 
 Not a download. An organization that is made from an e-filed return and is
 not in the IRS master file has no address on its row. `--apply` gives it the
-address its own newest parsed, non-superseded return states: street, city (in
-upper case), state and ZIP code. It sets `address_basis` to `filing_header`
+city (in upper case), state and ZIP code that its own newest parsed,
+non-superseded return states. It sets `address_basis` to `filing_header`
 and `address_object_id` to the IRS OBJECT_ID of that return. An empty
 `address_basis` means what it always meant: the address came with the row's
 own source record.
 
+**The privacy rule: an organization's street address from a return is not
+copied to its profile.** The street line of a return can name a person
+("C/O" and a name) or be the home of a trustee. Measured on the live
+database on 2026-10-08: 730 of the 51,010 street lines this command could
+have copied held "C/O", "ATTN", "care of" or a percent sign, and about half
+of those read like the name of a person. No pattern finds a home address
+that has no such marker, so the command writes no street at all and does not
+read the street lines. Search by state and the Open Foundation List need
+city, state and ZIP code only. The line as filed stays on the return itself
+(`public.filings`, the row that `address_object_id` names).
+
 Rules that the command obeys:
 
+- It writes city, state and ZIP code. It never writes a street.
 - It fills a row only when state, city, street and ZIP code are all empty. It
   never changes an address that is already there.
 - It uses the newest return only. When that return gives a foreign address,
@@ -628,15 +687,111 @@ Rules that the command obeys:
   have 5 or 9 digits is left empty.
 - The organization row keeps its own source file. The address has the source
   file of the return named in `address_object_id`.
-- `--unapply` empties the four address columns and the two new columns on
-  exactly the rows that `--apply` filled. No row is deleted.
-- When another loader later writes a different address on such a row (the
-  master file starts to list the organization), a trigger empties the two
-  columns, so the label is never left on an address it does not describe.
+- `--unapply` empties city, state, ZIP code and the two new columns on
+  exactly the rows that still carry `filing_header`. It does not touch the
+  street column. No row is deleted.
+- When another loader later writes the address of such a row (the master
+  file starts to list the organization), a trigger empties the two columns.
+  It does so also when the loader writes the same city, state and ZIP code.
+  The address is then the master file's, the label is gone, and `--unapply`
+  leaves the row alone. So `--unapply` never empties an address that the
+  master file wrote.
 
-Known limits: the address is the one on the return that was the newest when
-`--apply` ran. `--report` counts the rows whose return is not the newest one
-any more; run `--unapply` and then `--apply` to bring them up to date. After
-an `--apply`, refresh `internal.mv_org_state_counts` and run `funderdb embed
-sync`, or the state counts and the search documents do not show the new
-states.
+Run order: migration 0030 adds the two columns and needs a short exclusive
+lock on `internal.organizations`. Run `funderdb migrate` after the return
+loader has stopped, not between its batches, and do not put it in a retry
+loop: every try that fails makes new reads of the table wait for up to half
+a second. Migration 0031 and the command itself can run beside a loader.
+
+Known limits:
+
+- The address is the one on the return that was the newest when `--apply`
+  ran. `--report` counts the rows whose return is not the newest one any
+  more ("return no longer newest").
+- "Newest" means the newest return that the detail pass has parsed. A newer
+  return can be on file and not parsed yet. The row then gets the city and
+  state of an older return and can be found under the wrong state. Measured
+  on 2026-10-08 on one quarter of the organizations, while a back-year load
+  was running: 448 of 12,231 (3.7%). `--dry-run`, `--apply` and `--report`
+  print this count ("a newer return on file that is not parsed yet"). Run
+  the detail pass before `--apply` to keep it small.
+- For both limits: run `--unapply` and then `--apply` to bring the rows up to
+  date.
+- After an `--apply`, refresh `internal.mv_org_state_counts` and run
+  `funderdb embed sync`, or the state counts and the search documents do not
+  show the new states.
+
+## Derived: application answers across returns, and recipient turnover
+
+| | |
+|---|---|
+| Publisher | this project: counts of rows that are already in the database |
+| Inputs | parsed, non-superseded Form 990-PF returns (`internal.filings`, `internal.filing_application_info`) and Form 990-PF grant rows (`internal.funding_events`) |
+| Cadence | by hand, after a load of new returns. See the run order below |
+| Licence | CC BY 4.0 (`cc_by`) for the rule manifest. The input rows are U.S. public domain |
+| Command | `funderdb refresh-views` (the history view); `funderdb derive turnover --dry-run`, `--slice N`, `--fy YEAR`, `--report` |
+| Dataset name | `derive_turnover` (the raw file is the rule manifest of the run) |
+| Objects | `internal.mv_org_posture_history`, `internal.funder_recipient_turnover` (migration 0029). Neither has a public view |
+
+Not a download. Both are counts from past returns. Neither says that a
+foundation will consider a new request, and neither is a score.
+
+**Application answers across returns** (`internal.mv_org_posture_history`):
+for each foundation, how many of its Form 990-PF returns say that it accepts
+applications, how many say that it funds preselected organizations only, and
+how many say nothing. The view also stores `restrictive_phrase`: words in the
+instructions of the latest return that match a short list ("by invitation",
+"no applications", "preselected"). That column is for analysis only. The
+website does not show it. Of 30 stored phrases read on 2026-10-08, 9 did not
+mean a limit on applications ("no applications are required", "does not
+accept requests of funds for individuals") and 2 more overstated one.
+
+**Recipient turnover** (`internal.funder_recipient_turnover`, rule
+`turnover-v2`): for one foundation and one fiscal year, how many of the named
+grant recipients are on none of that foundation's grant lists for the three
+fiscal years before. Rules that the command obeys:
+
+- A row that says "see attached" or the like is not a recipient
+  (`internal.is_placeholder_recipient`).
+- A grant to an individual is not counted. A row is an individual row when
+  the filer wrote "I", "IND", "INDIVIDUAL" or "STUDENT" in the box for the
+  recipient's foundation status (`recipient_foundation_status`) and our
+  records do not link the row to an organization. Such rows are left out of
+  the year's list and of the earlier lists. The relationship box is not
+  used: filers write "NONE" there for organizations and people alike.
+- Names are compared after cleaning (`internal.norm_name`, no "THE" at the
+  start, no ending such as "INC") and with everything that is not a letter
+  or a digit removed. So "FEED MORE" and "FEEDMORE" are one name.
+- A recipient is already listed when an earlier list has the same name, or a
+  row linked to the same organization, or a name with a trigram similarity
+  of 0.8 or more. The state on the row is not compared.
+- A row is written only when the foundation has a named row that is not an
+  individual row in the year and in each of the three years before. No row
+  is written when more than half of the named rows of the year, or of the
+  four years together, are individual rows. No row is written for a
+  foundation whose lists would need more than 60 million name comparisons.
+  No row means "cannot tell". It is never stored as zero.
+
+Run order. Both objects go out of date when returns are loaded, when an
+amended return replaces an original, and when recipients are linked:
+
+1. Let the backfill and its reconcile finish.
+2. `funderdb resolve recipients`, and `funderdb resolve aliases --apply` if
+   it is in use.
+3. `funderdb refresh-views`.
+4. `funderdb derive turnover --slice 117 --dry-run` (the slice with the
+   largest list), then `funderdb derive turnover`.
+5. `funderdb derive turnover --report`.
+
+`--report` prints a warning when the history view holds a different number
+of returns than the tables hold now, when turnover rows were computed before
+the newest return was read, and when rows of an older rule version are still
+in the table.
+
+Known limits: a person whom the filer did not mark as an individual is
+counted as a recipient, so a scholarship fund that leaves the status box
+empty can still show "none is on the earlier lists". The parser stores one
+recipient name and does not keep whether the return gave it as a person's
+name or as a business name. A recipient that adds or drops a chapter name
+("ALS ASSOCIATION" and the same name with a chapter) can look new. Two
+different recipients with almost the same name can be counted as one.

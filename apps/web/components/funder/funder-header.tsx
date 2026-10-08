@@ -53,7 +53,8 @@ export function FunderHeader({
                   <MapPin className="size-3.5" aria-hidden />
                   {location}
                 </span>
-                {/* Not in the IRS master file: the address is the one the funder wrote on a return. */}
+                {/* Not in the IRS master file: the city and state are the ones the funder wrote on a
+                    return. The street line of a return is never copied to a profile. */}
                 {funder.addressFrom ? (
                   <span data-slot="address-basis" className="text-xs" title={ADDRESS_FROM_RETURN_FILING_ID(funder.addressFrom.objectId)}>
                     <span aria-hidden className="text-ink-4">

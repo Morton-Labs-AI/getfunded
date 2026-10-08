@@ -12,7 +12,9 @@ Four steps, each its own command (`funderdb resolve aliases ...`):
 
   --build    read the grant rows once per fiscal-year slice, store one row per
              (name, state) key in internal.recipient_aliases. Writes only the
-             alias table, one raw_files row and one ledger row.
+             alias table, one raw_files row and one ledger row. An alias that
+             grant rows are already linked through keeps its organisation,
+             and its status and counts are refreshed from the new evidence.
   --report   read the stored columns and the build's ledger notes. Seconds.
   --apply    link 990-PF grant rows of the strict class and record one row per
              changed grant row in internal.recipient_alias_links.
@@ -29,6 +31,11 @@ Rules that never bend:
 Same safety pattern as resolve/recipients.py: memory guards on every heavy
 statement, one fiscal-year slice per statement, a connection that is not a
 `with` block so the apply can reconnect, and a cursor file under data/resolve.
+
+The apply and the unapply work in batches of alias ids that size themselves:
+they start small, grow while a batch is fast, and halve when a batch runs
+into its time limit. A cursor file lets a restarted command pick up where it
+stopped, but only when the file belongs to the same sweep (see _bound_to).
 """
 
 from __future__ import annotations
@@ -59,6 +66,18 @@ MIN_FILERS_FLOOR = 3
 MIN_NAME_LEN = 6
 DOMINANT_MIN_FILERS = 5
 DOMINANT_MIN_SHARE_PCT = 95
+
+# Ledger name of the loads that add grant rows (sources.irs_990pf.DATASET). A
+# cursor file of an apply is dropped when one of them finished after the sweep
+# began: the rows it added belong to aliases the sweep has already passed.
+GRANT_LOAD_DATASET = "irs_990_xml"
+
+# Batches of alias ids (apply, unapply and their dry runs).
+BATCH_START = 500           # alias ids in the first batch
+BATCH_MAX = 5000            # a batch never grows past this
+BATCH_TIMEOUT_S = 300.0     # time limit of one batch (statement_timeout)
+BATCH_TIMEOUT_MAX_S = 3600.0  # the most one alias alone is ever given
+DEADLOCK_RETRIES = 5        # per batch; the other writer wins, this job waits
 
 RULE_TEXT = (
     "Witness = a Form 990 Schedule I grant row whose recipient EIN the filer wrote and we "
@@ -235,8 +254,9 @@ _ROLLUP_STEPS: tuple[str, ...] = (
     "analyze _alias_final",
 )
 
-# An alias that already has link rows is left exactly as it was built: its
+# An alias that already has link rows is not touched by this statement: its
 # org_id is what the links were made to, and `--unapply` compares against it.
+# Its status and counts are refreshed by _REFRESH_LINKED instead.
 _UPSERT = """
 with up as (
   insert into internal.recipient_aliases
@@ -279,14 +299,107 @@ where not exists (select 1 from _alias_final f
                     and f.recipient_state = ra.recipient_state)
   and not exists (select 1 from internal.recipient_alias_links l where l.alias_id = ra.id)"""
 
-_FROZEN = """
-select count(*),
-       count(*) filter (where not exists (
-         select 1 from _alias_final f
-         where f.recipient_name_normalized = ra.recipient_name_normalized
-           and f.recipient_state = ra.recipient_state))
-from internal.recipient_aliases ra
-where exists (select 1 from internal.recipient_alias_links l where l.alias_id = ra.id)"""
+# Aliases that grant rows are linked through, counted again under this
+# build's evidence. The organisation never changes here (the links were made
+# to it). Everything else is what this build says about THAT organisation:
+#
+#   * the build derives the key for the same organisation: every column is
+#     the build's own row, status included;
+#   * the build derives the key for another organisation, or does not derive
+#     the key at all (too few filers, the key is now in recipient_matches,
+#     filler text, organisation type): status is 'contested', and n_filers /
+#     n_rows are the filers that still write the name with the stored
+#     organisation's EIN (0 when none does; a true zero). top_share has no
+#     value when no filer writes the name with any EIN, and stays empty.
+#     witness_cities keeps the cities the links were made with.
+#
+# So `--apply`, which reads only the stored status and n_filers (_STRICT),
+# links nothing new through an alias the evidence no longer supports.
+_RELINK = """
+create temp table _alias_relink on commit drop as
+with linked as materialized (
+  select ra.id, ra.recipient_name_normalized as nn, ra.recipient_state as st,
+         ra.org_id, ra.witness_cities
+  from internal.recipient_aliases ra
+  where exists (select 1 from internal.recipient_alias_links l where l.alias_id = ra.id)
+)
+select d.id as alias_id,
+       f.recipient_name_normalized is not null as derived,
+       x.same as same_org,
+       case when x.same then f.status else 'contested' end as status,
+       case when x.same then f.n_filers else coalesce(w.n_filers, 0) end as n_filers,
+       case when x.same then f.n_rows else coalesce(w.n_rows, 0) end as n_rows,
+       (case when x.same then f.n_orgs_seen
+             else coalesce(k.n_orgs_seen, 0) end)::smallint as n_orgs_seen,
+       case when x.same then f.top_share
+            when coalesce(k.all_filers, 0) = 0 then null
+            else (coalesce(w.n_filers, 0)::real / k.all_filers) end as top_share,
+       case when x.same then f.n_unlinked_filers
+            else coalesce(u.n_unlinked_filers, 0) end as n_unlinked_filers,
+       case when x.same then f.witness_cities else d.witness_cities end as witness_cities,
+       case when x.same then f.first_fy else w.first_fy end as first_fy,
+       case when x.same then f.last_fy else w.last_fy end as last_fy,
+       case when x.same then f.target_rows else coalesce(tk.n, 0)::int end as target_rows,
+       case when x.same then f.target_rows_city_ok
+            else coalesce(tc.rows_city_ok, 0)::int end as target_rows_city_ok,
+       case when x.same then f.target_amount_city_ok
+            when coalesce(tc.rows_city_ok, 0) = 0 then 0
+            else tc.amount_city_ok end as target_amount_city_ok
+from linked d
+left join _alias_final f
+  on f.recipient_name_normalized = d.nn and f.recipient_state = d.st
+cross join lateral (select coalesce(f.org_id = d.org_id, false) as same) x
+left join _alias_w w on w.nn = d.nn and w.st = d.st and w.org_id = d.org_id
+left join _alias_k k on k.nn = d.nn and k.st = d.st
+left join _alias_u u on u.nn = d.nn and u.st = d.st
+left join _alias_tk tk on tk.nn = d.nn and tk.st = d.st
+left join lateral (
+  select sum(t.n) as rows_city_ok, sum(t.amt) as amount_city_ok
+  from _alias_t t
+  where t.nn = d.nn and t.st = d.st and t.city = any(d.witness_cities)
+) tc on true"""
+
+_RELINK_TOTALS = """
+select count(*)::bigint,
+       count(*) filter (where not (status = 'unanimous'
+                                   and n_filers >= %(min_filers)s))::bigint,
+       count(*) filter (where derived and not same_org)::bigint,
+       count(*) filter (where not derived)::bigint,
+       count(*) filter (where top_share is null)::bigint
+from _alias_relink"""
+
+_REFRESH_LINKED = """
+update internal.recipient_aliases ra set
+  n_filers = r.n_filers,
+  n_rows = r.n_rows,
+  n_orgs_seen = r.n_orgs_seen,
+  top_share = r.top_share,
+  n_unlinked_filers = r.n_unlinked_filers,
+  witness_cities = r.witness_cities,
+  first_fy = r.first_fy,
+  last_fy = r.last_fy,
+  status = r.status,
+  target_rows = r.target_rows,
+  target_rows_city_ok = r.target_rows_city_ok,
+  target_amount_city_ok = r.target_amount_city_ok,
+  raw_file_id = %(rfid)s
+from _alias_relink r
+where r.alias_id = ra.id"""
+
+# Linked aliases against the rule the apply uses, read from the stored rows.
+# {strict} is _STRICT, so "supported" here is exactly "the apply would use it".
+_LINKED_SUPPORT = """
+select count(*)::bigint,
+       coalesce(sum(x.n), 0)::bigint,
+       count(*) filter (where not x.ok)::bigint,
+       coalesce(sum(x.n) filter (where not x.ok), 0)::bigint
+from (
+  select ({strict}) as ok,
+         (select count(*) from internal.recipient_alias_links l
+          where l.alias_id = ra.id) as n
+  from internal.recipient_aliases ra
+  where exists (select 1 from internal.recipient_alias_links l where l.alias_id = ra.id)
+) x"""
 
 # Keys per class with the 990-PF rows behind them. {source} is the alias
 # table or the build's temp copy; both carry the same column names.
@@ -526,6 +639,19 @@ def _require_schema(cur) -> None:
             "0027_recipient_aliases.sql first: `uv run funderdb migrate`.")
 
 
+def _require_empty_share_allowed(cur) -> None:
+    """Migration 0034 lets top_share be empty. Without it the refresh of a
+    linked alias that has no witness left would fail on a NOT NULL rule."""
+    cur.execute("""select a.attnotnull from pg_attribute a
+                   where a.attrelid = 'internal.recipient_aliases'::regclass
+                     and a.attname = 'top_share'""")
+    if cur.fetchone()[0]:
+        raise RuntimeError(
+            "An alias that already has links has no witness left, and its share of filers "
+            "must be stored as empty. Apply migration 0034_placeholder_recipient_v2.sql "
+            "first: `uv run funderdb migrate`. Nothing was stored by this build.")
+
+
 def _check_min_filers(min_filers: int) -> None:
     if min_filers < MIN_FILERS_FLOOR:
         raise ValueError(
@@ -540,14 +666,15 @@ def _guards(cur, timeout: str) -> None:
         cur.execute(guard)
 
 
-def _nested_loops_only(cur) -> None:
+def _nested_loops_only(cur, timeout_s: float = 900.0) -> None:
     # Same reason as recipients.apply_matches: at this table size the planner
     # may flip a batch to a merge or hash join that reads the whole grants
     # table. Nested loops keep every batch on index probes. Sequential scans
     # are switched off as well: every table these statements touch is reached
     # through an index (alias id range, the name index, primary keys), so no
     # cost estimate can talk the planner into reading the grants table whole.
-    cur.execute("set local statement_timeout = '15min'")
+    # A bare number is milliseconds.
+    cur.execute(f"set local statement_timeout = {max(int(timeout_s * 1000), 1)}")
     cur.execute("set local enable_mergejoin = off")
     cur.execute("set local enable_hashjoin = off")
     cur.execute("set local enable_seqscan = off")
@@ -655,6 +782,12 @@ def _run_rollup(cur, notes: dict, min_filers: int) -> list[dict]:
     summary = _summary_rows(cur, "_alias_final", min_filers)
     notes["summary_at_build"] = summary
     notes.update(_strict_totals(summary))
+
+    cur.execute(_RELINK)
+    cur.execute(_RELINK_TOTALS, {"min_filers": min_filers})
+    (notes["linked_aliases"], notes["linked_aliases_no_longer_supported"],
+     notes["linked_aliases_other_org_now"], notes["linked_aliases_not_derived_now"],
+     notes["linked_aliases_no_witness_now"]) = cur.fetchone()
     return summary
 
 
@@ -714,16 +847,17 @@ def build(dry_run: bool = False) -> dict:
                 notes["aliases_inserted"], notes["aliases_updated"] = cur.fetchone()
                 cur.execute(_DELETE_STALE)
                 notes["aliases_deleted"] = cur.rowcount
-                cur.execute(_FROZEN)
-                (notes["aliases_left_unchanged_with_links"],
-                 notes["aliases_with_links_not_derived_now"]) = cur.fetchone()
+                if notes["linked_aliases_no_witness_now"]:
+                    _require_empty_share_allowed(cur)
+                cur.execute(_REFRESH_LINKED, {"rfid": rfid})
+                notes["linked_aliases_refreshed"] = cur.rowcount
                 cur.execute("select count(*) from internal.recipient_aliases")
                 notes["aliases_stored"] = cur.fetchone()[0]
             conn.commit()
             ledger.complete_run(conn, run_id,
                                 inserted=notes["aliases_inserted"],
-                                updated=notes["aliases_updated"],
-                                skipped=notes["aliases_left_unchanged_with_links"],
+                                updated=(notes["aliases_updated"]
+                                         + notes["linked_aliases_refreshed"]),
                                 notes=json.dumps(notes, default=_json_default))
         except Exception as exc:
             try:
@@ -746,7 +880,9 @@ def _flat_counts(notes: dict) -> dict:
             "dropped_in_recipient_matches", "dropped_filler_or_short", "dropped_org_type",
             "target_rows_unlinked_990pf", "unlinked_schedule_i_rows",
             "aliases_inserted", "aliases_updated", "aliases_deleted",
-            "aliases_left_unchanged_with_links", "aliases_with_links_not_derived_now",
+            "linked_aliases", "linked_aliases_refreshed",
+            "linked_aliases_no_longer_supported", "linked_aliases_other_org_now",
+            "linked_aliases_not_derived_now",
             "aliases_stored", "strict_keys", "strict_keys_with_rows",
             "strict_rows_would_link", "strict_rows_held_back_by_city")
     out = {k: notes[k] for k in keys if isinstance(notes.get(k), int)}
@@ -770,79 +906,281 @@ def _alias_bounds(conn) -> tuple[int, int, int | None]:
     return lo_id, hi_id, rfid
 
 
-def _resume_point(action: str, context: dict, lo_id: int, hi_id: int) -> int:
-    """Where a restarted sweep may pick up. The cursor file is trusted only
-    when it was written for the same sweep (same id range, same settings);
-    otherwise the sweep starts at the first alias, which is always safe
-    because every batch is idempotent."""
+class SweepIncomplete(RuntimeError):
+    """A sweep reached its end but had to leave aliases out. What it did is
+    committed; the command must not be reported as finished."""
+
+
+def _elapsed(seconds: float) -> str:
+    whole = int(seconds)
+    return f"{whole // 3600}:{whole % 3600 // 60:02d}:{whole % 60:02d}"
+
+
+def _bound_to(conn, action: str, min_filers: int | None, lo_id: int, hi_id: int) -> dict:
+    """What a cursor file belongs to. A file is used only when every value
+    here is the same as when the file was written:
+
+      direction                  an apply never resumes an unapply's file
+      build_run                  ledger id of the last finished `--build`; a
+                                 newer build may have changed any alias
+      last_run_other_direction   ledger id of the newest run in the other
+                                 direction, whatever its state; an unapply
+                                 after a stopped apply (or the reverse) undid
+                                 the batches the file says are done
+      first/last_alias_id        the id range of the sweep
+      min_filers                 (apply) the rule the batches were run with
+      last_grant_load_run        (apply) ledger id of the newest finished load
+                                 of returns; a load after the sweep began
+                                 added grant rows to aliases already passed
+    """
+    other = LEDGER_UNAPPLY if action == "apply" else LEDGER_APPLY
+    with conn.cursor() as cur:
+        cur.execute(
+            """select (select max(id) from internal.ingestion_ledger
+                       where dataset_name = %s and status = 'completed'),
+                      (select max(id) from internal.ingestion_ledger
+                       where dataset_name = %s),
+                      (select max(id) from internal.ingestion_ledger
+                       where dataset_name = %s and status = 'completed')""",
+            (DATASET, other, GRANT_LOAD_DATASET))
+        build_run, other_run, load_run = cur.fetchone()
+    conn.rollback()
+    bound = {"direction": action, "build_run": build_run,
+             "last_run_other_direction": other_run,
+             "first_alias_id": lo_id, "last_alias_id": hi_id}
+    if action == "apply":
+        bound["min_filers"] = min_filers
+        bound["last_grant_load_run"] = load_run
+    return bound
+
+
+def _shown(value) -> str:
+    return "not set" if value is None else str(value)
+
+
+def _drop_other_cursor(action: str) -> None:
+    """An apply makes an unfinished unapply's cursor wrong, and the reverse:
+    the batches that file calls done are being changed again."""
+    other = "unapply" if action == "apply" else "apply"
+    path = _cursor_path(other)
+    if path.exists():
+        path.unlink()
+        print(f"  removed {path.name}: it is the cursor of an unfinished {other}, and this "
+              f"{action} changes the rows it counted as done", flush=True)
+
+
+def _read_cursor(action: str, bound: dict, lo_id: int, hi_id: int) -> dict | None:
+    """The saved cursor when it belongs to this sweep, else None. Every
+    reason to ignore a file is printed. Starting at the first alias is always
+    correct: a batch that finds nothing left to do changes nothing."""
     path = _cursor_path(action)
     if not path.exists():
-        return lo_id
+        return None
     try:
         saved = json.loads(path.read_text())
         nxt = int(saved["next"])
+        saved_bound = saved["bound_to"]
+        if not isinstance(saved_bound, dict):
+            raise TypeError("bound_to")
     except (ValueError, KeyError, TypeError):
-        return lo_id
-    if saved.get("context") == context and lo_id <= nxt <= hi_id + 1:
-        print(f"  resuming {action} from alias id {nxt:,} (cursor file)", flush=True)
-        return nxt
-    return lo_id
+        print(f"  {path.name} is not a cursor this version wrote; it is ignored and the "
+              f"{action} starts at the first alias", flush=True)
+        return None
+    if saved_bound != bound:
+        changed = "; ".join(
+            f"{k} was {_shown(saved_bound.get(k))}, is now {_shown(bound.get(k))}"
+            for k in sorted(set(bound) | set(saved_bound))
+            if saved_bound.get(k) != bound.get(k))
+        print(f"  {path.name} belongs to another sweep ({changed}); it is ignored and the "
+              f"{action} starts at the first alias", flush=True)
+        return None
+    if not lo_id <= nxt <= hi_id + 1:
+        print(f"  {path.name} points outside the alias ids; it is ignored and the "
+              f"{action} starts at the first alias", flush=True)
+        return None
+    return saved
 
 
-def _sweep(live: dict, action: str, statement: str, params: dict, context: dict,
-           lo_id: int, hi_id: int, batch: int, on_row, label) -> None:
-    """Run `statement` over alias-id batches, one commit per batch.
+def _sweep(live: dict, action: str, statement: str, params: dict,
+           lo_id: int, hi_id: int, counts: dict, on_batch, label, *,
+           batch: int, timeout_s: float, bound: dict | None, write: bool) -> dict:
+    """Run `statement` over batches of alias ids, one transaction per batch.
+
+    The batch sizes itself. It starts at `batch` ids, doubles after a batch
+    that was fast, and halves after a slow one. A batch that runs into its
+    time limit writes nothing; it is halved and tried again, and the batch
+    does not grow again until the sweep is past the stretch that was last
+    too slow. One alias that
+    is too slow on its own gets longer limits, and if the longest is not
+    enough it is SKIPPED and listed, so one dense alias never stops the run.
+    A deadlock with another writer is waited out and tried again.
 
     `live["conn"]` is the connection; it is replaced here when the server
     drops it (the loaded instance can stall past TCP patience), so the caller
-    always holds the live one. Only a dead connection is retried: a statement
-    that fails on a healthy connection (a timeout, a lock) is raised as it is.
-    A retried batch is safe because every batch is idempotent.
+    always holds the live one. A batch that is tried again is safe because
+    every batch is idempotent.
+
+    `bound` is what the cursor file must belong to (_bound_to); None means no
+    cursor file (dry runs). `counts` is the caller's running totals: they are
+    saved in the cursor file and put back on a resume, so a resumed sweep
+    reports the whole sweep and not only its last part.
+
+    Returns what the caller needs to say whether every alias was visited.
     """
-    cursor_file = _cursor_path(action)
-    lo = _resume_point(action, context, lo_id, hi_id)
-    attempt = 0
+    cursor_file = _cursor_path(action) if bound is not None else None
+    size = max(int(batch), 1)
+    size_max = max(BATCH_MAX, size)
+    limit = float(timeout_s)
+    limit_max = max(limit, min(limit * 16, BATCH_TIMEOUT_MAX_S))
+    fast_s, slow_s = limit / 15, limit * 0.4
+    started_at = f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S}"
+    skipped: list[int] = []
+    lo, resumed_from = lo_id, None
+    if cursor_file is not None:
+        saved = _read_cursor(action, bound, lo_id, hi_id)
+        if saved is not None:
+            lo = resumed_from = int(saved["next"])
+            started_at = str(saved.get("started_at") or started_at)
+            skipped = [int(x) for x in saved.get("skipped") or []]
+            for key, value in (saved.get("totals") or {}).items():
+                if key in counts and isinstance(value, int):
+                    counts[key] = value
+            print(f"  resuming {action} at alias id {lo:,}. Ids {lo_id:,} to {lo - 1:,} were "
+                  f"done by the run that began {started_at} UTC (cursor file)", flush=True)
+
+    def save_cursor(next_id: int) -> None:
+        if cursor_file is None:
+            return
+        cursor_file.parent.mkdir(parents=True, exist_ok=True)
+        cursor_file.write_text(json.dumps({
+            "bound_to": bound, "next": next_id, "started_at": started_at,
+            "skipped": skipped,
+            "totals": {k: v for k, v in counts.items() if isinstance(v, int)}}))
+
+    t_start = time.monotonic()
+    span = hi_id - lo_id + 1
+    hold_growth_until = lo_id - 1
+    lost, deadlocks, timeouts, batches = 0, 0, 0, 0
     while lo <= hi_id:
-        hi = lo + batch - 1
+        hi = min(lo + size - 1, hi_id)
         conn = live["conn"]
+        t0 = time.monotonic()
         try:
             with conn.cursor() as cur:
-                _nested_loops_only(cur)
+                _nested_loops_only(cur, limit)
                 cur.execute(statement, {**params, "lo": lo, "hi": hi})
                 result = cur.fetchone() if cur.description else None
                 rowcount = cur.rowcount
-            conn.commit()
-        except psycopg.OperationalError:
-            if not (conn.closed or conn.broken):
+            if write:
+                conn.commit()
+            else:
+                conn.rollback()
+        except psycopg.OperationalError as exc:
+            if conn.closed or conn.broken:
+                lost += 1
+                if lost > 5:
+                    raise
+                print(f"  {action} connection lost, reconnecting (attempt {lost}/5)",
+                      flush=True)
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                time.sleep(15)
+                live["conn"] = connect()
+                continue
+            conn.rollback()
+            timed_out = (isinstance(exc, psycopg.errors.QueryCanceled)
+                         and "statement timeout" in str(exc))
+            deadlocked = isinstance(exc, psycopg.errors.DeadlockDetected)
+            if not (timed_out or deadlocked):
+                # Anything else (a cancel by hand, a lock timeout) is not ours
+                # to hide: the run stops and the cursor file stays.
                 raise
-            attempt += 1
-            if attempt > 5:
-                raise
-            print(f"  {action} connection lost, reconnecting (attempt {attempt}/5)",
-                  flush=True)
-            try:
-                conn.close()
-            except Exception:
-                pass
-            time.sleep(15)
-            live["conn"] = connect()
+            why = (f"no answer within {limit:,.0f}s" if timed_out
+                   else "stopped by the database to end a deadlock with another writer")
+            if timed_out:
+                timeouts += 1
+            if hi > lo:
+                size = max((hi - lo + 1) // 2, 1)
+                # The newest failure, not the widest: as the halving closes
+                # in on the dense alias the held stretch shrinks with it, and
+                # the batch may grow again as soon as that alias is behind.
+                hold_growth_until = hi
+                print(f"  {action} ids {lo:,}-{hi:,}: {why}. Nothing was written for this "
+                      f"batch. Trying again with {size:,} ids", flush=True)
+                continue
+            hold_growth_until = lo
+            if timed_out and limit < limit_max:
+                limit = min(limit * 4, limit_max)
+                print(f"  {action} alias id {lo:,}: {why}. Trying this one alias again with "
+                      f"a limit of {limit:,.0f}s", flush=True)
+                continue
+            if deadlocked and deadlocks < DEADLOCK_RETRIES:
+                deadlocks += 1
+                print(f"  {action} alias id {lo:,}: {why}. Trying again in "
+                      f"{5 * deadlocks}s (attempt {deadlocks}/{DEADLOCK_RETRIES})", flush=True)
+                time.sleep(5 * deadlocks)
+                continue
+            skipped.append(lo)
+            hold_growth_until = lo
+            print(f"  {action} alias id {lo:,}: {why}, and no try is left. SKIPPED, nothing "
+                  "was written for it. The sweep goes on", flush=True)
+            lo, limit, deadlocks = lo + 1, float(timeout_s), 0
+            save_cursor(lo)
             continue
-        # Counted only after the commit, so a batch that is retried is not
-        # counted twice.
-        on_row(result, rowcount)
-        cursor_file.parent.mkdir(parents=True, exist_ok=True)
-        cursor_file.write_text(json.dumps({"context": context, "next": hi + 1}))
-        print(f"  {action} aliases {lo:,}-{min(hi, hi_id):,} · {label()}", flush=True)
+
+        took = time.monotonic() - t0
+        # Counted only after the commit, so a batch that is tried again is
+        # not counted twice.
+        first = next(iter(counts))
+        before = counts[first]
+        on_batch(result, rowcount)
+        batches += 1
+        lost, deadlocks, limit = 0, 0, float(timeout_s)
+        save_cursor(hi + 1)
+        done = hi - lo_id + 1
+        print(f"  {action} ids {lo:,}-{hi:,} ({100.0 * done / span:.1f}% of ids) · "
+              f"this batch {counts[first] - before:,} rows in {took:.1f}s · {label()} · "
+              f"elapsed {_elapsed(time.monotonic() - t_start)}", flush=True)
         lo = hi + 1
-    cursor_file.unlink(missing_ok=True)
+        if took > slow_s:
+            size = max(size // 2, 1)
+        elif took < fast_s and lo > hold_growth_until:
+            size = min(size * 2, size_max)
+    if cursor_file is not None:
+        cursor_file.unlink(missing_ok=True)
+    return {"first_alias_id": lo_id, "last_alias_id": hi_id, "resumed_from": resumed_from,
+            "started_at_utc": started_at, "skipped_alias_ids": skipped,
+            "batches": batches, "time_limits_hit": timeouts,
+            "seconds": round(time.monotonic() - t_start, 1)}
 
 
-def apply(min_filers: int = MIN_FILERS_FLOOR, batch: int = 5000,
-          dry_run: bool = False) -> dict:
+def _visited_line(action: str, info: dict) -> str:
+    line = (f"  {action} finished: every alias id from {info['first_alias_id']:,} to "
+            f"{info['last_alias_id']:,} was visited")
+    if info["resumed_from"] is not None and info["resumed_from"] > info["first_alias_id"]:
+        line += (f" (ids below {info['resumed_from']:,} by the earlier run that began "
+                 f"{info['started_at_utc']} UTC)")
+    return line + f", {info['batches']:,} batches in {_elapsed(info['seconds'])}"
+
+
+def _incomplete_text(action: str, info: dict, done: str) -> str:
+    ids = info["skipped_alias_ids"]
+    shown = ", ".join(str(i) for i in ids[:20]) + (" ..." if len(ids) > 20 else "")
+    return (f"{action} is NOT finished: {len(ids):,} alias id(s) were skipped because the "
+            f"database gave no answer in time ({shown}). {done} Run the same command again; "
+            "it starts at the first alias and tries the skipped ones again. A larger "
+            "--batch-timeout gives a slow alias more time.")
+
+
+def apply(min_filers: int = MIN_FILERS_FLOOR, batch: int = BATCH_START,
+          dry_run: bool = False, batch_timeout_s: float = BATCH_TIMEOUT_S) -> dict:
     """Link 990-PF grant rows of the strict class, one committed batch of
     aliases at a time. Restartable: only rows with no organisation are
-    touched. With dry_run the same probes run as a count and nothing is
-    written."""
+    touched. `batch` is the size of the first batch; the sweep sizes the rest
+    itself (_sweep). With dry_run the same probes run as a count and nothing
+    is written."""
     _check_min_filers(min_filers)
     live = {"conn": connect()}
     try:
@@ -854,44 +1192,50 @@ def apply(min_filers: int = MIN_FILERS_FLOOR, batch: int = 5000,
         if dry_run:
             # No cursor file and no ledger row: a dry run writes nothing and
             # always counts from the first alias.
-            conn = live["conn"]
             counts = {"rows_would_link": 0, "aliases_with_rows": 0}
-            amount: Decimal | None = None
-            lo = lo_id
-            while lo <= hi_id:
-                with conn.cursor() as cur:
-                    _nested_loops_only(cur)
-                    cur.execute(_APPLY_DRY_BATCH, {**params, "lo": lo, "hi": lo + batch - 1})
-                    rows, aliases, amt = cur.fetchone()
-                conn.rollback()
+            amount: list[Decimal | None] = [None]
+
+            def on_dry(result, _rowcount: int) -> None:
+                rows, aliases, amt = result
                 counts["rows_would_link"] += rows
                 counts["aliases_with_rows"] += aliases
                 if amt is not None:
-                    amount = (amount or Decimal(0)) + amt
-                lo += batch
+                    amount[0] = (amount[0] or Decimal(0)) + amt
+
+            info = _sweep(live, "apply (dry run)", _APPLY_DRY_BATCH, params, lo_id, hi_id,
+                          counts, on_dry,
+                          lambda: f"{counts['rows_would_link']:,} grant rows would be linked",
+                          batch=batch, timeout_s=batch_timeout_s, bound=None, write=False)
+            if info["skipped_alias_ids"]:
+                raise SweepIncomplete(_incomplete_text(
+                    "apply (dry run)", info, "The counts above leave those aliases out."))
+            print(_visited_line("apply (dry run)", info), flush=True)
             print(f"  dry run, nothing written. Dollars on the rows that would be "
-                  f"linked: {_money(amount, counts['rows_would_link'])}", flush=True)
+                  f"linked: {_money(amount[0], counts['rows_would_link'])}", flush=True)
             return counts
 
+        _drop_other_cursor("apply")
+        bound = _bound_to(live["conn"], "apply", min_filers, lo_id, hi_id)
         run_id = ledger.start_run(live["conn"], rfid, LEDGER_APPLY)
         counts = {"events_linked": 0}
         try:
             def on_apply(_result, rowcount: int) -> None:
                 counts["events_linked"] += rowcount
 
-            _sweep(live, "apply", _APPLY_BATCH, params,
-                   {"min_filers": min_filers, "lo": lo_id, "hi": hi_id},
-                   lo_id, hi_id, batch, on_apply,
-                   lambda: f"{counts['events_linked']:,} grant rows linked")
+            info = _sweep(live, "apply", _APPLY_BATCH, params, lo_id, hi_id, counts, on_apply,
+                          lambda: f"{counts['events_linked']:,} grant rows linked so far",
+                          batch=batch, timeout_s=batch_timeout_s, bound=bound, write=True)
             conn = live["conn"]
             with conn.cursor() as cur:
                 cur.execute("select count(*) from internal.recipient_alias_links")
                 counts["link_rows_in_table"] = cur.fetchone()[0]
             conn.rollback()
-            ledger.complete_run(conn, run_id, inserted=counts["events_linked"],
-                                updated=counts["events_linked"],
-                                notes=json.dumps({"action": "apply",
-                                                  "min_filers": min_filers, **counts}))
+            if not info["skipped_alias_ids"]:
+                ledger.complete_run(conn, run_id, inserted=counts["events_linked"],
+                                    updated=counts["events_linked"],
+                                    notes=json.dumps({"action": "apply",
+                                                      "min_filers": min_filers, **counts,
+                                                      "sweep": info, "bound_to": bound}))
         except Exception as exc:
             try:
                 live["conn"].rollback()
@@ -899,6 +1243,15 @@ def apply(min_filers: int = MIN_FILERS_FLOOR, batch: int = 5000,
             except Exception:
                 pass
             raise
+        if info["skipped_alias_ids"]:
+            text = _incomplete_text(
+                "apply", info, f"{counts['events_linked']:,} grant rows were linked and "
+                               "stay linked.")
+            ledger.fail_run(live["conn"], run_id, text)
+            raise SweepIncomplete(text)
+        print(_visited_line("apply", info), flush=True)
+        print(f"  Grant rows that a load adds after {info['started_at_utc']} UTC may not be "
+              "linked by this run. Run --apply again when the load has ended.", flush=True)
         return counts
     finally:
         try:
@@ -907,7 +1260,8 @@ def apply(min_filers: int = MIN_FILERS_FLOOR, batch: int = 5000,
             pass
 
 
-def unapply(batch: int = 5000, dry_run: bool = False) -> dict:
+def unapply(batch: int = BATCH_START, dry_run: bool = False,
+            batch_timeout_s: float = BATCH_TIMEOUT_S) -> dict:
     """Remove every link this job made. A grant row goes back to "no
     organisation" only where its organisation is still the alias's; the link
     rows are deleted either way. The alias rows stay."""
@@ -919,22 +1273,28 @@ def unapply(batch: int = 5000, dry_run: bool = False) -> dict:
             return counts
 
         if dry_run:
-            conn = live["conn"]
             counts = {"link_rows": 0, "events_would_unlink": 0}
-            lo = lo_id
-            while lo <= hi_id:
-                with conn.cursor() as cur:
-                    _nested_loops_only(cur)
-                    cur.execute(_UNAPPLY_DRY_BATCH, {"lo": lo, "hi": lo + batch - 1})
-                    links, ours = cur.fetchone()
-                conn.rollback()
+
+            def on_dry(result, _rowcount: int) -> None:
+                links, ours = result
                 counts["link_rows"] += links
                 counts["events_would_unlink"] += ours
-                lo += batch
+
+            info = _sweep(live, "unapply (dry run)", _UNAPPLY_DRY_BATCH, {}, lo_id, hi_id,
+                          counts, on_dry,
+                          lambda: f"{counts['events_would_unlink']:,} grant rows would be "
+                                  "unlinked",
+                          batch=batch, timeout_s=batch_timeout_s, bound=None, write=False)
+            if info["skipped_alias_ids"]:
+                raise SweepIncomplete(_incomplete_text(
+                    "unapply (dry run)", info, "The counts above leave those aliases out."))
+            print(_visited_line("unapply (dry run)", info), flush=True)
             counts["links_changed_since_kept_as_they_are"] = (
                 counts["link_rows"] - counts["events_would_unlink"])
             return counts
 
+        _drop_other_cursor("unapply")
+        bound = _bound_to(live["conn"], "unapply", None, lo_id, hi_id)
         run_id = ledger.start_run(live["conn"], rfid, LEDGER_UNAPPLY)
         try:
             def on_unapply(result, _rowcount: int) -> None:
@@ -942,9 +1302,10 @@ def unapply(batch: int = 5000, dry_run: bool = False) -> dict:
                 counts["events_unlinked"] += nulled
                 counts["link_rows_removed"] += gone
 
-            _sweep(live, "unapply", _UNAPPLY_BATCH, {},
-                   {"lo": lo_id, "hi": hi_id}, lo_id, hi_id, batch, on_unapply,
-                   lambda: f"{counts['events_unlinked']:,} grant rows unlinked")
+            info = _sweep(live, "unapply", _UNAPPLY_BATCH, {}, lo_id, hi_id, counts,
+                          on_unapply,
+                          lambda: f"{counts['events_unlinked']:,} grant rows unlinked so far",
+                          batch=batch, timeout_s=batch_timeout_s, bound=bound, write=True)
             counts["links_changed_since_kept_as_they_are"] = (
                 counts["link_rows_removed"] - counts["events_unlinked"])
             conn = live["conn"]
@@ -952,8 +1313,10 @@ def unapply(batch: int = 5000, dry_run: bool = False) -> dict:
                 cur.execute("select count(*) from internal.recipient_alias_links")
                 counts["link_rows_in_table"] = cur.fetchone()[0]
             conn.rollback()
-            ledger.complete_run(conn, run_id, updated=counts["events_unlinked"],
-                                notes=json.dumps({"action": "unapply", **counts}))
+            if not info["skipped_alias_ids"]:
+                ledger.complete_run(conn, run_id, updated=counts["events_unlinked"],
+                                    notes=json.dumps({"action": "unapply", **counts,
+                                                      "sweep": info, "bound_to": bound}))
         except Exception as exc:
             try:
                 live["conn"].rollback()
@@ -961,6 +1324,14 @@ def unapply(batch: int = 5000, dry_run: bool = False) -> dict:
             except Exception:
                 pass
             raise
+        if info["skipped_alias_ids"]:
+            text = _incomplete_text(
+                "unapply", info, f"{counts['events_unlinked']:,} grant rows were unlinked; "
+                                 f"{counts['link_rows_in_table']:,} link rows are still in "
+                                 "the table.")
+            ledger.fail_run(live["conn"], run_id, text)
+            raise SweepIncomplete(text)
+        print(_visited_line("unapply", info), flush=True)
         return counts
     finally:
         try:
@@ -1071,6 +1442,9 @@ def report(min_filers: int = MIN_FILERS_FLOOR) -> str:
             cur.execute("select count(*), min(linked_at), max(linked_at) "
                         "from internal.recipient_alias_links")
             n_links, first_link, last_link = cur.fetchone()
+            cur.execute(_LINKED_SUPPORT.format(strict=_STRICT), {"min_filers": min_filers})
+            (linked_aliases, linked_rows,
+             unsupported_aliases, unsupported_rows) = cur.fetchone()
             cur.execute(f"""
                 select ra.target_rows_city_ok, ra.n_filers, ra.recipient_name_normalized,
                        ra.recipient_state, o.name, o.city, o.state
@@ -1140,6 +1514,16 @@ def report(min_filers: int = MIN_FILERS_FLOOR) -> str:
     if n_links:
         out(f"Applied: {n_links:,} grant rows in internal.recipient_alias_links "
             f"(linked {_utc(first_link)} to {_utc(last_link)} UTC)")
+        out(f"  aliases that grant rows are linked through: {linked_aliases:,} "
+            f"({linked_rows:,} grant rows)")
+        out(f"  of those, no longer supported: {unsupported_aliases:,} aliases "
+            f"({unsupported_rows:,} grant rows)")
+        out("    \"No longer supported\" = the stored alias is not in the strict class "
+            "now (status is not")
+        out(f"    unanimous, or under {min_filers} filers, or the key is in "
+            "recipient_matches). --apply links nothing")
+        out("    new through such an alias. The links it already made stay until "
+            "--unapply.")
     else:
         out("Applied: 0 grant rows in internal.recipient_alias_links (nothing applied)")
 
@@ -1159,9 +1543,13 @@ def report(min_filers: int = MIN_FILERS_FLOOR) -> str:
             ("  dropped: organisation type not allowed", "dropped_org_type"),
             ("unlinked 990-PF grant rows with a state", "target_rows_unlinked_990pf"),
             ("unlinked Schedule I grant rows with a state", "unlinked_schedule_i_rows"),
-            ("aliases left unchanged because links hang on them",
-             "aliases_left_unchanged_with_links"),
-            ("  of those, not derived by this build", "aliases_with_links_not_derived_now"),
+            ("aliases that already had links (organisation kept, status and counts "
+             "refreshed)", "linked_aliases_refreshed"),
+            ("  of those, no longer supported at this build",
+             "linked_aliases_no_longer_supported"),
+            ("    the filers now point at another organisation",
+             "linked_aliases_other_org_now"),
+            ("    the key is not derived any more", "linked_aliases_not_derived_now"),
         ):
             if isinstance(notes.get(key), int):
                 out(f"  {label}: {notes[key]:,}")

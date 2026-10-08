@@ -11,7 +11,13 @@
  *    "dated" is used only when the IRS dated the file; otherwise "retrieved";
  *  - "not on the lists" is never a statement that an organization has shut
  *    down, and absence from Publication 78 alone is never a negative;
- *  - where two IRS lists disagree we show both and do not choose;
+ *  - where two IRS lists disagree we show both and do not choose. A copy of
+ *    the master file that is OLDER than the day the IRS posted a revocation
+ *    is not a disagreement: the standing is then "revoked", and the text
+ *    gives both dates (corpus migration 0032);
+ *  - a revocation is never a statement that an organization has shut down.
+ *    When we hold returns for tax years after the revocation date, the text
+ *    says so, and says that later returns do not show a reinstatement;
  *  - no number that drifts (a count, a percentage) is written here.
  *
  * Nothing here is written by a model. Every sentence is built from dates and
@@ -129,6 +135,35 @@ export const IRS_STANDING_LABELS: Record<IrsStandingValue, string> = {
   not_listed: "Not on the current IRS lists",
 };
 
+/**
+ * True for a "revoked" organization that has a return on file for a tax year
+ * after the revocation date (corpus 0032). The IRS statement is unchanged;
+ * the chip and the notes add that fact and use the warning tone.
+ */
+export function hasFiledAfterRevocation(s: IrsStanding): boolean {
+  return s.standing === "revoked" && s.filedAfterRevocation === true;
+}
+
+/**
+ * True for a "revoked" organization that a copy of the IRS master file still
+ * names. The view gives "revoked" in that case only when the copy is older
+ * than the day the IRS posted the revocation and Publication 78 does not list
+ * the organization (corpus 0032), so the newer IRS list is the one we follow.
+ */
+export function isRevokedAfterMasterFileCopy(s: IrsStanding): boolean {
+  return s.standing === "revoked" && s.inBmf;
+}
+
+/** Added to the chip of a revoked organization with returns for later tax years. */
+export const IRS_REVOKED_LATER_RETURNS_SUFFIX = "returns on file for later years";
+
+/** The short state name for one organization: table cells, the compact chip. */
+export function irsStandingShortLabel(s: IrsStanding): string {
+  return hasFiledAfterRevocation(s)
+    ? `${IRS_STANDING_LABELS.revoked}, ${IRS_REVOKED_LATER_RETURNS_SUFFIX}`
+    : IRS_STANDING_LABELS[s.standing];
+}
+
 /** The chip text: the state plus its date, where the state has one. */
 export function irsStandingChipLabel(s: IrsStanding): string {
   switch (s.standing) {
@@ -138,10 +173,12 @@ export function irsStandingChipLabel(s: IrsStanding): string {
       const kind = s.inBmf ? s.bmfAsOfKind : s.pub78AsOfKind;
       return asOf ? `On the IRS list (IRS file ${monthYear(asOf, kind)})` : IRS_STANDING_LABELS.listed;
     }
-    case "revoked":
-      return s.effectiveRevocationDate
+    case "revoked": {
+      const label = s.effectiveRevocationDate
         ? `Automatically revoked by the IRS on ${formatDate(s.effectiveRevocationDate)}`
         : IRS_STANDING_LABELS.revoked;
+      return hasFiledAfterRevocation(s) ? `${label}, ${IRS_REVOKED_LATER_RETURNS_SUFFIX}` : label;
+    }
     case "revoked_then_relisted":
       return s.effectiveRevocationDate
         ? `Automatically revoked in ${formatDate(s.effectiveRevocationDate, "year")}, recognized again`
@@ -168,12 +205,48 @@ export const IRS_REVOKED_SCOPE_NOTE =
   "This list covers automatic revocation only, and the IRS updates it about once a month. " +
   "An organization can ask the IRS to reinstate it.";
 
+/** In every "revoked" statement: the list says nothing about whether the organization still operates. */
+export const IRS_REVOKED_NOT_SHUT_DOWN = "An automatic revocation is not a statement that the organization has shut down.";
+
+/**
+ * For "revoked" with returns on file for tax years after the revocation date.
+ * It states what we hold and what that does NOT show. Empty for every other
+ * organization.
+ */
+export function irsFiledAfterRevocationNote(s: IrsStanding): string {
+  if (!hasFiledAfterRevocation(s)) return "";
+  const latest = s.latestTaxPeriodEnd ? ` The latest return we hold is for the year ending ${formatDate(s.latestTaxPeriodEnd)}.` : "";
+  return (
+    `This organization has filed returns for tax years after the revocation date.${latest} ` +
+    "An organization that loses its tax-exempt status must still file, so later returns do not show that the IRS reinstated it."
+  );
+}
+
+/**
+ * For "revoked" when a copy of the IRS master file still names the
+ * organization: both dates, and which list we follow. Empty for every other
+ * organization.
+ */
+export function irsRevokedAfterMasterFileCopyNote(s: IrsStanding): string {
+  if (!isRevokedAfterMasterFileCopy(s)) return "";
+  const posted = s.postingDate ? `The IRS posted this revocation to its list on ${formatDate(s.postingDate)}. ` : "";
+  return (
+    `${posted}Our copy of the ${IRS_MASTER_FILE_NAME} (${irsListDate(s.bmfAsOf, s.bmfAsOfKind)}) still names this organization. ` +
+    "That copy is older than the day the IRS posted the revocation, so we follow the newer IRS list."
+  );
+}
+
 /**
  * For "lists_disagree": one dated fact that often explains the disagreement.
  * When the IRS posted the revocation AFTER the date of every file that still
  * names the organization, our copy of that file is simply older than the
  * revocation. We say so with the dates and still do not choose. Empty when
  * the posting date is not on record or a naming file is as new as the posting.
+ *
+ * With corpus migration 0032 the commonest case (only an older master-file
+ * copy names the organization) is no longer "lists_disagree" but "revoked";
+ * `irsRevokedAfterMasterFileCopyNote` carries the dates there. This note still
+ * serves an older copy of Publication 78, and a database without 0032.
  */
 export function irsOlderCopyNote(s: IrsStanding): string {
   if (s.standing !== "lists_disagree" || !s.postingDate) return "";
@@ -198,9 +271,10 @@ function revokedSentence(s: IrsStanding): string {
 }
 
 function listedToday(s: IrsStanding): string {
-  if (s.inBmf && s.onPub78) return `Today it is in the ${masterFileRef(s)} and on ${pub78Ref(s)}.`;
-  if (s.inBmf) return `Today it is in the ${masterFileRef(s)}.`;
-  return `Today it is on ${pub78Ref(s)}.`;
+  // No "today": each list is a dated copy, and the sentence gives its date.
+  if (s.inBmf && s.onPub78) return `It is in the ${masterFileRef(s)} and on ${pub78Ref(s)}.`;
+  if (s.inBmf) return `It is in the ${masterFileRef(s)}.`;
+  return `It is on ${pub78Ref(s)}.`;
 }
 
 /**
@@ -227,10 +301,18 @@ export function irsStandingStatement(s: IrsStanding): string[] {
       const out = [revokedSentence(s)];
       out.push(
         s.reinstatementDate && !s.reinstated
-          ? `The list carries a reinstatement date of ${formatDate(s.reinstatementDate)}. That is before this revocation, so it belongs to an earlier one.`
+          ? `The list carries a reinstatement date of ${formatDate(s.reinstatementDate)}, which is before the revocation date. We do not count it as a reinstatement.`
           : "The list shows no reinstatement.",
       );
-      out.push(`The organization is not in ${masterFileCopyRef(s)} and not on ${pub78Ref(s)}.`);
+      if (isRevokedAfterMasterFileCopy(s)) {
+        out.push(irsRevokedAfterMasterFileCopyNote(s));
+        out.push(`The organization is not on ${pub78Ref(s)}.`);
+      } else {
+        out.push(`The organization is not in ${masterFileCopyRef(s)} and not on ${pub78Ref(s)}.`);
+      }
+      const filedAfter = irsFiledAfterRevocationNote(s);
+      if (filedAfter) out.push(filedAfter);
+      out.push(IRS_REVOKED_NOT_SHUT_DOWN);
       out.push(IRS_REVOKED_SCOPE_NOTE);
       return out;
     }
@@ -295,11 +377,16 @@ export function irsStandingSummary(s: IrsStanding): string {
       return s.inBmf
         ? `In the ${masterFileRef(s)}; no entry on the ${revocationListRef(s)}.`
         : `On ${pub78Ref(s)}; no entry on the ${revocationListRef(s)}.`;
-    case "revoked":
-      return (
+    case "revoked": {
+      const head =
         `Automatically revoked by the IRS on ${formatDate(s.effectiveRevocationDate)} for filing no return for three years ` +
-        `(${revocationListRef(s)}); no reinstatement, and on no other IRS list we hold.`
-      );
+        `(${revocationListRef(s)}); no reinstatement`;
+      const lists = isRevokedAfterMasterFileCopy(s)
+        ? `. ${irsRevokedAfterMasterFileCopyNote(s)}`
+        : ", and on no other IRS list we hold.";
+      const filedAfter = irsFiledAfterRevocationNote(s);
+      return `${head}${lists}${filedAfter ? ` ${filedAfter}` : ""}`;
+    }
     case "revoked_then_relisted":
       return (
         `Automatically revoked by the IRS on ${formatDate(s.effectiveRevocationDate)} (${revocationListRef(s)}), then recognized again` +
@@ -332,15 +419,18 @@ function applicationDetailsFrom(fy: number | null | undefined, hasDetails: boole
 
 /**
  * The sentence above the posture explainer in "Can I apply?" when the standing
- * is "revoked". It states the IRS record and its date, and nothing else: it
- * does not say what the reader should do. Pass `hasDetails = false` when the
- * section has no application details to point at.
+ * is "revoked". It states the IRS record and its date. When a copy of the
+ * master file still names the organization, it adds both dates. When we hold
+ * returns for tax years after the revocation date, it adds that fact and what
+ * it does not show. It does not say what the reader should do. Pass
+ * `hasDetails = false` when the section has no application details to point at.
  */
 export function irsRevokedApplyNote(s: IrsStanding, fy: number | null | undefined, hasDetails = true): string {
   const first =
     `The IRS automatically revoked this organization's tax-exempt status on ${formatDate(s.effectiveRevocationDate)} ` +
     `(${revocationListRef(s)}).`;
-  return `${first}${applicationDetailsFrom(fy, hasDetails)}`;
+  const more = [irsRevokedAfterMasterFileCopyNote(s), irsFiledAfterRevocationNote(s)].filter(Boolean).join(" ");
+  return `${first}${more ? ` ${more}` : ""}${applicationDetailsFrom(fy, hasDetails)}`;
 }
 
 /**
@@ -432,9 +522,11 @@ export const STANDING_FILTER_CHIP = "Automatically revoked: hidden";
 
 /** Shown above the results while the filter is on: what was left out, and what was kept. */
 export const STANDING_FILTER_NOTE =
-  "This hides organizations that the IRS automatically revoked for filing no return for three years, that the IRS list " +
-  "does not show as reinstated, and that are on no other IRS list we hold. Organizations where the IRS lists disagree " +
-  "stay in the results, with both facts shown.";
+  "This hides organizations that the IRS automatically revoked for filing no return for three years and that the IRS list " +
+  "does not show as reinstated. An organization is hidden only when no other IRS list we hold names it, or when the only " +
+  "one that names it is a copy of the IRS master file older than the day the IRS posted the revocation. Revoked " +
+  "organizations that filed returns for tax years after the revocation date stay in the results. Organizations where " +
+  "the IRS lists disagree also stay, with both facts shown.";
 
 /** Shown when the reader asked for the filter and the IRS lists cannot be read. Nothing was hidden, and we say so. */
 export const STANDING_FILTER_UNAVAILABLE_NOTE =
@@ -447,7 +539,8 @@ export const IRS_STANDING_FACT_LABELS = {
   revocationDateAsListed: "Date on the IRS list",
   postingDate: "Posted to the IRS list",
   reinstatementDate: "Reinstatement date",
-  reinstatementNotCounted: "Reinstatement date on the list (before this revocation)",
+  reinstatementNotCounted: "Reinstatement date on the list (before the revocation date, not counted)",
+  latestReturn: "Latest return we hold, year ending",
   pub78Class: "Deductibility class",
   record: "Record",
 } as const;

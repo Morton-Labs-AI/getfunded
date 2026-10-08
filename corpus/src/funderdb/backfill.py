@@ -750,14 +750,122 @@ FOLLOW_UPS: list[tuple[str, str]] = [
 
 
 def refresh_views() -> None:
-    """`funderdb refresh-views`: internal.refresh_dashboard_stats() in one call."""
+    """`funderdb refresh-views`: refresh every materialized view that
+    internal.refresh_dashboard_stats() names, in the order it names them.
+
+    The SQL function refreshes all of them in ONE transaction, so every view
+    stays locked against readers until the last one is done. This does the
+    same work one view at a time, so a page that reads a view waits for that
+    view only:
+
+    * Each view is its own transaction with a short lock_timeout. A plain
+      refresh needs a lock that no reader may hold; while it waits for a long
+      reader, every NEW reader queues behind it. With the timeout the refresh
+      gives up after a few seconds, the view keeps its old rows, and it is
+      tried again after the other views (three rounds in all).
+    * The two views the app reads most (the application answer and the
+      latest financials) are refreshed CONCURRENTLY: readers are never
+      blocked. That needs a unique index and a view that holds data already;
+      without either, the view gets a plain refresh.
+    * The application-history view is refreshed in the same transaction and
+      from the same snapshot as the application answer, so the two always
+      name the same latest return (migration 0029).
+    * The time each view took is printed.
+
+    Raises RuntimeError naming the views that could not be refreshed.
+    """
+    import psycopg
+    from psycopg import sql
+
     from .db import connect
 
-    with connect() as conn:
+    lock_timeout = "3s"
+    rounds, pause_s = 3, 15
+    without_blocking_readers = {"mv_org_application_posture", "mv_org_latest_financials"}
+    # view -> the view it must be refreshed together with (when that one is
+    # named straight before it)
+    same_snapshot_as = {"mv_org_posture_history": "mv_org_application_posture"}
+
+    conn = connect()
+    try:
         with conn.cursor() as cur:
-            cur.execute("set local statement_timeout = '120min'")
-            cur.execute("select internal.refresh_dashboard_stats()")
-        conn.commit()
+            cur.execute("select pg_get_functiondef("
+                        "'internal.refresh_dashboard_stats()'::regprocedure)")
+            names = re.findall(
+                r"refresh\s+materialized\s+view\s+(?:concurrently\s+)?internal\.(\w+)",
+                cur.fetchone()[0], flags=re.IGNORECASE)
+            cur.execute(
+                """select c.relname, c.relispopulated,
+                          exists (select 1 from pg_index i
+                                  where i.indrelid = c.oid and i.indisunique and i.indisvalid
+                                    and i.indpred is null and i.indexprs is null)
+                   from pg_class c
+                   join pg_namespace n on n.oid = c.relnamespace
+                   where n.nspname = 'internal' and c.relkind = 'm'
+                     and c.relname = any(%s)""", (names,))
+            facts = {name: (populated, unique) for name, populated, unique in cur.fetchall()}
+        conn.rollback()
+        if not names:
+            raise RuntimeError("internal.refresh_dashboard_stats() names no materialized "
+                               "view. Nothing was refreshed.")
+
+        groups: list[list[str]] = []
+        for name in names:
+            if groups and same_snapshot_as.get(name) == groups[-1][-1]:
+                groups[-1].append(name)
+            else:
+                groups.append([name])
+
+        t_all = time.monotonic()
+        todo = groups
+        for round_no in range(1, rounds + 1):
+            waiting: list[list[str]] = []
+            for group in todo:
+                took: list[tuple[str, bool, float]] = []
+                try:
+                    with conn.cursor() as cur:
+                        if len(group) > 1:
+                            cur.execute("set transaction isolation level repeatable read")
+                        cur.execute(f"set local lock_timeout = '{lock_timeout}'")
+                        cur.execute("set local statement_timeout = '120min'")
+                        for name in group:
+                            populated, unique = facts.get(name, (False, False))
+                            gentle = name in without_blocking_readers and populated and unique
+                            t0 = time.monotonic()
+                            cur.execute(sql.SQL("refresh materialized view {}{}").format(
+                                sql.SQL("concurrently " if gentle else ""),
+                                sql.Identifier("internal", name)))
+                            took.append((name, gentle, time.monotonic() - t0))
+                    conn.commit()
+                except psycopg.errors.LockNotAvailable:
+                    conn.rollback()
+                    waiting.append(group)
+                    _say(f"  {' + '.join(group)}: NOT refreshed in round {round_no}. Another "
+                         f"session held a lock for more than {lock_timeout}. The old rows "
+                         "stay in place.")
+                    continue
+                for name, gentle, seconds in took:
+                    _say(f"  {name}: refreshed in {seconds:.1f}s"
+                         + (" (readers were not blocked)" if gentle else ""))
+            todo = waiting
+            if not todo:
+                break
+            if round_no < rounds:
+                _say(f"  {sum(len(g) for g in todo)} view(s) to try again in {pause_s}s")
+                time.sleep(pause_s)
+        _say(f"  all views tried, {time.monotonic() - t_all:.1f}s in total")
+        if todo:
+            left = ", ".join(name for group in todo for name in group)
+            raise RuntimeError(
+                f"These materialized views were NOT refreshed after {rounds} tries, because "
+                f"another session kept a lock on them: {left}. They still hold their old "
+                "rows. The other views are refreshed. Run `uv run funderdb refresh-views` "
+                "again.")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def print_follow_ups(echo=_say) -> None:

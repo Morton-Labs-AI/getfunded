@@ -29,6 +29,11 @@ import "server-only";
  *     internal.raw_files (id, sha256), the same way every other filing seal
  *     gets it. A filing that was superseded after the count gets no seal, and
  *     the component then prints nothing for that line.
+ *   - Only recipient counts of the rule the page note describes are read
+ *     (TURNOVER_RULE_VERSION). A row of another rule version is not shown.
+ *   - The view's restrictive_phrase column is not read. The matched words
+ *     often do not mean a limit, so the page does not quote them; the column
+ *     stays in the database for analysis.
  */
 import { cache } from "react";
 import type postgres from "postgres";
@@ -56,6 +61,16 @@ type Sql = postgres.Sql | postgres.TransactionSql;
 /** A missing grant is checked again after this long, so a migration applied
  *  after the deploy is picked up without a restart. A found grant is kept. */
 const PROBE_RETRY_MS = 60_000;
+
+/**
+ * The rule of `funderdb derive turnover` that TURNOVER_NOTE describes
+ * (corpus/src/funderdb/derive/turnover.py, RULE_VERSION): grants marked as
+ * paid to an individual are left out, names are compared without spaces and
+ * punctuation, the state is not compared. A row written by another rule
+ * version is not read, so the note can never describe a count it does not
+ * fit. When the corpus rule changes, change the note and this value together.
+ */
+export const TURNOVER_RULE_VERSION = "turnover-v2";
 
 type Readable = { history: boolean; turnover: boolean };
 
@@ -103,7 +118,6 @@ export type PostureHistoryRow = {
   other_posture: string | null;
   other_fy: number | null;
   other_object_id: string | null;
-  restrictive_phrase: string | null;
   /** Null when the latest filing is not in public.filings (not republishable) or is superseded now. */
   latest_sealed: string | null;
   latest_source_dataset: string | null;
@@ -188,7 +202,9 @@ export function toPostureHistory(r: PostureHistoryRow): PostureHistory | null {
             provenance: seal(r.other_sealed, r.other_fy, r.other_source_dataset, r.other_source_url, r.other_license, r.other_sha256),
           }
         : null,
-    restrictivePhrase: latestPosture === "open" ? r.restrictive_phrase?.trim() || null : null,
+    // Never filled: the stored words often do not mean a limit (see the file
+    // comment). The field stays in the shape so nothing else has to change.
+    restrictivePhrase: null,
   };
 }
 
@@ -219,7 +235,6 @@ async function selectPostureHistory(sql: Sql, orgId: string, sha: boolean): Prom
            h.first_fy, h.last_fy,
            h.latest_posture, h.latest_fy, h.latest_object_id,
            h.other_posture, h.other_fy, h.other_object_id,
-           h.restrictive_phrase,
            lf.object_id as latest_sealed, lf.source_dataset as latest_source_dataset,
            lf.source_url as latest_source_url, lf.license_name as latest_license,
            ${latestHash.column} as latest_sha256,
@@ -281,6 +296,7 @@ export const getFunderApplicationHistory = cache(async (orgId: string): Promise<
         left join internal.filings tif on tif.object_id = tf.object_id
         ${hash.join}
         where t.funder_org_id = ${orgId}::uuid
+          and t.rule_version = ${TURNOVER_RULE_VERSION}
         order by t.fy desc
         limit 3`;
       turnover = rows.map(toRecipientTurnover);

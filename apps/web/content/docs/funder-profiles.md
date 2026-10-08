@@ -11,7 +11,7 @@ A funder profile is a structured reading of the funder's own public filings. It 
 
 ## The header
 
-- **Name, city, state** from the IRS master file (the IRS Exempt Organizations Business Master File, the IRS's list of every tax-exempt organization). When an organization is not in the master file, the city and state are the ones it wrote on its latest return, and the header says so: "Address as stated on its FY2024 return".
+- **Name, city, state** from the IRS master file (the IRS Exempt Organizations Business Master File, the IRS's list of every tax-exempt organization). When an organization is not in the master file, the city, state and ZIP code are the ones it wrote on the latest return that we have read, and the header says so: "City and state as stated on its FY2024 return". We do not copy the street address from a return to a profile, because that line can name a person.
 - **EIN**, the funder's tax id, shown as 12-3456789.
 - **Type**: private foundation, public charity, company, adviser, fund or agency.
 - **Website**, when the funder wrote one on its filing.
@@ -38,14 +38,18 @@ The IRS publishes lists that show whether it recognizes an organization as tax-e
 | What you see | What it means |
 |---|---|
 | **On the IRS list** | The organization is in the IRS master file or in IRS Publication 78 data. The automatic revocation list has no entry for it. |
-| **Automatically revoked by the IRS** | The organization is on the automatic revocation list, the list shows no reinstatement after that revocation, and the organization is on neither of the other two lists. |
+| **Automatically revoked by the IRS** | The organization is on the automatic revocation list, the list shows no reinstatement after that revocation, and IRS Publication 78 data does not list it. It is also not in the IRS master file, or our copy of the master file is older than the day the IRS posted the revocation. |
+| **Automatically revoked by the IRS, returns on file for later years** | The same IRS statement. In addition, we hold returns that the organization filed for tax years after the revocation date. |
 | **Automatically revoked, recognized again** | It was on the automatic revocation list once. After that the IRS reinstated it or ruled on it again, and it is on a list today. |
-| **IRS lists disagree** | One list shows an automatic revocation with no reinstatement after it. Another list still names the organization. We show both facts and do not choose. |
+| **IRS lists disagree** | One list shows an automatic revocation with no reinstatement after it. Another list still names the organization, and that list is not simply an older copy. We show both facts and do not choose. |
 | **Not on the current IRS lists** | It is on none of the three lists. This is not a statement that the organization has shut down. |
 
 Keep these points in mind:
 
 - **"Automatically revoked" has one meaning.** The IRS revokes tax-exempt status by law when an organization files no annual return or notice for three years in a row. The list holds only that kind of revocation. An organization that lost its status in another way is not on it.
+- **A revocation is not a statement that the organization has shut down.** Some revoked organizations kept filing returns. When we hold a return for a tax year after the revocation date, the chip says "returns on file for later years", and the statement gives the year of the latest return we hold. An organization that loses its tax-exempt status must still file, so later returns do not show that the IRS reinstated it.
+- **An older copy is not a disagreement.** We hold a copy of each IRS list, and each copy has a date. When our copy of the IRS master file is older than the day the IRS posted a revocation, the copy still names the organization only because it is older. The profile then shows "Automatically revoked by the IRS", and the statement gives both dates. "IRS lists disagree" is kept for a real conflict: for example, IRS Publication 78 data still lists the organization.
+- **A reinstatement date before the revocation date is not counted.** A few rows on the IRS list carry a reinstatement date that is earlier than the revocation date. The profile shows that date, and does not count it as a reinstatement.
 - **Every statement has a date.** It is the date of the IRS list we read. The IRS replaces these lists about once a month, so its own search is the current record. Click the chip to read the full statement and to open the IRS Tax Exempt Organization Search.
 - **Some revocation dates are corrected.** The IRS says that the revocation dates it lists from April 1 to July 14, 2020 should read July 15, 2020. We show the corrected date, and the chip shows the date on the list too.
 - **A revoked foundation can still have application details.** Its latest return may say that it accepts applications. The "Can I apply?" section then shows both facts: the IRS sentence with the date of the list, and the application details with the year of the return they come from. We do not tell you what to do with them.
@@ -66,7 +70,7 @@ How to read them:
 - They count Form 990-PF returns that the IRS has published as data. An amended return replaces its original. This number can differ from "Returns on record" in "The basics", which counts every form.
 - A return that says nothing is counted as "does not state a policy". It is not an answer for or against.
 - When the latest return says nothing and an earlier return did answer, the profile shows the earlier answer with its year. We cannot tell from a blank section whether the earlier answer still holds.
-- Sometimes the latest return says the foundation accepts applications, and its own instructions use words that read like a limit, such as "by invitation". The profile then quotes those words and points you to the text. It does not say what they mean.
+- The profile does not pick words out of the instructions for you. A return can say that the foundation accepts applications and also say "by invitation" in its instructions. Read the instructions in "How to apply". They are shown as filed.
 - A foundation with one return, or one that states nothing on every return, has no such line.
 - The lines describe past returns only.
 
@@ -75,9 +79,10 @@ How to read them:
 For some foundations, "What its returns show" has one more line. For example: "On its FY2023 Form 990-PF return this foundation listed grants to 10 named recipients. 4 of 10 are not on its FY2020 to FY2022 grant lists."
 
 - **It is a count from past returns.** It does not say that the foundation will consider a new request. It is not a score.
-- **How it is counted.** We compare the names on the newest grant list with the foundation's own grant lists for the three years before. Names are compared as written on the returns, without "The" at the start and without endings such as "Inc" or "LLC". A recipient also counts as already listed when our records link it to the same organization as an earlier recipient, or when its name is almost the same as an earlier name in the same state.
-- **It can be wrong in both directions.** A recipient can look new when its name is written very differently from year to year. Two different recipients with almost the same name in one state can be counted as one.
-- **It is shown only when we can count it.** The foundation must have named grant rows in that year and in each of the three years before. If an earlier list has a row such as "see attached" in place of a name, the line is not shown, because recipients could look new only for that reason. When we cannot count, the profile shows no line. It never shows a zero in its place.
+- **How it is counted.** We compare the names on the newest grant list with the foundation's own grant lists for the three years before. Names are compared as written on the returns, without "The" at the start, without endings such as "Inc" or "LLC", and without spaces and punctuation. A recipient also counts as already listed when our records link it to the same organization as an earlier recipient, or when its name is almost the same as an earlier name. The state on the grant row is not compared, because one recipient is often written under different states.
+- **Grants to individuals are left out.** A return has a box for the status of each recipient. When the foundation wrote "individual" there (many scholarship funds do), the grant is not counted in either number. When most of a foundation's grants are marked this way, the profile shows no line, because a count of the few other recipients would not describe the foundation. A person whom the foundation did not mark as an individual is still counted as a recipient.
+- **It can be wrong in both directions.** A recipient can look new when its name is written very differently from year to year, or when the list names people and does not mark them. Two different recipients with almost the same name can be counted as one.
+- **It is shown only when we can count it.** The foundation must have named grant rows that are not marked as individuals in that year and in each of the three years before. If an earlier list has a row such as "see attached" in place of a name, the line is not shown, because recipients could look new only for that reason. When we cannot count, the profile shows no line. It never shows a zero in its place.
 
 ## Money
 

@@ -636,6 +636,42 @@ group by s.standing
 order by count(*) desc
 """
 
+# Migration 0032 adds two columns to the view and one rule: an organization
+# that only a master-file copy OLDER than the IRS posting date of its
+# revocation still names is 'revoked', not 'lists_disagree'.
+_REPORT_HAS_0032 = """
+select count(*) = 2
+from information_schema.columns
+where table_schema = 'internal' and table_name = 'org_irs_standing'
+  and column_name in ('filed_after_revocation', 'latest_tax_period_end')
+"""
+
+# The newest copy of the IRS master file in the database, and whether the IRS
+# dated it (else the date is the day we retrieved it).
+_REPORT_MASTER_FILE = """
+select (coalesce(rf.source_last_modified, rf.fetched_at) at time zone 'UTC')::date as as_of,
+       rf.source_last_modified is not null as irs_dated
+from internal.raw_files rf
+where rf.dataset_name = 'irs_eo_bmf'
+  and coalesce(rf.source_last_modified, rf.fetched_at) is not null
+order by coalesce(rf.source_last_modified, rf.fetched_at) desc
+limit 1
+"""
+
+# With 0032: one read gives the counts under both rules. A 'revoked' row with
+# in_bmf = true can only come from the 0032 rule; under the 0028 rule the same
+# row was 'lists_disagree'. Nothing else differs between the two rules.
+_REPORT_STANDING_0032 = """
+select s.standing, s.in_bmf, coalesce(s.filed_after_revocation, false) as filed_after,
+       count(*) as n
+from internal.org_irs_standing s
+where s.org_type = 'private_foundation'
+group by 1, 2, 3
+"""
+
+_STANDING_ORDER = ("listed", "not_listed", "revoked", "revoked_then_relisted",
+                   "lists_disagree")
+
 _REPORT_REVOKED_OPEN = """
 select count(*)
 from internal.org_irs_standing s
@@ -660,7 +696,8 @@ limit 3
 def report(echo=print) -> dict:
     """Counts per standing for private foundations, and how many foundations
     are automatically revoked while their latest return says they accept
-    applications. Read-only."""
+    applications. With migration 0032 the counts are printed under the 0028
+    rule and under the 0032 rule, side by side. Read-only."""
     out: dict = {"standing": {}, "snapshots": {}}
     with connect() as conn:
         conn.read_only = True
@@ -681,15 +718,66 @@ def report(echo=print) -> dict:
             if len(snapshots) < 2:
                 echo("  Standing is NULL for every organization until BOTH lists are loaded.")
 
-            cur.execute(_REPORT_STANDING)
-            rows = cur.fetchall()
-            total = sum(n for _, n in rows)
+            cur.execute(_REPORT_MASTER_FILE)
+            master = cur.fetchone()
+            out["master_file_as_of"] = str(master[0]) if master else None
+            echo(f"  {'irs_eo_bmf':<20} " + (
+                f"{'IRS file date' if master[1] else 'retrieved'} {master[0]}  "
+                "(newest copy of the IRS master file)" if master else
+                "not loaded (no copy of the IRS master file)"))
+
+            cur.execute(_REPORT_HAS_0032)
+            has_0032 = bool(cur.fetchone()[0])
+            out["migration_0032"] = has_0032
             echo("")
-            echo("Private foundations by IRS standing")
-            for standing, n in rows:
-                out["standing"][standing or "(lists not loaded)"] = n
-                echo(f"  {standing or '(lists not loaded)':<24} {n:>10,}")
-            echo(f"  {'TOTAL':<24} {total:>10,}")
+            if not has_0032:
+                cur.execute(_REPORT_STANDING)
+                rows = cur.fetchall()
+                total = sum(n for _, n in rows)
+                echo("Private foundations by IRS standing (0028 rule; migration 0032 "
+                     "is not applied)")
+                for standing, n in rows:
+                    out["standing"][standing or "(lists not loaded)"] = n
+                    echo(f"  {standing or '(lists not loaded)':<24} {n:>10,}")
+                echo(f"  {'TOTAL':<24} {total:>10,}")
+            else:
+                cur.execute(_REPORT_STANDING_0032)
+                after: dict[str, int] = {}
+                before: dict[str, int] = {}
+                moved = filed_after = 0
+                for standing, in_bmf, filed, n in cur.fetchall():
+                    key = standing or "(lists not loaded)"
+                    after[key] = after.get(key, 0) + n
+                    # Under the 0028 rule a revoked row that the master file
+                    # still names was 'lists_disagree'.
+                    old = "lists_disagree" if standing == "revoked" and in_bmf else key
+                    before[old] = before.get(old, 0) + n
+                    if standing == "revoked":
+                        moved += n if in_bmf else 0
+                        filed_after += n if filed else 0
+                keys = [k for k in _STANDING_ORDER if k in after or k in before]
+                keys += sorted(k for k in {*after, *before} if k not in _STANDING_ORDER)
+                out["standing"] = {k: after.get(k, 0) for k in keys}
+                out["standing_0028_rule"] = {k: before.get(k, 0) for k in keys}
+                out["revoked_after_master_file_copy"] = moved
+                out["revoked_filed_after_revocation"] = filed_after
+                revoked = after.get("revoked", 0)
+                echo("Private foundations by IRS standing")
+                echo(f"  {'':<24} {'before':>10} {'after':>10}   "
+                     "(before = 0028 rule, after = 0032 rule, in force)")
+                for k in keys:
+                    echo(f"  {k:<24} {before.get(k, 0):>10,} {after.get(k, 0):>10,}")
+                echo(f"  {'TOTAL':<24} {sum(before.values()):>10,} {sum(after.values()):>10,}")
+                echo("")
+                echo(f"Of the {revoked:,} revoked foundations:")
+                echo(f"  {moved:>10,}  are named only by a copy of the IRS master file that is "
+                     "older than the day the IRS posted the revocation")
+                echo(f"  {'':>10}  (0028 rule: lists_disagree; 0032 rule: revoked, the newer "
+                     "IRS list wins)")
+                echo(f"  {filed_after:>10,}  filed a return for a tax year after the revocation "
+                     "date (filed_after_revocation)")
+                echo(f"  {'':>10}  (the search option \"Hide automatically revoked\" keeps these "
+                     f"and hides the other {revoked - filed_after:,})")
 
             cur.execute(_REPORT_REVOKED_OPEN)
             revoked_open = cur.fetchone()[0]

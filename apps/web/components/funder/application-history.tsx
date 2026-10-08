@@ -10,8 +10,6 @@ import {
   POSTURE_HISTORY_OTHER_SOURCE_LABEL,
   POSTURE_HISTORY_SAME,
   POSTURE_HISTORY_SILENT_COUNT,
-  RESTRICTIVE_PHRASE_PARTS,
-  RESTRICTIVE_PHRASE_SOURCE_LABEL,
   TURNOVER_LISTED,
   TURNOVER_NOTE,
   TURNOVER_NOT_ON_EARLIER_LISTS,
@@ -72,28 +70,33 @@ function HistoryText({ history, c }: { history: PostureHistory; c: Exclude<Postu
 }
 
 /**
- * "What its returns show": up to three plain lines under the "Can I apply?"
+ * "What its returns show": up to two plain lines under the "Can I apply?"
  * answer, each with the seal of the return it was read from.
  *
  *   1. How the foundation answered the application question across its
  *      Form 990-PF returns ("the same way on all 5", "this way on 3 of 5",
  *      or the earlier answer when the newest return is silent).
- *   2. When the newest return says it accepts applications and its own
- *      instructions carry words that read like a limit: those words, quoted.
- *   3. How many of the newest year's named grant recipients are not on the
- *      foundation's lists for the three years before ("4 of 10").
+ *   2. How many of the newest year's named grant recipients are not on the
+ *      foundation's lists for the three years before ("4 of 10"). Grants the
+ *      foundation marked as paid to an individual are not in that count.
  *
- * All three are sourced facts from public filings. No model is involved, so
+ * There was a third line that quoted words from the instructions that read
+ * like a limit ("by invitation"). It is gone: the matched words often did
+ * not mean a limit (see application-history-copy.ts), and the page must not
+ * quote misleading words. `restrictivePhrase` is never shown.
+ *
+ * Both are sourced facts from public filings. No model is involved, so
  * nothing here carries an AI marking; there is no score and no advice. The
  * component says what past returns hold and stops there.
  *
  * It prints a line only when the line can be sealed and trusted, and renders
  * nothing at all when no line passes:
- *   - line 1 and 2 need the history row to be read from the same return as
- *     the badge (`applicationObjectId`) with the same answer;
+ *   - line 1 needs the history row to be read from the same return as the
+ *     badge (`applicationObjectId`) with the same answer;
  *   - line 1 is left out for a single return and for a foundation that is
  *     silent on every return;
- *   - line 3 is left out when the foundation has no row for its newest year,
+ *   - line 2 is left out when the foundation has no row for its newest year
+ *     (which includes a foundation whose grants are mostly to individuals),
  *     when an earlier list had placeholder rows, or when the filing has no
  *     seal. No row is never shown as a zero.
  *
@@ -119,11 +122,10 @@ export function ApplicationHistoryBlock({
   const h = history?.history ?? null;
   const usable = historyMatchesBadge(h, posture, applicationObjectId) ? h : null;
   const c = postureHistoryCase(usable);
-  const phrase = usable && usable.latestPosture === "open" ? usable.restrictivePhrase : null;
   const turnover = showableTurnover(history?.turnover);
 
   const showHistory = usable !== null && c.kind !== "none";
-  if (!showHistory && !phrase && !turnover) return null;
+  if (!showHistory && !turnover) return null;
 
   return (
     <div data-slot="application-history" className={cn("mt-4 border-t border-border/70 pt-3", className)}>
@@ -133,16 +135,6 @@ export function ApplicationHistoryBlock({
           <li data-slot="posture-history">
             <HistoryText history={usable} c={c} />{" "}
             <SourceWithSeal label={filingSourceLabel("990PF", usable.latestFy)} p={usable.provenance} className="align-baseline" />
-          </li>
-        ) : null}
-
-        {usable && usable.provenance && phrase ? (
-          <li data-slot="restrictive-phrase">
-            {RESTRICTIVE_PHRASE_PARTS.before}
-            <SourceValue label={RESTRICTIVE_PHRASE_SOURCE_LABEL} provenance={<Seal p={usable.provenance} />}>
-              “{phrase}”
-            </SourceValue>
-            {RESTRICTIVE_PHRASE_PARTS.after}
           </li>
         ) : null}
 
@@ -157,7 +149,7 @@ export function ApplicationHistoryBlock({
         ) : null}
       </ul>
 
-      {showHistory || phrase ? <p className="mt-2 text-xs leading-relaxed text-ink-3">{APPLICATION_HISTORY_NOTE}</p> : null}
+      {showHistory ? <p className="mt-2 text-xs leading-relaxed text-ink-3">{APPLICATION_HISTORY_NOTE}</p> : null}
       {turnover ? <p className="mt-2 text-xs leading-relaxed text-ink-3">{TURNOVER_NOTE(turnover.nUnnamedRows)}</p> : null}
     </div>
   );

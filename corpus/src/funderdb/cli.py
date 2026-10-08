@@ -793,7 +793,10 @@ def resolve_status() -> None:
               help="Highest tier to compute. Without this flag tiers 1 to 3 are computed and "
                    "tiers 1 and 2 are applied, as this command has always done. An explicit "
                    "`--max-tier 3` also APPLIES the tier3 matches, which were stored but never "
-                   "applied before; read the tier3 lines of `resolve aliases --report` first.")
+                   "applied before; read the tier3 lines of `resolve aliases --report` first. "
+                   "A run that was stopped part way is picked up again only by a run with the "
+                   "same tier choice; with the other choice the apply starts at the first "
+                   "match.")
 def resolve_recipients(no_apply: bool, max_tier: int | None) -> None:
     """Resolve grant recipients to organizations by EIN / name+state tiers."""
     from .resolve import recipients
@@ -818,6 +821,15 @@ def resolve_recipients(no_apply: bool, max_tier: int | None) -> None:
               help="Fewest independent filers an alias needs to be applied (never below 3).")
 @click.option("--dry-run", is_flag=True,
               help="With --build, --apply or --unapply: count and print, write nothing.")
+@click.option("--batch", "batch", type=click.IntRange(min=1), default=500, show_default=True,
+              metavar="N",
+              help="With --apply or --unapply: alias ids in the first batch. The command then "
+                   "sizes the batches itself: larger while a batch is fast, half as large "
+                   "when one is slow or runs into --batch-timeout.")
+@click.option("--batch-timeout", "batch_timeout", type=click.IntRange(min=1), default=300,
+              show_default=True, metavar="SECONDS",
+              help="With --apply or --unapply: time limit of one batch. A batch that passes "
+                   "it writes nothing and is tried again at half the size.")
 @click.option("--sample", "sample_n", type=int, default=None, metavar="N",
               help="Write N random would-be links of the strict class to --out as CSV, for an "
                    "independent audit before --apply. Read only.")
@@ -826,14 +838,20 @@ def resolve_recipients(no_apply: bool, max_tier: int | None) -> None:
 @click.option("--seed", type=int, default=20261008, show_default=True,
               help="Seed for --sample. The same seed on the same data gives the same file.")
 def resolve_aliases(do_build: bool, do_report: bool, do_apply: bool, do_unapply: bool,
-                    min_filers: int, dry_run: bool, sample_n: int | None,
-                    out_path: str | None, seed: int) -> None:
+                    min_filers: int, dry_run: bool, batch: int, batch_timeout: int,
+                    sample_n: int | None, out_path: str | None, seed: int) -> None:
     """Link 990-PF grant recipients through names other filers wrote with an EIN.
 
     A 990-PF names a recipient but gives no EIN. Charities that file Schedule I
     do write the EIN. When 3 or more of them wrote the same name and state with
     one EIN, and the city on the 990-PF row matches, --apply links that row to
     the same organization. Order: --build, --report, --sample, --apply.
+
+    --apply and --unapply work in batches and can be run again after a stop.
+    They pick up where they stopped only when nothing changed in between (no
+    new --build, no run in the other direction, no new load of returns);
+    otherwise they say so and start at the first alias. Run --apply again
+    after each load of returns: it links only rows that are there when it runs.
     """
     from pathlib import Path
 
@@ -858,14 +876,20 @@ def resolve_aliases(do_build: bool, do_report: bool, do_apply: bool, do_unapply:
                 click.echo(f"{k}: {v:,}")
         if do_apply:
             click.echo("apply (dry run, nothing written)" if dry_run else "apply")
-            for k, v in aliases.apply(min_filers=min_filers, dry_run=dry_run).items():
+            for k, v in aliases.apply(min_filers=min_filers, batch=batch, dry_run=dry_run,
+                                      batch_timeout_s=batch_timeout).items():
                 click.echo(f"{k}: {v:,}")
         if do_unapply:
             click.echo("unapply (dry run, nothing written)" if dry_run else "unapply")
-            for k, v in aliases.unapply(dry_run=dry_run).items():
+            for k, v in aliases.unapply(batch=batch, dry_run=dry_run,
+                                        batch_timeout_s=batch_timeout).items():
                 click.echo(f"{k}: {v:,}")
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc
+    except aliases.SweepIncomplete as exc:
+        # Exit code 1 and the plain reason, not a traceback: the work that was
+        # done is committed, and the message says what to run next.
+        raise click.ClickException(str(exc)) from exc
     if do_report:
         click.echo(aliases.report(min_filers=min_filers))
 
@@ -903,12 +927,22 @@ def export_public(out_dir: str | None, verify_only: bool) -> None:
 
 
 @export.command("foundations")
-@click.option("--out", "out_dir", type=click.Path(file_okay=False), required=True,
+@click.option("--out", "out_dir", type=click.Path(file_okay=False), default=None,
               help="Folder to publish into. Each run writes DIR/<vintage>/ and updates "
-                   "DIR/LATEST.")
+                   "DIR/LATEST. Needed for every run that writes files (not for "
+                   "--timed-dry-run).")
 @click.option("--limit", type=int, default=None,
               help="Write only the first N foundations by EIN (a sample for checking). "
                    "A sample run keeps every query under 20 seconds.")
+@click.option("--timed-dry-run", "timed_dry_run", is_flag=True,
+              help="Send every statement, count the rows and print the time each one "
+                   "took. Writes no file and no ledger row. Use it to time a full export. "
+                   "It holds the same lock as a real export: do not run "
+                   "`funderdb refresh-views` while it is open.")
+@click.option("--sample-ignore-preflight", "sample_ignore_preflight", is_flag=True,
+              help="Only with --limit: go on after a failed pre-flight check, to test the "
+                   "rest of the path while a loader is running. The sample can hold wrong "
+                   "numbers. A full export refuses this option.")
 @click.option("--no-ledger", is_flag=True,
               help="Do not register the run in raw_files and the ledger. Use it with a "
                    "read-only database role.")
@@ -923,7 +957,8 @@ def export_public(out_dir: str | None, verify_only: bool) -> None:
               help="After a successful export, write the JSON the website reads "
                    "(apps/web/content/data-release.json): the tag, the vintage and, for "
                    "each CSV file, its download link, size, sha256 and row count.")
-def export_foundations(out_dir: str, limit: int | None, no_ledger: bool,
+def export_foundations(out_dir: str | None, limit: int | None, timed_dry_run: bool,
+                       sample_ignore_preflight: bool, no_ledger: bool,
                        statement_timeout: str | None, tag: str | None,
                        release_json: str | None) -> None:
     """The Open Foundation List: small CSV files of U.S. private foundations.
@@ -935,6 +970,15 @@ def export_foundations(out_dir: str, limit: int | None, no_ledger: bool,
     LICENSE.txt and manifest.json. Reads only the public.* views and checks
     that before it writes a byte. `export public` is not changed by this
     command.
+
+    Two pre-flight checks read the data before the first file is written. The
+    run stops with no files when an amended return would be counted twice, or
+    when the application answers are older than the financial data. Run the
+    export only after `funderdb backfill` and its follow-up steps are done.
+
+    All statements run in one transaction. Do not start `funderdb
+    refresh-views` while an export is open: the refresh would wait for the
+    export, and the web app would wait for the refresh.
     """
     from pathlib import Path
 
@@ -943,9 +987,11 @@ def export_foundations(out_dir: str, limit: int | None, no_ledger: bool,
     from . import export_foundations as ef
 
     try:
-        m = ef.run(Path(out_dir), limit=limit, no_ledger=no_ledger,
+        m = ef.run(Path(out_dir) if out_dir else None, limit=limit, no_ledger=no_ledger,
                    statement_timeout=statement_timeout, tag=tag,
                    release_json=Path(release_json) if release_json else None,
+                   timed_dry_run=timed_dry_run,
+                   sample_ignore_preflight=sample_ignore_preflight,
                    echo=click.echo)
     except psycopg.errors.QueryCanceled as exc:
         click.echo(f"\nerror: {exc}\nA query reached the time limit and nothing was published. "
@@ -955,6 +1001,18 @@ def export_foundations(out_dir: str, limit: int | None, no_ledger: bool,
     except (RuntimeError, ValueError, psycopg.Error) as exc:
         click.echo(f"\nerror: {exc}", err=True)
         raise SystemExit(1)
+    if m.get("dry_run"):
+        click.echo("\nTimed dry run. Seconds for each statement:")
+        for s in m["statements"]:
+            click.echo(f"  {s['seconds']:>8.1f}s  {s['statement']}")
+        click.echo(f"  {m['total_seconds']:>8.1f}s  all statements, one transaction")
+        click.echo(", ".join(f"{f['name']} {f['rows']:,} rows" for f in m["files"])
+                   + " -> nothing written")
+        if not m["preflight_passed"]:
+            click.echo("\nA pre-flight check failed. A real export would stop with no "
+                       "files. See the messages above.", err=True)
+            raise SystemExit(1)
+        return
     click.echo("\n" + ", ".join(f"{f['name']} {f['rows']:,} rows" for f in m["files"])
                + f" -> vintage {m['vintage']}")
 

@@ -70,16 +70,16 @@ export const POSTURE_HISTORY_ALSO_SAID = (m: number, label: string) =>
 export const POSTURE_HISTORY_SILENT_COUNT = (s: number) =>
   s === 1 ? "1 return does not state a policy." : `${formatNumber(s)} returns do not state a policy.`;
 
-/**
- * The newest return says it accepts applications and its own instructions
- * carry words that read like a limit. Two parts around the quoted words; the
- * words are the filer's, shown exactly as stored (lower case):
- *   before + “words” + after
+/*
+ * There is no line for "words that read like a limit" any more. The database
+ * still stores the matched words (mv_org_posture_history.restrictive_phrase)
+ * for analysis, but the page does not quote them: of 30 stored phrases read
+ * on 2026-10-08, 9 did not mean a limit on applications at all ("no
+ * applications are required", "does not accept requests of funds for
+ * individuals", "pre-selected fields") and 2 more overstated one. A quote
+ * that can point the wrong way is worse than no quote. The full instructions
+ * are on the page, as filed.
  */
-export const RESTRICTIVE_PHRASE_PARTS = {
-  before: "The instructions on the return include the words ",
-  after: ". Read them above, as filed.",
-} as const;
 
 /** Under the answer lines. Says what was counted. */
 export const APPLICATION_HISTORY_NOTE =
@@ -103,7 +103,9 @@ export const TURNOVER_NOT_ON_EARLIER_LISTS = (nNew: number, nRecipients: number,
 
 /**
  * Always shown with the recipient line. First what the number is not, then
- * how it was counted, then where it can be wrong, in both directions.
+ * how it was counted, then who is left out, then where it can be wrong, in
+ * both directions. It describes rule turnover-v2 of `funderdb derive
+ * turnover`; the reader shows no row of another rule version.
  */
 export const TURNOVER_NOTE = (nUnnamedRows: number) => {
   const unnamed =
@@ -114,11 +116,16 @@ export const TURNOVER_NOTE = (nUnnamedRows: number) => {
       : "";
   return (
     "This is a count from past returns. It does not say the foundation will consider a new request. " +
-    "How it is counted: names are compared as written on the returns, without \"The\" at the start and without endings such as \"Inc\" or \"LLC\". " +
+    "How it is counted: names are compared as written on the returns, without \"The\" at the start, without endings such as \"Inc\" or \"LLC\", " +
+    "and without spaces and punctuation. " +
     "A recipient also counts as already listed when our records link it to the same organization as an earlier recipient, " +
-    "or when its name is almost the same as an earlier name in the same state (a trigram similarity of 0.8 or more, where 1 means identical). " +
+    "or when its name is almost the same as an earlier name (a trigram similarity of 0.8 or more, where 1 means identical). " +
+    "The state on the grant row is not compared. " +
+    "Grants that the foundation marked as paid to an individual, such as a scholarship, are left out of both numbers, " +
+    "and no count is shown when most of its grants are marked that way. " +
+    "A person whom the foundation did not mark as an individual is still counted as a recipient. " +
     "A recipient can still look new when its name is written very differently from year to year, " +
-    "and two different recipients with almost the same name in one state can be counted as one." +
+    "and two different recipients with almost the same name can be counted as one." +
     unnamed
   );
 };
@@ -174,7 +181,5 @@ export function applicationHistoryEvidenceText(
 /** Screen-reader label for the seal behind the earlier answer. */
 export const POSTURE_HISTORY_OTHER_SOURCE_LABEL = (fy: number | null) =>
   fy !== null ? `Application policy as stated on the FY${fy} return` : "Application policy as stated on an earlier return";
-
-export const RESTRICTIVE_PHRASE_SOURCE_LABEL = "Words from the application instructions, as filed";
 
 export const TURNOVER_SOURCE_LABEL = (fy: number) => `Recipients on the FY${fy} grant list`;

@@ -237,6 +237,41 @@ def _cursor_path() -> Path:
     return Path(get_settings().data_root) / "resolve" / "apply_cursor.txt"
 
 
+def _resume_point(text: str, apply_tier3: bool, lo_id: int, hi_id: int) -> int | None:
+    """The match id a restarted apply may pick up at, or None to start at the
+    first match.
+
+    The cursor file records the tier choice of the run that wrote it. A file
+    from a run with the OTHER choice is never resumed: a default run skips
+    tier3 matches, so resuming its cursor with tier3 switched on would leave
+    the tier3 matches below the cursor unapplied while the ledger says tier3
+    was applied. A file with no record of the choice (the older format, one
+    bare number) is treated the same way. Starting at the first match is
+    always correct; it only costs time.
+    """
+    try:
+        saved = json.loads(text)
+        nxt = int(saved["next"])
+        saved_tier3 = saved["apply_tier3"]
+        if not isinstance(saved_tier3, bool):
+            raise TypeError("apply_tier3")
+    except (ValueError, KeyError, TypeError):
+        print("  apply cursor file has no record of the tier choice (an older version "
+              "wrote it); it is ignored and the apply starts at the first match", flush=True)
+        return None
+    if saved_tier3 != apply_tier3:
+        was = "applied tier3 matches" if saved_tier3 else "did not apply tier3 matches"
+        now = "applies them" if apply_tier3 else "does not"
+        print(f"  apply cursor file is from a run that {was}; this run {now}. It is not "
+              "resumed: the apply starts at the first match", flush=True)
+        return None
+    if not lo_id <= nxt <= hi_id:
+        print("  apply cursor file points outside the match ids; it is ignored and the "
+              "apply starts at the first match", flush=True)
+        return None
+    return nxt
+
+
 def apply_matches(conn, batch: int = 20_000, apply_tier3: bool = False) -> dict:
     """Link events to matched orgs, one committed batch of matches at a time.
 
@@ -246,8 +281,10 @@ def apply_matches(conn, batch: int = 20_000, apply_tier3: bool = False) -> dict:
     Restartable by construction: only rows with recipient_org_id IS NULL are
     touched. A local cursor file additionally remembers the last completed
     batch so a reconnect resumes mid-sweep instead of re-scanning from id 1
-    (the sweep itself is idempotent; the cursor only saves time). The file is
-    removed on completion so the next full run starts clean.
+    (the sweep itself is idempotent; the cursor only saves time). The file
+    also records the tier choice, and a file written with the other choice is
+    not resumed (_resume_point). The file is removed on completion so the
+    next full run starts clean.
     """
     counts = {"events_linked": 0, "events_unlinked": 0}
     with conn.cursor() as cur:
@@ -257,14 +294,11 @@ def apply_matches(conn, batch: int = 20_000, apply_tier3: bool = False) -> dict:
 
     cursor_file = _cursor_path()
     if cursor_file.exists():
-        try:
-            resumed = int(cursor_file.read_text().strip())
-            if lo_id <= resumed <= hi_id:
-                print(f"  resuming apply from match id {resumed:,} "
-                      f"(cursor file)", flush=True)
-                lo_id = resumed
-        except ValueError:
-            pass
+        resumed = _resume_point(cursor_file.read_text(), apply_tier3, lo_id, hi_id)
+        if resumed is not None:
+            print(f"  resuming apply from match id {resumed:,} "
+                  f"(cursor file)", flush=True)
+            lo_id = resumed
 
     lo = lo_id
     while lo <= hi_id:
@@ -285,7 +319,7 @@ def apply_matches(conn, batch: int = 20_000, apply_tier3: bool = False) -> dict:
             counts["events_unlinked"] += cur.rowcount
         conn.commit()
         cursor_file.parent.mkdir(parents=True, exist_ok=True)
-        cursor_file.write_text(str(hi + 1))
+        cursor_file.write_text(json.dumps({"next": hi + 1, "apply_tier3": apply_tier3}))
         print(f"  applied matches {lo:,}-{min(hi, hi_id):,} · "
               f"{counts['events_linked']:,} events linked", flush=True)
         lo = hi + 1
