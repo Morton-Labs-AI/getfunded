@@ -38,6 +38,7 @@ export const PLAN_FEATURES = [
   "shared_knowledge",
   "dedicated_outreach",
   "reports",
+  "signal_discovery",
 ] as const;
 export type PlanFeature = (typeof PLAN_FEATURES)[number];
 
@@ -88,6 +89,7 @@ const BASE_FEATURES: Record<PlanFeature, boolean> = {
   shared_knowledge: false,
   dedicated_outreach: false,
   reports: false,
+  signal_discovery: false,
 };
 
 function plan(
@@ -123,7 +125,7 @@ function plan(
 
 export const PLANS: Record<PlanId, Plan> = {
   free: plan("free", "Free", 0, 1, 25, 50, 1, "limited100", {}, null),
-  starter: plan("starter", "Starter", 1_000, 1, 150, 500, 3, "full", {}, "STRIPE_PRICE_STARTER"),
+  starter: plan("starter", "Starter", 1_000, 1, 150, 500, 3, "full", { signal_discovery: true }, "STRIPE_PRICE_STARTER"),
   pro: plan(
     "pro",
     "Pro",
@@ -133,7 +135,7 @@ export const PLANS: Record<PlanId, Plan> = {
     null,
     null,
     "full",
-    { send_gmail: true, reports: true },
+    { send_gmail: true, reports: true, signal_discovery: true },
     "STRIPE_PRICE_PRO",
   ),
   team: plan(
@@ -145,7 +147,7 @@ export const PLANS: Record<PlanId, Plan> = {
     null,
     null,
     "full",
-    { send_gmail: true, reports: true, api: true, sequences: true, shared_knowledge: true },
+    { send_gmail: true, reports: true, api: true, sequences: true, shared_knowledge: true, signal_discovery: true },
     "STRIPE_PRICE_TEAM",
     { can_disable_daily_cap: true },
   ),
@@ -165,6 +167,7 @@ export const PLANS: Record<PlanId, Plan> = {
       sequences: true,
       shared_knowledge: true,
       dedicated_outreach: true,
+      signal_discovery: true,
     },
     "STRIPE_PRICE_ENTERPRISE",
     { can_disable_daily_cap: true },
@@ -185,6 +188,7 @@ export const PLANS: Record<PlanId, Plan> = {
       sequences: true,
       shared_knowledge: true,
       dedicated_outreach: true,
+      signal_discovery: true,
     },
     null,
     { can_disable_daily_cap: true, public: false },

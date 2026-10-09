@@ -77,3 +77,43 @@ export async function runDailyMaintenance(sql: Db, opts: MaintenanceOptions = {}
     ranAt: new Date().toISOString(),
   };
 }
+
+/* ------------------------------------------------------------- signals */
+
+export type SignalSyncResult = {
+  workspacesScanned: number;
+  signalsSeen: number;
+  notificationsCreated: number;
+  activitiesLogged: number;
+  ranAt: string;
+};
+
+export type SignalSyncOptions = {
+  /** Signals per workspace per run (door bound: 1..5000). */
+  limit?: number;
+  /** Discovery alerts for every workspace regardless of plan (a self-install). */
+  discoveryForAll?: boolean;
+};
+
+/**
+ * Calls `getfunded.sync_signal_notifications()` (migration getfunded_0016)
+ * with no user: new published corpus signals become notifications for the
+ * people they concern, and a system activity on each saved funder. Idempotent
+ * through per-workspace cursors; a second run creates nothing.
+ */
+export async function runSignalSync(sql: Db, opts: SignalSyncOptions = {}): Promise<SignalSyncResult> {
+  const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5000);
+  const rows = await sql<
+    { workspaces_scanned: number | string; signals_seen: number | string; notifications_created: number | string; activities_logged: number | string }[]
+  >`
+    select workspaces_scanned, signals_seen, notifications_created, activities_logged
+    from getfunded.sync_signal_notifications(${limit}::int, ${opts.discoveryForAll ?? false}::boolean)`;
+  const row = rows[0];
+  return {
+    workspacesScanned: Number(row?.workspaces_scanned ?? 0),
+    signalsSeen: Number(row?.signals_seen ?? 0),
+    notificationsCreated: Number(row?.notifications_created ?? 0),
+    activitiesLogged: Number(row?.activities_logged ?? 0),
+    ranAt: new Date().toISOString(),
+  };
+}

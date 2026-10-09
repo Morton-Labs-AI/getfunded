@@ -19,6 +19,13 @@ This file is the single source of truth for plan limits. The web app reads these
 Every plan includes funder search, funder profiles with provenance, and application posture.
 Search never costs credits. Only calls to a language model cost credits.
 
+Every plan also includes **funder signals**: a funder's own dated announcements (a new capital
+commitment, a program launch, an open call, a deadline) on its profile, and an in-app alert when a
+funder on your saved list announces something. **Discovery alerts**, for funders you have not saved
+whose announcement says nonprofits are eligible and matches your program areas, are on Starter and
+above (and on every self-install). Signals are read from the corpus; classifying them is a pipeline
+cost borne once, so they never use a workspace's credits. See docs/FUNDER-SIGNALS.md.
+
 ## What a credit buys
 
 One credit is about 4,000 input tokens plus 1,000 output tokens on a mid-size model. The
