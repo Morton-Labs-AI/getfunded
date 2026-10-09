@@ -1,0 +1,387 @@
+@import "tailwindcss";
+
+/* Class-based dark mode. The .dark class is set on <html> before paint by the
+   no-flash script in layout.tsx (dark "Vault" is the flagship default). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================================
+   GREENBOOK — design tokens
+   "Every dollar, on the record."  Exact · Open · Composed.
+
+   Light = "Ledger" (cool paper).  Dark = "Vault" (green-cast near-black with
+   Ledger Green phosphor) — the flagship. Every neutral carries a faint green
+   cast: never pure gray (Graphite's territory), never warm cream (Morton's).
+
+   The trichotomy — equity / grant / federal — is the product taxonomy as a
+   color system. Category color is never the sole signal (labels always).
+============================================================================ */
+:root {
+  color-scheme: light;
+
+  /* Surfaces (Ledger) */
+  --bg-canvas: #f6f8f7;
+  --bg-surface: #ffffff;
+  --bg-raised: #ffffff;
+  --bg-inset: #edf1ef;
+  --bg-overlay: #ffffff;
+
+  /* Ink — 4 steps. ink-4 is decorative ONLY (2.5:1), never running text. */
+  --ink-1: #131917; /* 16.7:1 on canvas */
+  --ink-2: #3d4743; /*  9.0:1 */
+  --ink-3: #5f6b66; /*  5.2:1 — AA at all sizes */
+  --ink-4: #97a19c;
+
+  --border-1: #dfe5e1;
+  --border-2: #c6cfc9;
+
+  /* Signature accent — Treasury Green */
+  --accent: #0c7a4f; /* 5.4:1 on white */
+  --accent-hover: #096240;
+  --accent-ink: #ffffff;
+  --accent-tint: #e7f2ed;
+  --accent-border: #a9d6c2;
+
+  --positive: #0c7a4f;
+  --caution: #9a5b00;
+  --negative: #c73a3a;
+
+  /* THE TRICHOTOMY */
+  --cat-equity: #6d28d9;       /* Venture Violet — 7.1:1 */
+  --cat-grant: #8a6400;        /* Grant Gold     — 5.4:1 */
+  --cat-federal: #1d4ed8;      /* Civic Blue     — 6.7:1 */
+  --cat-equity-fill: #8b5cf6;  /* chart marks */
+  --cat-grant-fill: #9c7100;
+  --cat-federal-fill: #2f6fe4;
+  --cat-equity-tint: #ede4fb;
+  --cat-grant-tint: #f7efd8;
+  --cat-federal-tint: #e3edfd;
+
+  --scrim: rgba(16, 22, 19, 0.32);
+  --shadow-sm: 0 1px 2px rgba(16, 22, 19, 0.06);
+  --shadow-overlay: 0 12px 32px -8px rgba(16, 22, 19, 0.16),
+    0 2px 6px -2px rgba(16, 22, 19, 0.08);
+  --focus-ring: 0 0 0 3px rgba(12, 122, 79, 0.28);
+  --selection: #cbe8da;
+  --topbar-bg: rgba(246, 248, 247, 0.84);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-1: 90ms;
+  --dur-2: 160ms;
+  --dur-3: 260ms;
+  --dur-4: 900ms;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces (Vault) */
+  --bg-canvas: #0a0e0c;
+  --bg-surface: #101613;
+  --bg-raised: #161c18;
+  --bg-inset: #161c18;
+  --bg-overlay: #1c2420;
+
+  --ink-1: #f0f4f1; /* 17.5:1 */
+  --ink-2: #bfc9c2; /* 11.4:1 */
+  --ink-3: #869089; /*  5.9:1 */
+  --ink-4: #59645d;
+
+  --border-1: #222a25;
+  --border-2: #333d36;
+
+  /* Ledger Green phosphor */
+  --accent: #3fd68f; /* 10.4:1 */
+  --accent-hover: #63e0a5;
+  --accent-ink: #06130c;
+  --accent-tint: rgba(63, 214, 143, 0.1);
+  --accent-border: rgba(63, 214, 143, 0.3);
+
+  --positive: #45c98b;
+  --caution: #f2a33c;
+  --negative: #ef6f6c;
+
+  --cat-equity: #c084fc;
+  --cat-grant: #eac054;
+  --cat-federal: #6aa6f8;
+  /* Chart fills stepped into the OKLCH L 0.48–0.67 mark band (dataviz
+     validator: lightness band + CVD + contrast all PASS on #101613). Text/badge
+     tokens above stay lighter for AA text contrast — different jobs. */
+  --cat-equity-fill: #a055f0;
+  --cat-grant-fill: #ba8a18;
+  --cat-federal-fill: #3d7edc;
+  --cat-equity-tint: rgba(192, 132, 252, 0.12);
+  --cat-grant-tint: rgba(234, 192, 84, 0.12);
+  --cat-federal-tint: rgba(106, 166, 248, 0.12);
+
+  --scrim: rgba(4, 7, 5, 0.62);
+  --shadow-sm: none;
+  --shadow-overlay: 0 16px 40px -8px rgba(0, 0, 0, 0.55),
+    0 2px 8px -2px rgba(0, 0, 0, 0.4);
+  --focus-ring: 0 0 0 3px rgba(63, 214, 143, 0.35);
+  --selection: rgba(63, 214, 143, 0.22);
+  --topbar-bg: rgba(10, 14, 12, 0.84);
+}
+
+/* ----------------------------------------------------------------------------
+   @theme — map tokens into Tailwind utilities with var() indirection so the
+   .dark overrides flow through every bg-, text-, and border- utility.
+---------------------------------------------------------------------------- */
+@theme {
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-raised: var(--bg-raised);
+  --color-inset: var(--bg-inset);
+  --color-overlay: var(--bg-overlay);
+
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+
+  --color-border-1: var(--border-1);
+  --color-border-2: var(--border-2);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-border: var(--accent-border);
+
+  --color-positive: var(--positive);
+  --color-caution: var(--caution);
+  --color-negative: var(--negative);
+
+  --color-equity: var(--cat-equity);
+  --color-grant: var(--cat-grant);
+  --color-federal: var(--cat-federal);
+  --color-equity-fill: var(--cat-equity-fill);
+  --color-grant-fill: var(--cat-grant-fill);
+  --color-federal-fill: var(--cat-federal-fill);
+  --color-equity-tint: var(--cat-equity-tint);
+  --color-grant-tint: var(--cat-grant-tint);
+  --color-federal-tint: var(--cat-federal-tint);
+
+  --font-display: var(--font-newsreader);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+
+  /* Radii: 5 badges/chips · 8 inputs/SQL/buttons · 10 cards/popovers · 12 omnibox/modal */
+  --radius-badge: 5px;
+  --radius-input: 8px;
+  --radius-card: 10px;
+  --radius-modal: 12px;
+}
+
+/* ----------------------------------------------------------------------------
+   Base
+---------------------------------------------------------------------------- */
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  background: var(--bg-canvas);
+  color: var(--ink-2);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
+
+/* Numeric discipline: tabular numerals on everything that can carry data. */
+td,
+th,
+time,
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Mono ligatures off globally; on only inside SQL blocks. */
+.font-mono,
+code,
+kbd {
+  font-feature-settings: "calt" 0, "tnum" 1;
+}
+.sql-block code {
+  font-feature-settings: "calt" 1;
+}
+
+/* ----------------------------------------------------------------------------
+   Shared primitives
+---------------------------------------------------------------------------- */
+
+/* Mono-caps overline / eyebrow / table-header voice */
+.mono-label {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Sourced fact: dotted underline, seal on interaction (Provenance Seal). */
+.fact {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ink-4);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+/* Unresolved as-reported name (never fake-links). */
+.as-reported {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ink-4);
+  text-underline-offset: 3px;
+}
+
+kbd {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-2);
+  color: var(--ink-3);
+}
+
+/* Ledger skeleton: rules render before entries; one in-phase accent scan. */
+@keyframes ledger-scan {
+  from {
+    background-position: -60% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+.skeleton {
+  border-radius: 4px;
+  background-color: var(--bg-inset);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--accent) 4%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: ledger-scan 1.6s var(--ease-standard) infinite;
+}
+
+/* AI thinking cursor — the terminal heritage, exactly where waiting happens. */
+@keyframes cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.thinking-cursor {
+  display: inline-block;
+  color: var(--accent);
+  animation: cursor-blink 1.06s steps(1) infinite;
+}
+
+/* Page enter: rise 8px + fade, once per navigation. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter var(--dur-3) var(--ease-enter);
+}
+
+/* Popover press: a stamp pressing onto paper. */
+@keyframes seal-press {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.seal-press {
+  animation: seal-press 180ms var(--ease-enter);
+}
+
+/* Census counter digit roll (per-digit strips clipped in a window). */
+.odometer-window {
+  overflow: hidden;
+  display: inline-block;
+}
+.odometer-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--dur-4) var(--ease-enter);
+  will-change: transform;
+}
+
+/* Landing hero backdrop: ledger ruling (horizontal only), radially masked. */
+.ledger-ruling {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 47px,
+    var(--border-1) 47px,
+    var(--border-1) 48px
+  );
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 75%);
+  opacity: 0.4;
+}
+
+/* SQL block cooling rule */
+.sql-rule {
+  border-left: 2px solid var(--accent);
+  transition: border-color 400ms var(--ease-standard);
+}
+.sql-rule[data-cooled="true"] {
+  border-left-color: var(--border-2);
+}
+
+/* Scrollbars that don't fight the canvas */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-2) transparent;
+}
+
+/* Reduced motion: global kill switch. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .odometer-strip {
+    transition: none;
+  }
+}

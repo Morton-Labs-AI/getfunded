@@ -23,6 +23,7 @@ You can use it two ways:
 |---|---|---|
 | `corpus/` | The data pipeline. A Python command-line tool (`funderdb`) that downloads public filings, verifies them, loads them into Postgres, and builds the search index. | [corpus/README.md](corpus/README.md), [corpus/docs/SELF-INSTALL.md](corpus/docs/SELF-INSTALL.md) |
 | `apps/web/` | The website and app. Next.js. Public search, funder profiles, sign-in, workspace, AI features, billing, admin. | [apps/web/README.md](apps/web/README.md) |
+| `apps/greenbook/` | Greenbook, the maintainer's dashboard: natural-language SQL over the corpus, the `/data` trust page, and the local-only human review consoles for enrichment, labels and funder signals (they write through `funder_rw`). | [apps/greenbook/README.md](apps/greenbook/README.md) |
 | `docs/` | How it is designed: [ARCHITECTURE.md](docs/ARCHITECTURE.md), [DATA-MODEL.md](docs/DATA-MODEL.md), [PLANS.md](docs/PLANS.md), RFCs. | |
 | Root files | [GOVERNANCE.md](GOVERNANCE.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [LICENSE](LICENSE), [DATA-LICENSE.md](DATA-LICENSE.md), [TRADEMARK.md](TRADEMARK.md) | |
 

@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.env.local
+.env
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+
+# Labeling session seed (recorded in the results view + certification record)
+.labeling-seed-*
+
+# Enrichment run artifacts: previews and review pages quote funder website
+# copy verbatim (publisher_website licence, republishable = false). The
+# snapshots of record live in open-funder-db/data/raw/funder_website/.
+data/enrich-runs/

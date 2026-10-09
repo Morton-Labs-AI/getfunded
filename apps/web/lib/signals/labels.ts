@@ -1,4 +1,11 @@
 /**
+ * COPIED MODULE. This file exists in two repositories and must stay byte-identical:
+ *   canonical: Morton-Labs-AI/getfunded  apps/web/lib/signals/labels.ts
+ *   copy:      Morton-Labs-AI/dnw-funder-intelligence  lib/signals/labels.ts
+ * Change getfunded first, then copy the whole file here. There is no shared
+ * package on purpose: two consumers, ~110 lines (see getfunded/docs/REPOSITORY-MAP.md).
+ */
+/**
  * Funder-signal vocabulary -> words. Pure; shared by the funder page, the
  * bell, the notifications page and the dashboard. The keys mirror the CHECK
  * constraints in corpus migration 0035: a value the database can store has a
