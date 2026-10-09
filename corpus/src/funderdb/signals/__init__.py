@@ -1,4 +1,4 @@
-"""Funder signals — dated, sourced news about a funder (migration 0032).
+"""Funder signals — dated, sourced news about a funder (migration 0035).
 
 Pipeline (each step is a `funderdb signals ...` command and is re-entrant):
 

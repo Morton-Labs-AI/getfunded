@@ -74,7 +74,7 @@ export async function FunderProfile({ orgId, mode, slots, grants }: FunderProfil
     softFail("irs standing", null, () => getFunderStanding(funder.orgId)),
     // Null when the foundation has no history row or the relations are not readable yet.
     softFail("application history", null, () => getFunderApplicationHistory(funder.orgId)),
-    // [] until corpus 0032 and getfunded_0015 are applied; the section renders nothing for [].
+    // [] until corpus 0035 and getfunded_0015 are applied; the section renders nothing for [].
     softFail("signals", [], () => getFunderSignals(funder.orgId)),
   ]);
 

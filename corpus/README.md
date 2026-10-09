@@ -434,7 +434,7 @@ Lessons kept from the build-out, each the result of a real defect.
   re-entrant, so a killed run resumes at no cost; wrap backfills in a bounded
   retry loop rather than watching them.
 
-## Funder signals (migration 0032)
+## Funder signals (migration 0035)
 
 A funder's own dated announcements (a new capital commitment, a program launch,
 an open call, a deadline), fetched from its newsroom or sent in by a person,

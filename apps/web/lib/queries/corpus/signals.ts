@@ -2,7 +2,7 @@ import "server-only";
 
 /**
  * Corpus read for funder signals (internal.funder_signals, corpus migration
- * 0032; the app role reads it after web migration getfunded_0015).
+ * 0035; the app role reads it after web migration getfunded_0015).
  *
  *   - Published rows only. A candidate never leaves the review queue.
  *   - The grant is probed, so deploying the app before the migration is safe:

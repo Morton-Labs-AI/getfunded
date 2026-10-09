@@ -1209,7 +1209,7 @@ def derive_org_address(dry_run: bool, do_apply: bool, do_unapply: bool, do_repor
 
 
 # ---------------------------------------------------------------------------
-# signals — dated, sourced funder news (migration 0032; src/funderdb/signals/)
+# signals — dated, sourced funder news (migration 0035; src/funderdb/signals/)
 # ---------------------------------------------------------------------------
 @main.group()
 def signals() -> None:

@@ -1,4 +1,4 @@
--- 0032: funder signals — dated, sourced news about a funder, linked to its org.
+-- 0035: funder signals — dated, sourced news about a funder, linked to its org.
 --
 -- WHY. Filings are a lagging indicator: a 990-PF describes what a foundation
 -- did eighteen months ago. A press release is a leading indicator: on
@@ -10,10 +10,11 @@
 -- the org links that let every workspace app join a signal to its own saved
 -- funders. Loaded by `funderdb signals ...` (src/funderdb/signals/).
 --
--- NUMBERING. open-funder-db (the upstream of this corpus) stops at 0024; this
--- fork carries 0025-0031. This file is 0032 in BOTH repositories so the two
--- never collide on a subtree sync; upstream simply has a gap 0025-0031 until
--- those files are ported (see docs/FUNDER-SIGNALS.md).
+-- NUMBERING. This corpus (getfunded/corpus) is the only maintained copy:
+-- open-funder-db was archived on 2026-10-09 and its migrations end at 0024.
+-- 0032 (IRS standing refinements) and 0034 (placeholder recipients v2) were
+-- already applied here, and 0033 is intentionally absent, so funder signals
+-- take the next free number, 0035.
 --
 -- DOCTRINE
 --

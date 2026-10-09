@@ -1,7 +1,7 @@
 /**
  * Funder-signal vocabulary -> words. Pure; shared by the funder page, the
  * bell, the notifications page and the dashboard. The keys mirror the CHECK
- * constraints in corpus migration 0032: a value the database can store has a
+ * constraints in corpus migration 0035: a value the database can store has a
  * label here, and an unknown value falls back to the raw key so nothing is
  * ever hidden by a missing entry.
  */

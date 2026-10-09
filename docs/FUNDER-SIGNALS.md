@@ -15,7 +15,7 @@ repository.
 
 A **signal** is a dated, sourced public announcement about a funder that changes what, whom or
 how it funds. Signals are a **corpus fact**: fetched, snapshotted and classified **once** in the
-shared Open Funder Database (`internal.funder_signals`, corpus migration 0032), linked to the
+shared Open Funder Database (`internal.funder_signals`, corpus migration 0035), linked to the
 organization row every app already uses, and published by a human. Each workspace app then does
 its own **relevance matching** over its own private data (saved funders, owners, initiatives,
 lists, profile) and writes **notifications** for the right people, with the reasons on the row.
@@ -26,9 +26,9 @@ summary is labelled as the model's paraphrase everywhere it renders.
 
 | Layer | Repository | What |
 |---|---|---|
-| Fact table, pipeline, public view | `open-funder-db` and `getfunded/corpus` (same files, migration `0032_funder_signals.sql`) | `internal.signal_sources` (watch list), `internal.funder_signals`, `internal.funder_signal_orgs`; `funderdb signals load-sources · add · add-urls · poll · process · publish · reject · status`; `public.funder_signals` + `public.funder_signal_orgs` |
-| Human review gate | `open-funder-db-ui` (`/admin/signals`, dev-only) | Publish / reject / reopen candidates; record a URL by hand (file-first, EIN-linked) |
-| Read-only profile | `open-funder-db-ui` (`/org/[id]` → Signals) | Published signals with the Provenance Seal |
+| Fact table, pipeline, public view | `getfunded/corpus` (migration `0035_funder_signals.sql`; `open-funder-db` is archived) | `internal.signal_sources` (watch list), `internal.funder_signals`, `internal.funder_signal_orgs`; `funderdb signals load-sources · add · add-urls · poll · process · publish · reject · status`; `public.funder_signals` + `public.funder_signal_orgs` |
+| Human review gate | Greenbook, `getfunded/apps/greenbook` (`/admin/signals`, dev-only) | Publish / reject / reopen candidates; record a URL by hand (file-first, EIN-linked) |
+| Read-only profile | Greenbook (`/org/[id]` → Signals) | Published signals with the Provenance Seal |
 | Free + paid product | `getfunded/apps/web` | Profile section, bell, `/app/notifications`, Settings → Notifications, dashboard panel, door `getfunded.sync_signal_notifications()` on `/api/cron/signals` (migrations `getfunded_0015`, `getfunded_0016`) |
 | Private tenant (DNW) | `dnw-funder-intelligence` | Signals tab (count badge), existing bell gains two kinds, `funder_signal` timeline activity, `dnw.sync_signal_notifications()` (migration `dnw_0021`), `npm run signals:sync` |
 | Morton Labs' own CRM | `morton-fundraising` | Workspace `signals` + `signalAlerts`; flag a URL in the app or a LinkedIn/X post from the extension; `/api/signals/classify` runs the same classifier against the same vocabulary; `/signals` page; dashboard nudges |

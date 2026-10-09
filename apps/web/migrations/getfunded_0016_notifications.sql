@@ -1,6 +1,6 @@
 -- getfunded_0016: notifications, and the door that turns funder signals into them.
 --
--- WHY. Corpus migration 0032 gives the database dated, sourced funder news
+-- WHY. Corpus migration 0035 gives the database dated, sourced funder news
 -- (internal.funder_signals, read by this app since getfunded_0015). News is
 -- only useful if it reaches the person it concerns while it is still news.
 -- This file adds:
@@ -171,7 +171,7 @@ create policy p_signal_cursors_door on getfunded.signal_cursors for all
 -- ---------------------------------------------------------------------------
 -- signal_sector_keywords: reference data. A keyword is matched case-
 -- insensitively as a substring of each program area and keyword in
--- workspaces.profile. Sector values are the corpus vocabulary (0032).
+-- workspaces.profile. Sector values are the corpus vocabulary (0035).
 -- ---------------------------------------------------------------------------
 create table if not exists getfunded.signal_sector_keywords (
   sector  text not null,
