@@ -56,6 +56,15 @@ previous month.
 | `collections` | `id uuid pk`, `workspace_id`, `name`, `description`, `is_shared bool`, `created_by`, `version` | named lists |
 | `collection_items` | `collection_id`, `saved_funder_id`, `position int`, pk both | |
 
+## Notifications (getfunded_0016)
+
+| Table | Columns | Notes |
+|---|---|---|
+| `notifications` | `id bigserial`, `workspace_id`, `user_id`, `kind text` (`funder_signal`, `signal_discovery`, `system`), `signal_id bigint` (soft ref `internal.funder_signals`), `org_id` (soft corpus ref), `saved_funder_id`, `title`, `body`, `href`, `score smallint`, `reasons jsonb` (`[{code,label}]`), `read_at`, `dismissed_at`, unique (`user_id`,`signal_id`) | written only by `sync_signal_notifications()`; the app may update `read_at` and `dismissed_at` on its own rows |
+| `notification_preferences` | `workspace_id`, `user_id` (pk both), `signal_alerts bool`, `discovery_alerts bool`, `min_score smallint`, `email_digest text` (`off`,`daily`,`weekly`), `version` | per person; e-mail is recorded, not yet sent |
+| `signal_cursors` | `workspace_id pk`, `last_signal_id bigint`, `last_run_at` | the door's idempotency; a new workspace starts 30 days back |
+| `signal_sector_keywords` | `sector`, `keyword` (pk both) | reference data mapping profile words to corpus sectors |
+
 ## AI output (append-only)
 
 | Table | Columns | Notes |

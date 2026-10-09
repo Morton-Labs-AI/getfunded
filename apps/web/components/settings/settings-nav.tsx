@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, CreditCard, Database, KeyRound, Plug, Users, type LucideIcon } from "lucide-react";
+import { Bell, Building2, CreditCard, Database, KeyRound, Plug, Users, type LucideIcon } from "lucide-react";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SETTINGS_TABS, type SettingsTabKey } from "@/lib/settings/copy";
@@ -15,6 +15,7 @@ const ICONS: Record<SettingsTabKey, LucideIcon> = {
   billing: CreditCard,
   api: KeyRound,
   integrations: Plug,
+  notifications: Bell,
   data: Database,
 };
 

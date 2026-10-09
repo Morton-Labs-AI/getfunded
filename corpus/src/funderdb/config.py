@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Voyage AI (semantic-search embeddings). Optional so ingest works without it.
     voyage_api_key: str | None = None
 
+    # Anthropic — funder-signal classification (`funderdb signals process`).
+    # Optional: SIGNALS_AI_MODE=mock runs a keyword classifier with no key.
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-opus-5-5"
+    signals_ai_mode: str = "live"          # live | mock
+
     @property
     def raw_dir(self) -> Path:
         return self.data_root / "raw"

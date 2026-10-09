@@ -11,6 +11,7 @@ export const SETTINGS_TABS = [
   { href: "/app/settings/billing", label: "Billing", key: "billing" },
   { href: "/app/settings/api", label: "API keys", key: "api" },
   { href: "/app/settings/integrations", label: "Integrations", key: "integrations" },
+  { href: "/app/settings/notifications", label: "Notifications", key: "notifications" },
   { href: "/app/settings/data", label: "Data", key: "data" },
 ] as const;
 export type SettingsTabKey = (typeof SETTINGS_TABS)[number]["key"];

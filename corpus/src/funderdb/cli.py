@@ -5,6 +5,7 @@ import time as _time
 from datetime import date
 
 import click
+from pathlib import Path
 
 _REFRESH_HELP = ("Re-check the upstream feed even if a cached copy is younger than its "
                  "max-age (conditional request; a new vintage is staged only if the bytes changed).")
@@ -1205,6 +1206,127 @@ def derive_org_address(dry_run: bool, do_apply: bool, do_unapply: bool, do_repor
         click.echo(f"\nerror: {exc}", err=True)
         raise SystemExit(1)
 
+
+
+# ---------------------------------------------------------------------------
+# signals — dated, sourced funder news (migration 0032; src/funderdb/signals/)
+# ---------------------------------------------------------------------------
+@main.group()
+def signals() -> None:
+    """Funder signals: press releases and announcements, classified and org-linked."""
+
+
+@signals.command("load-sources")
+@click.option("--csv", "csv_path", type=click.Path(exists=True, path_type=Path),
+              default=Path("data/seed/signal_sources.csv"), show_default=True)
+def signals_load_sources(csv_path: Path) -> None:
+    """Load/refresh the watch list (data/seed/signal_sources.csv) into internal.signal_sources."""
+    from .signals import pipeline
+
+    for k, v in pipeline.load_sources(csv_path).items():
+        click.echo(f"{k}: {v:,}")
+
+
+@signals.command("add")
+@click.argument("url")
+@click.option("--ein", default=None, help="EIN of the funder the page is about (links the org).")
+@click.option("--by", "submitted_by", default="cli", show_default=True,
+              help="Who found it, e.g. human:zach.")
+@click.option("--note", default=None, help="How it was found (\"LinkedIn post by the MD\").")
+def signals_add(url: str, ein: str | None, submitted_by: str, note: str | None) -> None:
+    """Record one announcement URL as a candidate signal (processed by `signals process`)."""
+    from .signals import pipeline
+
+    out = pipeline.add_url(url, ein=ein, submitted_by=submitted_by, note=note)
+    for k, v in out.items():
+        click.echo(f"{k}: {v}")
+    if ein and not out.get("org_id"):
+        click.echo("warning: EIN did not resolve in internal.org_identifiers; signal is unlinked",
+                   err=True)
+
+
+@signals.command("add-urls")
+@click.option("--csv", "csv_path", type=click.Path(exists=True, path_type=Path),
+              default=Path("data/seed/signal_urls.csv"), show_default=True)
+def signals_add_urls(csv_path: Path) -> None:
+    """Record every URL in a curated CSV (url, org_ein, submitted_by, discovery_note)."""
+    from .signals import pipeline
+
+    for k, v in pipeline.add_urls_from_csv(csv_path).items():
+        click.echo(f"{k}: {v:,}")
+
+
+@signals.command("poll")
+@click.option("--source", "slug", default=None, help="Only this source slug.")
+@click.option("--dry-run", is_flag=True, help="Fetch and list discovered links; write nothing.")
+@click.option("--force", is_flag=True, help="Ignore fetch_interval_hours.")
+@click.option("--max-items", type=int, default=50, show_default=True)
+def signals_poll(slug: str | None, dry_run: bool, force: bool, max_items: int) -> None:
+    """Fetch every due source (feed or index page) and record new links as candidates."""
+    from .signals import pipeline
+
+    for k, v in pipeline.poll(slug, dry_run=dry_run, force=force, max_items=max_items).items():
+        click.echo(f"{k}: {v:,}")
+
+
+@signals.command("process")
+@click.option("--limit", type=int, default=20, show_default=True)
+@click.option("--id", "signal_id", type=int, default=None, help="Only this signal id.")
+@click.option("--dry-run", is_flag=True, help="Fetch + classify, print the decision, write nothing.")
+@click.option("--auto-publish", is_flag=True,
+              help="Publish high/medium-relevance rows at or above --min-confidence "
+                   "(live model only; reviewed_by = model:<id>).")
+@click.option("--min-confidence", type=float, default=0.85, show_default=True)
+def signals_process(limit: int, signal_id: int | None, dry_run: bool, auto_publish: bool,
+                    min_confidence: float) -> None:
+    """Fetch, snapshot, classify and org-link candidates that have not been processed."""
+    from .signals import pipeline
+
+    out = pipeline.process(limit, dry_run=dry_run, auto_publish=auto_publish,
+                           min_confidence=min_confidence, signal_id=signal_id)
+    for k, v in out.items():
+        click.echo(f"{k}: {v:,}")
+
+
+@signals.command("publish")
+@click.argument("ids", nargs=-1, type=int)
+@click.option("--all-confident", is_flag=True,
+              help="Publish every org-linked candidate with relevance high/medium at or above "
+                   "--min-confidence (live model only).")
+@click.option("--min-confidence", type=float, default=0.85, show_default=True)
+@click.option("--by", "reviewed_by", default="human:cli", show_default=True)
+def signals_publish(ids: tuple[int, ...], all_confident: bool, min_confidence: float,
+                    reviewed_by: str) -> None:
+    """Publish candidates by id, or every confident one. Published rows reach public.funder_signals."""
+    from .signals import pipeline
+
+    n = 0
+    if ids:
+        n += pipeline.set_status(list(ids), "published", reviewed_by=reviewed_by)
+    if all_confident:
+        n += pipeline.publish_confident(min_confidence, reviewed_by=reviewed_by)
+    click.echo(f"published: {n:,}")
+
+
+@signals.command("reject")
+@click.argument("ids", nargs=-1, type=int, required=True)
+@click.option("--by", "reviewed_by", default="human:cli", show_default=True)
+@click.option("--note", default=None)
+def signals_reject(ids: tuple[int, ...], reviewed_by: str, note: str | None) -> None:
+    """Reject candidates by id (kept for audit; never shown anywhere)."""
+    from .signals import pipeline
+
+    click.echo(f"rejected: {pipeline.set_status(list(ids), 'rejected', reviewed_by=reviewed_by, note=note):,}")
+
+
+@signals.command("status")
+def signals_status() -> None:
+    """Counts by status, source health, and the last runs."""
+    import json as _json
+
+    from .signals import pipeline
+
+    click.echo(_json.dumps(pipeline.status(), indent=2))
 
 if __name__ == "__main__":
     main()

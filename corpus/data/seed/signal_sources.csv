@@ -1,0 +1,2 @@
+slug,publisher,org_ein,source_kind,url,link_pattern,fetch_interval_hours,notes
+macarthur-press,John D. and Catherine T. MacArthur Foundation,237093598,html_index,https://www.macfound.org/press/press-releases,^https://www\.macfound\.org/press/press-releases/[a-z0-9-]+$,24,"Press-release index on the foundation's own site. Verify the EIN resolves on first load (`funderdb signals load-sources` reports unresolved EINs); no public RSS feed confirmed, so links are discovered from the index page."
