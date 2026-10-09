@@ -10,6 +10,9 @@ import {
 import { POSTURE_SCOPE_NOTE } from "@/lib/content/facts";
 import { BrowseControls } from "@/components/browse-controls";
 import { TrichotomyBadge } from "@/components/trichotomy-badge";
+import { savedOrgIds } from "@/lib/queries/community/org";
+import { getViewer } from "@/lib/auth/viewer";
+import { communityLive } from "@/lib/community/posture";
 import { countCompact, moneyCompact, MDASH, ORG_TYPE_LABELS } from "@/lib/format";
 
 const SEGMENTS = [
@@ -47,6 +50,21 @@ export default async function BrowsePage({
     segmentCounts(),
   ]);
   const rows = result.rows;
+
+  // A SEPARATE query, deliberately NOT a join into browseOrgs. lib/queries/
+  // browse.ts carries an explicit warning that a non-1:1 join corrupts its
+  // keyset cursor, and browseOrgs runs on the read-only corpus pool which must
+  // not learn about member data at all. A post-hoc `= any($1)` over <= 50 uuids
+  // is index-only and leaves browse.ts untouched.
+  //
+  // Annotation, NOT filtering: there is deliberately no "saved only" toggle
+  // here, because `saved=1` cannot compose with keyset pagination without a
+  // rewrite. Filtering to saved lives on /collections, which is where a member
+  // is actually heading.
+  const viewer = communityLive ? await getViewer() : null;
+  const saved = viewer
+    ? await savedOrgIds(viewer.memberId, rows.map((r) => r.id))
+    : new Set<string>();
   const isFoundations = segment === "foundations";
   const isAdvisers = segment === "advisers";
 
@@ -151,6 +169,17 @@ export default async function BrowsePage({
                     <Link href={`/org/${r.id}`} className="font-medium text-ink-1 hover:text-accent">
                       {r.name}
                     </Link>
+                    {saved.has(r.id) && (
+                      <span
+                        className="ml-1.5 inline-block align-middle text-accent"
+                        title="In one of your lists"
+                        aria-label="Saved"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z" />
+                        </svg>
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3.5 py-2.5 text-ink-3">
                     {[r.city, r.state].filter(Boolean).join(", ") || MDASH}
