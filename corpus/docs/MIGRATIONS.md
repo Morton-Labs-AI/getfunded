@@ -27,6 +27,10 @@ The migrations themselves run `create extension if not exists`, so an
 extension only has to be *available* (installed on the server), not already
 created in the database.
 
+Roles: `0000` creates `funder_ro`, `funder_rw` and `ofdb_publisher`; `0022` sets their
+grants; `0036` adds `greenbook_ro`, the read identity for `apps/greenbook`. None of them can
+log in; attaching a login is an operator step (see each file's header).
+
 ## The ledger
 
 Each applied file is recorded in `internal.schema_migrations`:

@@ -41,7 +41,7 @@ Sanity checks: `npm run db:ping` (connectivity + read-only proof) ·
 ## Safety model (model-generated SQL)
 
 1. Statement-head allowlist (`select`/`with`/`explain`) + single-statement — `lib/ai/sql-guard.ts` (pure, unit-tested)
-2. **`funder_ro` role**: SELECT-only grants + role-level `default_transaction_read_only=on` and `statement_timeout=15s` (survives pooler startup-param stripping — verified by write probe)
+2. **Read-only role**: the pages read as `greenbook_ro`; the analyst's model-written SQL runs as `funder_ro`, which since getfunded_0010 sees only the public views and `mv_*`. Both carry role-level `default_transaction_read_only=on` and `statement_timeout=15s` (survives pooler startup-param stripping — verified by write probe)
 3. Explicit `READ ONLY` transaction per query (kills data-modifying CTEs)
 4. LIMIT-wrap at 500 rows; `contact_channels.value` masked server-side, always
 
@@ -60,6 +60,9 @@ Tabular numerals everywhere; missing data is an em dash, never "$0";
 ## Data dependency
 
 Reads the hosted corpus (schema `internal` + `mv_*` materialized views from
-migration `0007_dashboard_stats.sql` in `../../corpus/migrations`), as `funder_ro`. After any new ingest there, run
+migration `0007_dashboard_stats.sql` in `../../corpus/migrations`), as a login in role
+`greenbook_ro` (corpus migration 0036). It used to read as `funder_ro`; web migration
+getfunded_0010 scoped that role to the analyst's allowlist, so pages that read
+`internal.organizations`, `people`, `er_labels` or `raw_files` fail under it. After any new ingest there, run
 `select internal.refresh_dashboard_stats();` and the dashboard's numbers
 follow (Next cache revalidates hourly).
