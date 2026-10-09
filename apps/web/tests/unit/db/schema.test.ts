@@ -38,6 +38,11 @@ const TABLES = [
   "flags",
   "events",
   "plan_overrides",
+  // getfunded_0016 (funder signals)
+  "notifications",
+  "notification_preferences",
+  "signal_cursors",
+  "signal_sector_keywords",
 ];
 
 // Every migration file follows the roles-block convention (0001-0007 are the
