@@ -10,6 +10,9 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- 2026-10-08, audit record: the 300-pair recipient alias audit
+  (`corpus/data/seed/er_labels/recipient_alias_audit_2026-10-08.csv` and its README) that gated
+  the first alias apply. The labels were made by language-model agents, not people.
 - 2026-10-08, data and profile additions:
   - **Backfill for 2017 to 2020.** `funderdb backfill` loads the IRS returns
     of index years 2017, 2018, 2019 and 2020, one zip file at a time.
