@@ -26,6 +26,14 @@ export const WEB_FACTS_NOTE =
   "human-confirmed; internal research data — not from an IRS filing and " +
   "never republished.";
 
+export const SIGNALS_NOTE =
+  "Signals are the funder's own announcements, found on its newsroom or sent " +
+  "in by a person, snapshotted and classified by a language model whose " +
+  "every field is backed by a passage quoted from the page, then published " +
+  "by a human. The headline, date, amount and chips are the page's statements; " +
+  "the paraphrase is the classifier's. A signal never says a funder is " +
+  "interested in you, and it is not a filing.";
+
 export const SIMILAR_PROFILES_NOTE =
   "Nearest by size, location, and giving pattern in the semantic corpus — " +
   "geography weighs heavily. Ordering is the signal; treat it as a starting " +
@@ -140,6 +148,11 @@ export const KNOWN_LIMITS = [
     "a $0 means the filer reported zero — never conflate them. Not parsed: " +
     "Schedule J compensation detail, Schedule A public-support tests, and " +
     "Schedule O narratives.",
+  "Funder signals (press releases and newsroom posts) exist only for funders " +
+    "on the watch list or sent in by a person; they are classified by a " +
+    "language model with evidence checks and published by a human. Their " +
+    "facts are republished as our CC BY compilation; the publisher's page " +
+    "snapshot is internal and never republished.",
   AMENDED_RULE_NOTE,
   SCHEDULE_B_NOTE,
   POSTURE_UNSTATED_NOTE,
