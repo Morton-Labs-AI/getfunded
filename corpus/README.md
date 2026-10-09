@@ -433,3 +433,24 @@ Lessons kept from the build-out, each the result of a real defect.
   long `COPY` streams mid-run. Every long ingest is chunk-committed and
   re-entrant, so a killed run resumes at no cost; wrap backfills in a bounded
   retry loop rather than watching them.
+
+## Funder signals (migration 0032)
+
+A funder's own dated announcements (a new capital commitment, a program launch,
+an open call, a deadline), fetched from its newsroom or sent in by a person,
+snapshotted, classified by a language model whose every field must be backed
+by a passage quoted from the page, linked to the organization, and published
+by a human. Facts are our CC BY compilation (`public.funder_signals`); the
+publisher's page snapshot is internal and never republished.
+
+```
+uv run funderdb signals load-sources   # data/seed/signal_sources.csv -> internal.signal_sources
+uv run funderdb signals add-urls       # data/seed/signal_urls.csv (the MacArthur $750M example)
+uv run funderdb signals poll           # due sources -> candidate rows
+uv run funderdb signals process        # fetch, snapshot, classify, link (ANTHROPIC_API_KEY or SIGNALS_AI_MODE=mock)
+uv run funderdb signals publish <id>   # or review in the Greenbook console at /admin/signals
+uv run funderdb signals status
+```
+
+Design, vocabulary, relevance scoring and every app surface: [docs/FUNDER-SIGNALS.md](docs/FUNDER-SIGNALS.md).
+

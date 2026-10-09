@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { NotificationBell } from "@/components/workspace/notification-bell";
 import { UsageMeter } from "@/components/workspace/usage-meter";
 import { UserMenu } from "@/components/workspace/user-menu";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 import { getUsage } from "@/lib/billing/meter";
 import { listWorkspaces, requireWorkspace, setActiveWorkspace } from "@/lib/workspace/context";
+import { listNotifications, unreadNotificationCount } from "@/lib/workspace/notifications";
 import { softFail } from "@/lib/workspace/safe";
 
 export const metadata: Metadata = {
@@ -40,6 +42,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       usageSlot={
         <Suspense fallback={<UsageFallback />}>
           <ShellUsage />
+        </Suspense>
+      }
+      actions={
+        <Suspense fallback={<Skeleton className="size-8 rounded-md" />}>
+          <ShellNotifications />
         </Suspense>
       }
     >
@@ -77,6 +84,18 @@ async function ShellUsage() {
   const { user, workspace } = await requireWorkspace();
   const usage = await softFail("usage meter", null, () => getUsage(workspace.id, user.id));
   return usage ? <UsageMeter usage={usage} /> : null;
+}
+
+/** The bell: my unread count and the eight most recent. A failed read hides it; it never takes the shell down. */
+async function ShellNotifications() {
+  const { user, workspace } = await requireWorkspace();
+  const ctx = { userId: user.id, workspaceId: workspace.id };
+  const [count, recent] = await Promise.all([
+    softFail("unread notifications", null, () => unreadNotificationCount(ctx)),
+    softFail("recent notifications", null, () => listNotifications(ctx, { limit: 8 })),
+  ]);
+  if (count === null || recent === null) return null;
+  return <NotificationBell count={count} recent={recent} />;
 }
 
 function UsageFallback() {

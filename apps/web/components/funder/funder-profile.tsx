@@ -18,6 +18,7 @@ import {
   getSimilarFunders,
 } from "@/lib/queries/corpus/funder";
 import { softFail } from "@/lib/queries/corpus/safe";
+import { getFunderSignals } from "@/lib/queries/corpus/signals";
 import { getFunderStanding } from "@/lib/queries/corpus/standing";
 import type { GivingProfile, GrantsPage } from "@/lib/queries/corpus/types";
 
@@ -28,6 +29,7 @@ import { FunderHeader } from "./funder-header";
 import { GivingSection } from "./giving-section";
 import { GrantsTable } from "./grants-table";
 import { OfficersSection } from "./officers-section";
+import { SignalsSection } from "./signals-section";
 import { FactList, ProfileSection, type Fact } from "./profile-section";
 import { SimilarFunders } from "./similar-funders";
 import { SourcesSection } from "./sources-section";
@@ -60,7 +62,7 @@ export async function FunderProfile({ orgId, mode, slots, grants }: FunderProfil
   const funderBase = mode === "app" ? "/app/funders" : "/funder";
 
   const emptyGrants: GrantsPage = { rows: [], total: 0, page: 1, pageSize: 25, pageCount: 0, q: grants?.q ?? null };
-  const [years, grantsPage, officers, contacts, similar, filings, giving, standing, applicationHistory] = await Promise.all([
+  const [years, grantsPage, officers, contacts, similar, filings, giving, standing, applicationHistory, signals] = await Promise.all([
     softFail("financials", [], () => getFunderFinancials(funder.orgId)),
     softFail("grants", emptyGrants, () => getFunderGrants(funder.orgId, { page: grants?.page, q: grants?.q })),
     softFail("officers", [], () => getFunderOfficers(funder.orgId)),
@@ -72,6 +74,8 @@ export async function FunderProfile({ orgId, mode, slots, grants }: FunderProfil
     softFail("irs standing", null, () => getFunderStanding(funder.orgId)),
     // Null when the foundation has no history row or the relations are not readable yet.
     softFail("application history", null, () => getFunderApplicationHistory(funder.orgId)),
+    // [] until corpus 0032 and getfunded_0015 are applied; the section renders nothing for [].
+    softFail("signals", [], () => getFunderSignals(funder.orgId)),
   ]);
 
   const latestYear = years.length > 0 ? years[years.length - 1] : null;
@@ -104,6 +108,7 @@ export async function FunderProfile({ orgId, mode, slots, grants }: FunderProfil
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
+          <SignalsSection signals={signals} />
           <ApplySection funder={funder} standing={standing} history={applicationHistory} />
           <FinancialsSection funder={funder} years={years} />
           <GivingSection profile={giving} />

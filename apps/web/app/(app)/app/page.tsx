@@ -15,6 +15,7 @@ import { ActivityTimeline } from "@/components/workspace/activity-timeline";
 import { FunnelBars } from "@/components/workspace/funnel-bars";
 import { EmptyState, PageBody, PageHeader, SectionTitle } from "@/components/workspace/page-header";
 import { QuickAdd } from "@/components/workspace/quick-add";
+import { SignalsPanel } from "@/components/workspace/signals-panel";
 import { getUsage, type UsageSummary } from "@/lib/billing/meter";
 import { formatDate, formatNumber } from "@/lib/format";
 import { recentActivities } from "@/lib/workspace/activities";
@@ -23,6 +24,7 @@ import { WORKSPACE_COPY } from "@/lib/workspace/copy";
 import { kpis, momentum, ownerLoad, pipelineFunnel, todaysFocus, type Momentum } from "@/lib/workspace/dashboard";
 import type { FocusItem, FocusKind } from "@/lib/workspace/focus";
 import { listMembers } from "@/lib/workspace/members";
+import { signalsForSavedFunders } from "@/lib/workspace/notifications";
 import { softFail } from "@/lib/workspace/safe";
 import { taskCounts } from "@/lib/workspace/tasks";
 import type { WorkspaceCtx } from "@/lib/workspace/types";
@@ -50,7 +52,7 @@ async function DashboardContent() {
   const ctx: WorkspaceCtx = { userId: user.id, workspaceId: workspace.id };
   const now = new Date();
 
-  const [focus, funnel, mom, k, counts, load, members, recent, usage] = await Promise.all([
+  const [focus, funnel, mom, k, counts, load, members, recent, usage, signals] = await Promise.all([
     softFail("today's focus", [], () => todaysFocus(ctx, now)),
     softFail("funnel", [], () => pipelineFunnel(ctx)),
     softFail("momentum", null, () => momentum(ctx)),
@@ -60,6 +62,7 @@ async function DashboardContent() {
     softFail("members", [], () => listMembers(ctx)),
     softFail("recent activity", [], () => recentActivities(ctx, 10)),
     softFail("usage", null, () => getUsage(workspace.id, user.id)),
+    softFail("signals", [], () => signalsForSavedFunders(ctx, 6)),
   ]);
 
   const firstName = (user.displayName ?? "").trim().split(/\s+/)[0] || null;
@@ -207,6 +210,23 @@ async function DashboardContent() {
               </ul>
             </Panel>
           ) : null}
+
+          <Panel>
+            <SectionTitle
+              hint="What funders on your list have announced, from their own newsrooms."
+              action={
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/app/notifications">
+                    Alerts
+                    <ArrowRight aria-hidden />
+                  </Link>
+                </Button>
+              }
+            >
+              Funder signals
+            </SectionTitle>
+            <SignalsPanel signals={signals} />
+          </Panel>
 
           <Panel>
             <SectionTitle hint="Everything the team has logged, newest first.">Latest activity</SectionTitle>

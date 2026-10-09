@@ -24,6 +24,7 @@ const COPY: Record<UpgradeFeature, { title: string; what: string }> = {
   shared_knowledge: { title: "Knowledge base shared across the team", what: "Approved facts and boilerplate that every seat can draft from." },
   dedicated_outreach: { title: "Dedicated outreach", what: "Managed campaigns, sender domains and deliverability monitoring." },
   reports: { title: "Reports", what: "Pipeline and funder reports you can share with your board." },
+  signal_discovery: { title: "Discovery alerts", what: "An alert when a funder you have not saved announces money, a program or a call that says nonprofits are eligible and matches your program areas." },
   members: { title: "More seats", what: "Invite more people to this workspace." },
   saved_funders: { title: "More saved funders", what: "Save more funders to your list." },
   pipelines: { title: "More pipelines", what: "Run more than one pipeline at a time." },

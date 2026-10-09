@@ -14,6 +14,7 @@ dependencies = [
     "splink>=4.0.16,<5",
     "duckdb>=1.5.5",
     "pyarrow>=25.0.0",
+    "anthropic>=0.80",
 ]
 
 [project.scripts]
