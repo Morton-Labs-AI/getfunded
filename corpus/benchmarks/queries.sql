@@ -1123,3 +1123,21 @@ select
 --   ER-spot [ER] PASS: zero placeholder-text matches
 --   ER-funds [ER] SKIP: not applied yet — labels 227/252, Wilson low 0.858, canonicalized 0
 --   ER-people [ER] SKIP: not applied yet — labels 0/0, Wilson low 0.000, canonicalized 0
+
+-- ---------------------------------------------------------------------------
+-- resolve aliases, first apply, 2026-10-08 (report printed 2026-10-09 04:47 UTC)
+--   Last build: ledger run 543, finished 2026-10-09 03:05 UTC, rule file sha256 13528eb8c083
+--   Stored aliases (name + state keys that 2 or more filers wrote with an EIN)
+--     status     filers        keys  990-PF rows  city matches   dollars (city matches)
+--     unanimous  3+          31,722      962,084       910,656          $73,470,358,281
+--     unanimous  under 3     42,191      241,953       222,293           $8,626,435,679
+--     dominant   3+           1,199      283,643       275,436          $25,154,382,720
+--     contested  3+           4,741      440,139       376,769          $21,948,204,119
+--     contested  under 3     10,310      219,040       115,319           $4,480,346,622
+--   Strict class (unanimous, 3 or more filers, key not in recipient_matches)
+--     keys: 31,722 (with rows to link: 24,977)
+--   Audit gate before the apply: 300 sampled links, model-labelled, 292 same, 8 affiliate,
+--     0 different, 0 unclear; Wilson lower bound 98.7% (gate 95%).
+--   Apply (--min-filers 3): every alias id from 1 to 90,163 was visited, 93 batches in 1:17:44
+--     events_linked: 910,656 · link_rows_in_table: 910,656
+--   Only the strict class was applied. Reverse with `resolve aliases --unapply`.
