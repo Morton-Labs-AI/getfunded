@@ -17,6 +17,7 @@ data/logs/
 
 # Public dataset exports (regenerated each run; provenance lives in raw_files + ledger)
 data/export/
+data/open-foundation-list/
 
 # Entity-resolution research artifacts (parquet, models) are run outputs, not source
 data/er/*.parquet
