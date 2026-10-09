@@ -52,6 +52,8 @@ import { Section, MoneyStat } from "@/components/page-primitives";
 import { GeoTable } from "@/components/org/geo-table";
 import { SimilarPanel } from "@/components/org/similar-panel";
 import { WebFacts } from "@/components/org/web-facts";
+import { Signals } from "@/components/org/signals";
+import { orgSignals } from "@/lib/queries/signals";
 import { TopRecipients } from "@/components/org/top-recipients";
 import { PeopleGroups } from "@/components/org/people-groups";
 import { PersonChipEl } from "@/components/org/person-chip";
@@ -130,6 +132,7 @@ export default async function OrgPage({
     provFiles,
     similar,
     webFacts,
+    signals,
   ] = await Promise.all([
     // Foundations move to the paged query below; agencies and charities keep
     // the top-25 path unchanged.
@@ -152,6 +155,8 @@ export default async function OrgPage({
       : Promise.resolve([] as ProvFileRow[]),
     isFoundation ? similarOrgs(id) : Promise.resolve([] as SimilarOrgRow[]),
     isFoundation ? orgWebFacts(memberIds) : Promise.resolve(null as OrgWebFactsRow | null),
+    // Any org type: foundations commit capital, advisers close funds. [] until 0032.
+    orgSignals(memberIds),
   ]);
   // Filing layer: data-presence gated, not org_type gated — charity pages
   // light up automatically when the 990 core-form phase lands.
@@ -419,6 +424,16 @@ export default async function OrgPage({
       {posture && (
         <Section title="Applying">
           <ApplicationPosture posture={posture} contacts={contactRows} />
+        </Section>
+      )}
+
+      {/* signals — the funder's own dated announcements, published after review */}
+      {signals.length > 0 && (
+        <Section
+          title="Signals"
+          aside={<span className="mono-label">{signals.length} announcement{signals.length === 1 ? "" : "s"}</span>}
+        >
+          <Signals rows={signals} />
         </Section>
       )}
 

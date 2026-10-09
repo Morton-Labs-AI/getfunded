@@ -22,6 +22,8 @@ const DATASET_LABELS: Record<string, string> = {
   sbir_awards: "SBIR/STTR award data",
   seed_federal_agencies: "Curated federal-agency seed",
   funder_website: "Foundation website (snapshot)",
+  funder_signals: "Funder-signal compilation (Morton Labs, CC BY)",
+  funder_press: "Funder press release (snapshot)",
   seed_federal_programs: "Curated federal-program seed",
 };
 
