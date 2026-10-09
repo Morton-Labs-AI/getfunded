@@ -1,5 +1,9 @@
 # Open Funder Database — the `corpus/` pipeline
 
+> This directory is the only maintained copy of the pipeline. It was imported from
+> `Morton-Labs-AI/open-funder-db` with its history in October 2026, and that repository is archived.
+> Migrations, the runner and the hash ledger all live here. See [../docs/REPOSITORY-MAP.md](../docs/REPOSITORY-MAP.md).
+
 The Open Funder Database is a Postgres database of U.S. funders built only
 from public-domain government records: IRS Form 990, 990-PF and Schedule I
 e-file XML, the IRS Exempt Organizations Business Master File, SEC Form ADV
