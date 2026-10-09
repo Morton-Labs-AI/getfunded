@@ -22,7 +22,7 @@ export const JOB = "funds_adv_formd";
 export const TARGET_NON_UNSURE = 250;
 
 // The gate class under test. Mirrors common.JOBS['funds'].strata[GATE_CLASS]
-// in the data repo exactly — keep the two in step.
+// in corpus/ exactly — keep the two in step.
 //
 // The PREVIOUS class (splink pairs selected on gamma_people >= 1) FAILED its
 // gate on 2026-08-08: 227/252, Wilson low 0.858. It selected pairs on shared

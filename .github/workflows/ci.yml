@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       web: ${{ steps.filter.outputs.web }}
+      greenbook: ${{ steps.filter.outputs.greenbook }}
       corpus: ${{ steps.filter.outputs.corpus }}
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +29,9 @@ jobs:
           filters: |
             web:
               - 'apps/web/**'
+              - '.github/workflows/ci.yml'
+            greenbook:
+              - 'apps/greenbook/**'
               - '.github/workflows/ci.yml'
             corpus:
               - 'corpus/**'
@@ -52,6 +56,26 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run check
+
+  greenbook:
+    name: Greenbook (typecheck)
+    needs: changes
+    if: needs.changes.outputs.greenbook == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/greenbook
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/greenbook/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
 
   corpus:
     name: Corpus (pytest)

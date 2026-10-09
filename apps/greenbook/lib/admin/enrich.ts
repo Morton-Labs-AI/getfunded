@@ -252,7 +252,7 @@ function rawDir(): string {
   const root = process.env.FUNDERDB_RAW_DIR;
   if (!root) {
     throw new Error(
-      "FUNDERDB_RAW_DIR is not set — point it at the data repo's data/raw directory before enriching"
+      "FUNDERDB_RAW_DIR is not set — point it at corpus/data/raw before enriching"
     );
   }
   return path.join(root, "funder_website");

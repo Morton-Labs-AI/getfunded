@@ -1,7 +1,13 @@
 # Greenbook — the Open Funder Database dashboard
 
+Greenbook is the maintainer's app inside the [GetFunded](../../README.md) repository
+(`apps/greenbook`, moved here from `open-funder-db-ui` with its history in October 2026).
+It reads the corpus that `../../corpus` builds and, on a local machine only, hosts the
+human review consoles (`/admin/enrich`, `/admin/label`, `/admin/signals`) that write
+through `funder_rw`. The public app for everyone else is `../web`.
+
 *"Every dollar, on the record."* An AI-native, local-first interface over the
-[Open Funder Database](../open-funder-db): 418,309 organizations, 869,246
+[Open Funder Database](../../corpus/README.md): 418,309 organizations, 869,246
 people, 2,633,212 funding events — every fact traceable to a sha256-hashed
 public filing. The chat **is** the app: natural language → live SQL → evidence,
 with the query shown, timed, and every org name one click from its profile and
@@ -53,8 +59,7 @@ Tabular numerals everywhere; missing data is an em dash, never "$0";
 
 ## Data dependency
 
-Reads the Supabase project `poznaikbjcgnthfmqueo` (schema `internal` +
-`mv_*` materialized views from migration `0007_dashboard_stats.sql` in the
-data repo). After any new ingest there, run
+Reads the hosted corpus (schema `internal` + `mv_*` materialized views from
+migration `0007_dashboard_stats.sql` in `../../corpus/migrations`), as `funder_ro`. After any new ingest there, run
 `select internal.refresh_dashboard_stats();` and the dashboard's numbers
 follow (Next cache revalidates hourly).

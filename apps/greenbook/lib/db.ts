@@ -16,7 +16,7 @@ export const sql =
     idle_timeout: 30,
     connect_timeout: 10,
     connection: {
-      application_name: "open-funder-db-ui",
+      application_name: "greenbook",
       default_transaction_read_only: true,
       statement_timeout: 15000,
     },

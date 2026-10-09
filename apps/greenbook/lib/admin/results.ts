@@ -7,7 +7,7 @@ import { JOB, TARGET_NON_UNSURE } from "./labeling";
  * same Wilson formula (z = 1.96) — so the two must agree exactly.
  */
 
-// Verbatim mirror of common.JOBS['funds'].class_case_sql (data repo).
+// Verbatim mirror of common.JOBS['funds'].class_case_sql (corpus/).
 const CLASS_CASE = `
   case when el.method = 'deterministic:exact_name' then 'nameonly'
        when coalesce((el.features->>'gamma_people')::int, 0) >= 1 then 'people'

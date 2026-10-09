@@ -1,6 +1,6 @@
 /**
  * NTEE major-group (first letter) decode. Source of truth: NTEE_MAJOR in the
- * data repo's src/funderdb/embed.py — keep the two in sync by hand.
+ * corpus/src/funderdb/embed.py — keep the two in sync by hand.
  */
 export const NTEE_MAJOR: Record<string, string> = {
   A: "Arts & Culture",

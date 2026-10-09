@@ -40,6 +40,16 @@ tasks, notes, AI analyses, outreach drafts, usage, subscriptions. Lives in schem
 (see [DATA-MODEL.md](DATA-MODEL.md)). Corpus references are soft uuids plus a snapshot of the
 name, EIN, type, city and state, so a corpus re-ingest can never orphan workspace rows.
 
+## Greenbook, the second app
+
+`apps/greenbook` (moved from the `open-funder-db-ui` repository in October 2026, history
+intact) is the maintainer's dashboard over the same corpus plane: the analyst chat, faceted
+browse, type-adaptive profiles, filing reconstructions and the `/data` trust page. Its pages
+read as `funder_ro`. Its `/admin` consoles (website enrichment, fund-pair labelling, funder
+signals review) are the one place a human writes corpus facts, through `funder_rw`, and they
+exist only when `ADMIN_ENABLED=1` on a local machine. Greenbook has no workspace plane and no
+sign-in; it is never deployed to the public host.
+
 ## Roles
 
 | Role | Login | Used by | Can |
