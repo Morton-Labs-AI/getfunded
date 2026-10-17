@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- Full-population research through the existing read-only Supabase Data API,
+  resumable hashed export shards, local latest-filing website selection, a
+  concurrent crawler with shared host pacing and compressed evidence, and
+  durable logs separating actual searches from suggested queries.
 - Resumable organization research with an exhaustive inventory option, bounded
   public-web acquisition, per-organization coverage, hashed private snapshots,
   website-discovery amendments and a science-funder research/source compilation.

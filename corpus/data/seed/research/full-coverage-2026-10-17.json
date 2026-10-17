@@ -1,0 +1,76 @@
+{
+  "as_of": "2026-10-17T20:54:19.981226+00:00",
+  "campaign": "full-2026-10-17",
+  "inventory": {
+    "schema": "organization_inventory/v1",
+    "completed_at": "2026-10-17T20:39:39.710493+00:00",
+    "organizations": 2309073,
+    "expected_organizations": 2309073,
+    "with_candidate_website": 329222,
+    "by_type": {
+      "public_charity": 1870317,
+      "private_foundation": 166036,
+      "company": 68890,
+      "fund": 180174,
+      "investment_adviser": 16355,
+      "vc": 3268,
+      "pe": 4015,
+      "gov_agency": 18
+    },
+    "sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "scope": "all public organizations, reconciled to the internal census count",
+    "consistency": "keyset-paginated observation interval; not a transactional snapshot",
+    "is_research_completion": false,
+    "confirmed_sites_sha256": "698ff17dbe39ea03063d2020af1487ea67009d1156619d031cc369bae63e470d"
+  },
+  "coverage": {
+    "as_of": "2026-10-17T20:54:19.981226+00:00",
+    "scope": "all public organizations, reconciled to the internal census count",
+    "input_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "organizations": 2309073,
+    "states": {
+      "blocked": 378,
+      "evidence_ready": 641,
+      "needs_discovery": 1979836,
+      "pending": 328202,
+      "running": 16
+    },
+    "crawl_attempted": 1035,
+    "evidence_ready": 641,
+    "organizations_with_recorded_research_steps": {
+      "identity_review": 5,
+      "news_search": 1,
+      "reverse_research": 4,
+      "website_search": 13
+    },
+    "human_reviewed": 0,
+    "published_by_this_workflow": 0,
+    "all_organizations_researched": false,
+    "pending_work": "Identity verification, missing-site search, reverse research, evidence review and publication are separate steps."
+  },
+  "acquisition_observations": {
+    "result_files": 740,
+    "html_observations": 1955,
+    "pages_with_target_ein": 53,
+    "resource_links": 1218,
+    "feed_links": 1506,
+    "reused_observations": 22,
+    "distinct_html_urls": 1896,
+    "distinct_page_snapshots": 1933,
+    "scan_started_at": "2026-10-17T20:52:27.888933+00:00"
+  },
+  "database_sources": 14,
+  "database_candidate_signals": 204,
+  "signals_published": 0,
+  "followup_raw_file_ids": [
+    464,
+    465
+  ],
+  "followup_ledger_ids": [
+    550,
+    551
+  ],
+  "continuous_worker_count": 16,
+  "continuation_interval_minutes": 30,
+  "research_complete": false
+}

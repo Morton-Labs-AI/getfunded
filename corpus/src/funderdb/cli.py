@@ -64,11 +64,50 @@ def research_crawl(run: Path, max_pages: int, limit: int | None, retry_blocked: 
 
 @research.command("report")
 @click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
-def research_report(run: Path) -> None:
+@click.option("--export-discovery", is_flag=True, help="Also stream the complete missing-website worklist.")
+def research_report(run: Path, export_discovery: bool) -> None:
     """Show distinct inventory, crawl, blocked, discovery and review counts."""
     import json
     from .research import pipeline
-    click.echo(json.dumps(pipeline.report(run), indent=2))
+    click.echo(json.dumps(pipeline.report(run, export_discovery), indent=2))
+
+
+@research.command("export-api")
+@click.option("--access", type=click.Path(exists=True, path_type=Path), required=True,
+              help="Gitignored JSON with a Supabase HTTPS url and enabled publishable key.")
+@click.option("--run", type=click.Path(path_type=Path), required=True)
+@click.option("--workers", type=click.IntRange(1, 8), default=4, show_default=True)
+def research_export_api(access: Path, run: Path, workers: int) -> None:
+    """Export the full public population and filing websites without DATABASE_URL."""
+    import json
+    from .research import bulk
+    click.echo(json.dumps(bulk.export_api(access, run, workers), indent=2))
+
+
+@research.command("compile-inventory")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--expected-organizations", type=click.IntRange(min=1), required=True)
+@click.option("--expected-filings", type=click.IntRange(min=0), required=True)
+@click.option("--confirmed-sites", type=click.Path(exists=True, path_type=Path))
+def research_compile_inventory(run: Path, expected_organizations: int,
+                               expected_filings: int, confirmed_sites: Path | None) -> None:
+    """Reconcile API counts and select latest unsuperseded filing websites locally."""
+    import json
+    from .research import bulk
+    click.echo(json.dumps(bulk.compile_inventory(run, expected_organizations,
+                                               expected_filings, confirmed_sites), indent=2))
+
+
+@research.command("work")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--workers", type=click.IntRange(1, 16), default=8, show_default=True)
+@click.option("--max-pages", type=click.IntRange(1, 12), default=6, show_default=True)
+@click.option("--follow", is_flag=True, help="Stay available for newly discovered websites.")
+def research_work(run: Path, workers: int, max_pages: int, follow: bool) -> None:
+    """Research every pending website with shared per-host pacing and checkpoints."""
+    import json
+    from .research.runner import run_worker
+    click.echo(json.dumps(run_worker(run, workers, max_pages, follow), indent=2))
 
 
 @research.command("assign-website")
@@ -82,6 +121,36 @@ def research_assign_website(run: Path, org_id: str, url: str, evidence_url: str,
     import json
     from .research import pipeline
     click.echo(json.dumps(pipeline.assign_website(run, org_id, url, evidence_url, note), indent=2))
+
+
+@research.command("discovery-next")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--limit", type=click.IntRange(1, 100), default=20)
+def research_discovery_next(run: Path, limit: int) -> None:
+    """Select unsearched missing-site organizations; suggestions are not searches."""
+    import json
+    from .research.discovery import next_discovery
+    click.echo(json.dumps(next_discovery(run, limit), indent=2))
+
+
+@research.command("record-step")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--record", type=click.Path(exists=True, path_type=Path), required=True)
+def research_record_step(run: Path, record: Path) -> None:
+    """Attribute an actual search/review attempt without approving claims."""
+    import json
+    from .research.discovery import record_step
+    click.echo(json.dumps(record_step(run, record), indent=2))
+
+
+@research.command("carry-forward")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--previous", type=click.Path(exists=True, path_type=Path), required=True)
+def research_carry_forward(run: Path, previous: Path) -> None:
+    """Reuse prior results for matching UUIDs while preserving evidence dates."""
+    import json
+    from .research.discovery import carry_forward
+    click.echo(json.dumps(carry_forward(run, previous), indent=2))
 
 
 @main.command()

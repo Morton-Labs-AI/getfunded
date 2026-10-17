@@ -20,6 +20,26 @@ directory for each inventory vintage. Re-parsing old evidence cannot refresh its
 observation date. At large scale, run inventory with a read-only session
 connection and adequate statement timeout; it reads the filing website view.
 
+When a session connection is unavailable, `research export-api` uses the existing
+Supabase public Data API and an enabled publishable key. It makes GET requests
+only: no role changes, password resets or privileged key are needed. The access
+JSON stays in ignored local storage. UUID/keyset shards resume from hashed raw
+pages and stop only on an empty page. A source-binding manifest prevents resuming
+against a different project or selection. Up to eight requests can be in flight.
+
+`research compile-inventory` reconciles both organization and unsuperseded filing
+website counts against an independently obtained database census. It reduces
+filings locally by `(tax_period, object_id)` and preserves registry identifiers,
+locality, NTEE, source locators, licenses and selected filing evidence. Supply the
+existing confirmed-site export separately. Check that the selected website rows
+were parsed and that canonical merges are absent, or provide a merge supplement
+before using this API path. The current public view does not expose those fields.
+
+This is a **multi-request observation interval**, not a transactional snapshot.
+Reconcile the census at the end; concurrent database ingestion can require a new
+vintage or a reconciliation pass. Matching counts alone cannot prove that no
+same-count membership changes occurred during export.
+
 ## Acquisition states
 
 | State | Meaning | Next step |
@@ -58,6 +78,15 @@ research site is not the Child Health and Development Institute.
 It does not approve the entity/domain relationship. Unresolved search results
 stay unresolved; never guess a domain to improve a coverage percentage.
 
+`research discovery-next` selects missing-site organizations without a recorded
+website search, prioritizing foundations but excluding no organization type.
+It emits suggested queries with `search_executed=false`. After actually doing
+the work, `research record-step` stores a hashed private record containing
+`org_id`, `stage`, `outcome`, `performed_at`, `method`, `queries`, `source_urls`
+and `note`. Stages distinguish website search, news search, reverse research,
+identity review and claim review. Outcomes remain candidate-found, no-result,
+blocked or needs-review; this command never confirms an entity or a claim.
+
 ## Evidence surfaces
 
 The worker starts with the seed and supplied URLs, then selects same-site links
@@ -76,11 +105,18 @@ recorded. Six pages can reveal leads; they do not prove research completeness.
 | Staff/contact pages | Public program responsibilities and role channels under existing privacy rules |
 | Recipient/university announcements | Reverse discovery and corroboration of specific awards |
 
-Public HTML and JSON-LD acquisition are implemented. PDF parsing, sitemap
+Public HTML and JSON-LD acquisition, RSS/Atom discovery and publisher-linked
+PDF/CSV/JSON/XML/spreadsheet discovery are implemented. Resource links are leads,
+not fetched or parsed datasets. PDF parsing, sitemap
 expansion, JavaScript rendering, public grant API pagination, automated web
 search and program-specific structured extraction are future adapters. Do not
 present them as current features. Do not probe private backends, log in, defeat
 CAPTCHAs, or treat a visible endpoint as authorization.
+
+Explicitly labelled EIN mentions (including footer identifiers) are captured as
+private identity evidence. An exact target-EIN match is a review aid, not an
+automatic identity decision. Publisher-linked machine-readable resources can
+guide a later documented API/export adapter without guessing backend endpoints.
 
 ## Claim schema and fundraising analysis
 
@@ -172,9 +208,31 @@ defer the target rather than blocking the worker.
 Identify the crawler, pace per host, validate public IPs and pin the socket to a
 checked address, preserve TLS validation, recheck redirects and cap responses at
 2 MiB. No cookies or credentials. Record failures without changing posture.
-SQLite commits after each organization; one worker holds the campaign lock.
+SQLite commits after each organization; one worker process holds the campaign lock.
 Crashes release the lock; restarts recover interrupted rows. Explicit retries
 preserve prior results and snapshots rather than looping on denial.
+
+`research work` runs bounded concurrent acquisition with one shared pacing lock
+per hostname. Server crawl delays apply across workers. Robots permission policies expire
+after 24 hours and the in-memory policy cache is bounded. New snapshots use
+deterministic gzip, SHA-256 of the stored bytes and a separate uncompressed hash,
+with two-character directory shards. `read_snapshot` validates and reads old and
+new formats. Results use directory shards too; retries archive earlier results.
+The worker stops claiming new jobs below 10 GiB free disk and drains active jobs.
+Use `--follow` to await newly attributed websites after the current queue empties.
+Following an empty queue does not mean research is complete.
+
+Successful page references can be reused for one hour across organizations that
+share a URL; original observation dates and hashes remain intact. Only references
+are cached in memory. Reuse never merges identities. Retry-After deferrals apply
+across workers on the same host, and denied robots responses are cached to avoid
+repeated requests from organizations sharing a domain.
+
+`research carry-forward` reuses exact prior result bytes for matching UUIDs before
+starting the worker. It preserves acquisition dates and private snapshot references;
+it does not turn old evidence into a fresh observation. Keep the previous campaign
+directories available. Coverage reports are cheap count summaries by default;
+`--export-discovery` explicitly streams the potentially very large missing-site list.
 
 ## Commands and completion
 
@@ -184,6 +242,19 @@ uv run funderdb research inventory --out data/research/full/inventory.jsonl
 uv run funderdb research init --targets data/research/full/inventory.jsonl --run data/research/full
 uv run funderdb research crawl --run data/research/full
 uv run funderdb research report --run data/research/full
+
+# Alternative full inventory using existing public Data API access:
+# access.json: {"url":"https://<project>.supabase.co","key":"<publishable-key>"}
+# Keep it under data/research/ and chmod 600; never commit it.
+uv run funderdb research export-api --access data/research/access.json --run data/research/full
+uv run funderdb research compile-inventory --run data/research/full \
+  --expected-organizations <live-census> --expected-filings <live-website-filing-count> \
+  --confirmed-sites data/research/confirmed-sites.json
+uv run funderdb research init --targets data/research/full/inventory.jsonl --run data/research/full
+uv run funderdb research carry-forward --run data/research/full --previous data/research/science
+uv run funderdb research work --run data/research/full --workers 8 --follow
+uv run funderdb research discovery-next --run data/research/full --limit 20
+uv run funderdb research record-step --run data/research/full --record data/research/actual-search.json
 
 # Reproduce the supplied science-funder acquisition without a model/database key:
 uv run funderdb research init --targets data/seed/research/science-funders-2026-10-17.jsonl --run data/research/science
@@ -199,7 +270,8 @@ uv run funderdb signals poll
 uv run funderdb signals process --limit 50
 ```
 
-Inventory needs a read-only Postgres session connection. Local acquisition needs
+The SQL inventory needs a read-only Postgres session connection; the alternative
+API inventory uses an existing publishable key. Local acquisition needs
 no model key and makes no model API calls. Existing model classification uses its
 configured provider key. These commands create no background scheduler.
 

@@ -7,6 +7,7 @@ No cookies, credentials, browser automation, forms, or private endpoints.
 from __future__ import annotations
 
 import hashlib
+import gzip
 import http.client
 import ipaddress
 import json
@@ -14,7 +15,10 @@ import re
 import socket
 import ssl
 import time
+import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
@@ -26,7 +30,7 @@ MAX_ROBOTS_BYTES = 512 * 1024
 LINK_TOPICS = {
     "application": re.compile(r"apply|application|eligib|guideline|deadline|funding.opportun|request.for|\brfp\b", re.I),
     "program": re.compile(r"program|research|science|priorit|strategy", re.I),
-    "grants": re.compile(r"grantee|grant.database|awarded|funded.project|portfolio", re.I),
+    "grants": re.compile(r"\bgrants?\b|grantee|grant.database|awarded|funded.project|portfolio", re.I),
     "news": re.compile(r"news|press|announcement|insight", re.I),
     "identity": re.compile(r"about|mission|annual.report|financial", re.I),
     "people": re.compile(r"team|staff|leadership|contact", re.I),
@@ -68,18 +72,43 @@ def robots_path(value: str) -> str:
 
 
 def snapshot(root: Path, payload: dict) -> dict:
-    data = (json.dumps(payload, sort_keys=True, ensure_ascii=False) + "\n").encode()
+    plain = (json.dumps(payload, sort_keys=True, ensure_ascii=False) + "\n").encode()
+    data = gzip.compress(plain, mtime=0)
     digest = hashlib.sha256(data).hexdigest()
+    root = root / digest[:2]
     root.mkdir(parents=True, exist_ok=True)
-    path = root / f"{digest}.json"
+    path = root / f"{digest}.json.gz"
     if not path.exists():
-        path.write_bytes(data)
+        partial = path.with_suffix(f".{threading.get_ident()}.partial")
+        partial.write_bytes(data)
+        partial.replace(path)
     return {"path": str(path), "sha256": digest, "bytes": len(data),
+            "encoding": "gzip", "content_sha256": hashlib.sha256(plain).hexdigest(),
             "license_code": "publisher_website", "republishable": False}
+
+
+def read_snapshot(ref: dict) -> dict:
+    data = Path(ref["path"]).read_bytes()
+    if hashlib.sha256(data).hexdigest() != ref["sha256"]:
+        raise ValueError("snapshot hash mismatch")
+    if ref.get("encoding") == "gzip":
+        data = gzip.decompress(data)
+    return json.loads(data)
 
 
 class Deferred(Exception):
     """The site must be tried later or manually reviewed; never a closed funder."""
+
+
+def retry_delay(value: str | None, minimum: float) -> float:
+    if not value:
+        return minimum
+    if value.isdigit():
+        return max(minimum, float(value))
+    try:
+        return max(minimum, (parsedate_to_datetime(value) - datetime.now(timezone.utc)).total_seconds())
+    except (ValueError, TypeError, OverflowError):
+        return minimum
 
 
 class PublicWeb:
@@ -89,17 +118,35 @@ class PublicWeb:
         self.delay = max(1.1, delay)
         self.last: dict[str, float] = {}
         self.policies: dict[str, dict] = {}
+        self.guard = threading.Lock()
+        self.host_locks = {}
+        self.policy_locks = {}
+        self.host_delays = {}
+        self.page_cache = OrderedDict()
+        self.defer_until = {}
+
+    def lock(self, collection, key):
+        with self.guard:
+            return collection.setdefault(key, threading.RLock())
 
     def request(self, url: str, cap: int = MAX_BYTES) -> dict:
+        host = urlsplit(canonical(url)).hostname
+        with self.lock(self.host_locks, host):
+            return self._request(url, cap)
+
+    def _request(self, url: str, cap: int) -> dict:
         url = canonical(url)
         p = urlsplit(url)
         host = p.hostname
+        remaining = self.defer_until.get(host, 0) - time.monotonic()
+        if remaining > 0:
+            raise Deferred(f"host Retry-After deferral active for another {remaining:.0f}s")
         port = 443 if p.scheme == "https" else 80
         addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
         ips = list(dict.fromkeys(a[4][0] for a in addresses))
         if not ips or any(not ipaddress.ip_address(ip).is_global for ip in ips):
             raise Deferred("host resolves to a non-public address")
-        wait = self.delay - (time.monotonic() - self.last.get(host, 0))
+        wait = max(self.delay, self.host_delays.get(host, 0)) - (time.monotonic() - self.last.get(host, 0))
         if wait > 0:
             time.sleep(wait)
         self.last[host] = time.monotonic()
@@ -120,6 +167,8 @@ class PublicWeb:
                 "Accept-Encoding": "identity",
             })
             response = conn.getresponse()
+            if response.status in (429, 503):
+                self.defer_until[host] = time.monotonic() + retry_delay(response.getheader("Retry-After"), 60)
             body = response.read(cap + 1)
             if len(body) > cap:
                 raise Deferred(f"response exceeds {cap} byte cap")
@@ -142,9 +191,16 @@ class PublicWeb:
             conn.close()
 
     def robots(self, url: str) -> dict:
+        with self.lock(self.policy_locks, origin(url)):
+            return self._robots(url)
+
+    def _robots(self, url: str) -> dict:
         key = origin(url)
-        if key in self.policies and time.monotonic() - self.policies[key]["cached_at"] < 86400:
-            return self.policies[key]
+        cached = self.policies.get(key)
+        if cached and time.monotonic() - cached["cached_at"] < cached.get("ttl", 86400):
+            if cached.get("deferred"):
+                raise Deferred(cached["deferred"])
+            return cached
         robot_url = key + "/robots.txt"
         for _ in range(6):
             response = self.request(robot_url, MAX_ROBOTS_BYTES)
@@ -185,9 +241,15 @@ class PublicWeb:
                 specific = [g for g in groups if AGENT_TOKEN.lower() in g[0]]
                 policy = {"groups": specific or [g for g in groups if "*" in g[0]], "snapshot": ref}
             else:
-                raise Deferred(f"robots HTTP {status}; retry-after={response['retry_after']}")
+                policy = {"deferred": f"robots HTTP {status}; retry-after={response['retry_after']}; snapshot={ref['sha256']}",
+                          "snapshot": ref, "ttl": retry_delay(response["retry_after"], 3600)}
             policy["cached_at"] = time.monotonic()
-            self.policies[key] = policy
+            with self.guard:
+                if len(self.policies) >= 4096:
+                    self.policies.pop(next(iter(self.policies)))
+                self.policies[key] = policy
+            if policy.get("deferred"):
+                raise Deferred(policy["deferred"])
             return policy
         raise Deferred("robots redirect limit")
 
@@ -210,13 +272,24 @@ class PublicWeb:
         # Long server delays are a deferred outcome, not a worker-blocking sleep.
         if delay > 30:
             raise Deferred(f"crawl-delay {delay:g}s requires a later scheduled pass")
-        wait = delay - (time.monotonic() - self.last.get(p.hostname, 0))
-        if wait > 0:
-            time.sleep(wait)
+        with self.guard:
+            self.host_delays[p.hostname] = max(delay, self.host_delays.get(p.hostname, 0))
         return policy["snapshot"]
 
     def page(self, url: str) -> tuple[dict, dict]:
         requested, redirects = canonical(url), []
+        with self.guard:
+            cached = self.page_cache.get(requested)
+            if cached and time.monotonic() - cached[0] < 3600:
+                self.page_cache.move_to_end(requested)
+            else:
+                cached = None
+        if cached:
+            # Reuse the actual observation date and immutable bytes, never a new
+            # fetched_at timestamp. Only references, not HTML bodies, stay in RAM.
+            response = read_snapshot(cached[1])
+            response["cache_reused"] = True
+            return response, cached[1]
         url = requested
         for _ in range(6):
             policy = self.allowed(url)
@@ -231,6 +304,12 @@ class PublicWeb:
                 raise Deferred(f"HTTP {response['http_status']}; snapshot={ref['sha256']}; retry-after={response['retry_after']}")
             if not any(t in response["content_type"].lower() for t in ("text/html", "application/xhtml+xml")):
                 raise Deferred(f"non-HTML resource needs separate review: {response['content_type']}")
+            with self.guard:
+                for key in (requested, url):
+                    self.page_cache[key] = (time.monotonic(), ref)
+                    self.page_cache.move_to_end(key)
+                while len(self.page_cache) > 4096:
+                    self.page_cache.popitem(last=False)
             return response, ref
         raise Deferred("page redirect limit")
 
@@ -238,7 +317,17 @@ class PublicWeb:
 def extract(page: dict, ref: dict) -> dict:
     """Observed page structure, not inferred eligibility or an AI confidence score."""
     doc = html.fromstring(page["text"])
-    links, feeds, structured = [], [], []
+    links, feeds, structured, resources = [], [], [], []
+    # Footer EINs are useful identity evidence, so inspect before dropping navigation.
+    identifier_text = re.sub(r"\s+", " ", doc.text_content())
+    ein_mentions = []
+    for match in re.finditer(
+        r"\b(?:EIN|Employer Identification Number|Tax\s*(?:ID|Identification)(?:\s*Number)?)"
+        r"\s*[:#]?\s*(\d{2}[-\s]?\d{7})\b", identifier_text, re.I
+    ):
+        ein_mentions.append({"value": re.sub(r"\D", "", match[1]),
+                             "excerpt": identifier_text[max(0, match.start()-40):match.end()+40],
+                             "source_url": page["url"]})
     for script in doc.xpath('//script[@type="application/ld+json"]'):
         try:
             structured.append(json.loads(script.text or ""))
@@ -256,6 +345,10 @@ def extract(page: dict, ref: dict) -> dict:
             url = canonical(urljoin(page["url"], a.get("href")))
         except ValueError:
             continue
+        # Only resources actually linked by the publisher, never guessed API paths.
+        if re.search(r"\.(pdf|csv|json|xml|xlsx?)(?:[?#]|$)", url, re.I):
+            resources.append({"url": url, "label": re.sub(r"\s+", " ", label)[:180],
+                              "source_url": page["url"], "acquired": False})
         topics = [key for key, rx in LINK_TOPICS.items() if rx.search(label + " " + urlsplit(url).path)]
         if topics:
             links.append({"url": url, "label": re.sub(r"\s+", " ", label)[:180], "topics": topics,
@@ -274,7 +367,10 @@ def extract(page: dict, ref: dict) -> dict:
             if len(signals) == 15:
                 break
     return {"url": page["url"], "title": title[:300], "fetched_at": page["fetched_at"],
+            "evidence_reused": page.get("cache_reused", False),
             "snapshot": ref, "links": links[:250], "feeds": feeds[:20],
+            "public_resource_links": resources[:100],
+            "ein_mentions": ein_mentions[:20],
             "structured_data": structured[:20], "evidence_leads": signals,
             "text_characters": len(text)}
 
@@ -296,6 +392,8 @@ def crawl_org(target: dict, web: PublicWeb, max_pages: int) -> dict:
             page, ref = web.page(url)
             visited.add(page["url"])
             parsed = extract(page, ref)
+            parsed["target_ein_observed"] = bool(target.get("ein")) and any(
+                mention["value"] == target["ein"] for mention in parsed["ein_mentions"])
             pages.append(parsed)
             for link in parsed["links"]:
                 links[link["url"]] = link

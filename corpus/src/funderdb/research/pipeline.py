@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import tempfile
 from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
@@ -50,9 +51,15 @@ def sha256(path: Path) -> str:
 
 def write_json(path: Path, obj: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".partial")
-    tmp.write_text(json.dumps(obj, indent=2, ensure_ascii=False, default=str) + "\n")
-    tmp.replace(path)
+    # Reports can be refreshed while a worker updates its own checkpoint.
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, suffix=".partial", delete=False) as f:
+        tmp = Path(f.name)
+        try:
+            f.write(json.dumps(obj, indent=2, ensure_ascii=False, default=str) + "\n")
+            f.close()
+            tmp.replace(path)
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
 def inventory(out: Path) -> dict:
@@ -99,6 +106,11 @@ def queue(run: Path):
         org_id text primary key, target text not null, state text not null,
         attempts integer not null default 0, updated_at text not null, result_path text);
       create index if not exists research_state on organizations(state, attempts, org_id);
+      create table if not exists research_steps (
+        org_id text not null references organizations(org_id), stage text not null,
+        outcome text not null, recorded_at text not null, record_path text not null,
+        record_sha256 text primary key);
+      create index if not exists research_steps_org_stage on research_steps(org_id,stage);
     """)
     try:
         with db:
@@ -207,25 +219,31 @@ def assign_website(run: Path, org_id: str, url: str, evidence_url: str, note: st
     return amendment
 
 
-def report(run: Path) -> dict:
+def report(run: Path, export_discovery: bool = False) -> dict:
     with queue(run) as db:
+        # The concurrent worker can commit between SELECTs. Read one snapshot so
+        # acquisition totals and state counts describe the same queue instant.
+        db.execute("begin")
         counts = {r[0]: r[1] for r in db.execute("select state,count(*) from organizations group by state")}
         settings = {r[0]: r[1] for r in db.execute("select key,value from campaign")}
         attempted = db.execute("select count(*) from organizations where attempts>0").fetchone()[0]
+        steps = {r[0]: r[1] for r in db.execute("select stage,count(distinct org_id) from research_steps group by stage")}
         total = sum(counts.values())
         out = {"as_of": now(), "scope": settings.get("scope", "uninitialized"),
                "input_sha256": settings.get("input_sha256"), "organizations": total,
                "states": counts, "crawl_attempted": attempted,
                "evidence_ready": counts.get("evidence_ready", 0),
+               "organizations_with_recorded_research_steps": steps,
                "human_reviewed": 0, "published_by_this_workflow": 0,
                "all_organizations_researched": False,
                "pending_work": "Identity verification, missing-site search, reverse research, evidence review and publication are separate steps."}
         # A streamed worklist for every missing-site org; never counts a query as executed.
-        with (run / "discovery.jsonl").open("w") as f:
-            for row in db.execute("select target from organizations where state='needs_discovery'"):
-                t = json.loads(row[0])
-                f.write(json.dumps({"org_id": t["org_id"], "org_name": t["org_name"],
-                                    "query": " ".join(filter(None, [t["org_name"], t.get("ein"), t.get("state"), "official foundation grants"])),
-                                    "search_executed": False}) + "\n")
+        if export_discovery:
+            with (run / "discovery.jsonl").open("w") as f:
+                for row in db.execute("select target from organizations where state='needs_discovery'"):
+                    t = json.loads(row[0])
+                    f.write(json.dumps({"org_id": t["org_id"], "org_name": t["org_name"],
+                                        "query": " ".join(filter(None, [t["org_name"], t.get("ein"), t.get("state"), "official foundation grants"])),
+                                        "search_executed": False}) + "\n")
     write_json(run / "coverage.json", out)
     return out
