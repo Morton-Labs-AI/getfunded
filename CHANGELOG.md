@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- Program-aware research link priority, 64 further performed website searches,
+  five attributed website candidates, 26 review notes, and three first-party
+  source definitions with 41 unreviewed announcement URL candidates. Cycle
+  conflicts, namesake domains and acquisition blockers remain explicit.
 - Full-population research through the existing read-only Supabase Data API,
   resumable hashed export shards, local latest-filing website selection, a
   concurrent crawler with shared host pacing and compressed evidence, and

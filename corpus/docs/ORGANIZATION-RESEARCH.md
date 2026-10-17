@@ -94,6 +94,14 @@ across application, program, grant, news, identity and people categories. Defaul
 six page attempts per organization; maximum twelve per pass. Unvisited URLs are
 recorded. Six pages can reveal leads; they do not prove research completeness.
 
+When the seed names a specific program, prioritize links sharing that program's
+path and links in the page body before generic navigation. Keep explicitly
+supplied research URLs ahead of discovered links. Scholarship, fellowship and
+award pages count as grant leads; routine branding, privacy and login pages do
+not consume the bounded crawl budget. Preserve their discovered links anyway.
+This priority improves depth but does not certify eligibility, identity or
+complete coverage of a program's application pages.
+
 | Surface | Enrichment |
 | --- | --- |
 | About, financials, annual reports | Legal identity, aliases, operating/grantmaking role, current strategy |

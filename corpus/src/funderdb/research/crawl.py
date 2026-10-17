@@ -30,7 +30,7 @@ MAX_ROBOTS_BYTES = 512 * 1024
 LINK_TOPICS = {
     "application": re.compile(r"apply|application|eligib|guideline|deadline|funding.opportun|request.for|\brfp\b", re.I),
     "program": re.compile(r"program|research|science|priorit|strategy", re.I),
-    "grants": re.compile(r"\bgrants?\b|grantee|grant.database|awarded|funded.project|portfolio", re.I),
+    "grants": re.compile(r"\bgrants?\b|grantee|grant.database|award|fellowship|scholarship|funded.project|portfolio", re.I),
     "news": re.compile(r"news|press|announcement|insight", re.I),
     "identity": re.compile(r"about|mission|annual.report|financial", re.I),
     "people": re.compile(r"team|staff|leadership|contact", re.I),
@@ -352,7 +352,8 @@ def extract(page: dict, ref: dict) -> dict:
         topics = [key for key, rx in LINK_TOPICS.items() if rx.search(label + " " + urlsplit(url).path)]
         if topics:
             links.append({"url": url, "label": re.sub(r"\s+", " ", label)[:180], "topics": topics,
-                          "same_site": site(url) == site(page["url"]), "source_url": page["url"]})
+                          "same_site": site(url) == site(page["url"]), "source_url": page["url"],
+                          "navigation": bool(a.xpath("ancestor::nav|ancestor::header|ancestor::footer|ancestor::*[@role='navigation']"))})
     for bad in doc.xpath("//script|//style|//nav|//footer|//header|//form|//noscript|//svg"):
         if bad.getparent() is not None:
             bad.getparent().remove(bad)
@@ -368,11 +369,23 @@ def extract(page: dict, ref: dict) -> dict:
                 break
     return {"url": page["url"], "title": title[:300], "fetched_at": page["fetched_at"],
             "evidence_reused": page.get("cache_reused", False),
-            "snapshot": ref, "links": links[:250], "feeds": feeds[:20],
+            "snapshot": ref, "links": sorted(links, key=lambda l: l["navigation"])[:250], "feeds": feeds[:20],
             "public_resource_links": resources[:100],
             "ein_mentions": ein_mentions[:20],
             "structured_data": structured[:20], "evidence_leads": signals,
             "text_characters": len(text)}
+
+
+def link_priority(link: dict, seed_url: str) -> tuple:
+    """Prefer the seeded program's subtree and page-body links over site menus."""
+    seed = urlsplit(seed_url).path.strip("/").split("/")
+    path = urlsplit(link["url"]).path.strip("/").split("/")
+    shared = 0
+    for left, right in zip(seed, path):
+        if not left or left != right:
+            break
+        shared += 1
+    return shared, not link.get("navigation", True)
 
 
 def crawl_org(target: dict, web: PublicWeb, max_pages: int) -> dict:
@@ -395,16 +408,25 @@ def crawl_org(target: dict, web: PublicWeb, max_pages: int) -> dict:
             parsed["target_ein_observed"] = bool(target.get("ein")) and any(
                 mention["value"] == target["ein"] for mention in parsed["ein_mentions"])
             pages.append(parsed)
+            seed_url = pages[0]["url"]
             for link in parsed["links"]:
-                links[link["url"]] = link
+                old = links.get(link["url"])
+                if old is None or link_priority(link, seed_url) > link_priority(old, seed_url):
+                    links[link["url"]] = link
             candidates = [l for l in links.values() if l["same_site"] and l["url"] not in visited
                           and not re.search(r"\.(pdf|zip|docx?|xlsx?)(?:[?#]|$)", l["url"], re.I)
-                          and not re.search(r"login|sign.?in|logout", l["url"], re.I)]
+                          and not re.search(r"login|sign.?in|logout|brand-guidelines|privacy|cookie-policy|terms-of-use", l["url"], re.I)]
+            candidates.sort(key=lambda l: link_priority(l, seed_url), reverse=True)
             # Coverage by topic before a second link from the same topic.
             for topic in LINK_TOPICS:
                 candidate = next((l for l in candidates if topic in l["topics"] and l["url"] not in pending), None)
                 if candidate:
                     pending.append(candidate["url"])
+            # Keep explicit analyst-supplied URLs first, while newly discovered
+            # program details can move ahead of older generic menu links.
+            curated = set(target.get("research_urls", []))
+            pending.sort(key=lambda u: (u in curated, link_priority(links[u], seed_url)
+                                       if u in links else (0, False)), reverse=True)
         except (Deferred, ValueError, OSError, http.client.HTTPException, etree.ParserError) as exc:
             errors.append({"url": url, "reason": f"{type(exc).__name__}: {exc}"[:600]})
     return {"schema": "organization_research/v1", "org_id": target["org_id"],
