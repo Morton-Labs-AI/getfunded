@@ -14,6 +14,7 @@ data/resolve/
 data/derive/
 data/embeddings/
 data/logs/
+data/research/
 
 # Public dataset exports (regenerated each run; provenance lives in raw_files + ledger)
 data/export/

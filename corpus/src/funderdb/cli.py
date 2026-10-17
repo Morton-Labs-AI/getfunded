@@ -24,6 +24,66 @@ def main() -> None:
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
+@main.group()
+def research() -> None:
+    """Inventory every organization and gather private, reviewable web evidence."""
+
+
+@research.command("inventory")
+@click.option("--out", type=click.Path(path_type=Path), required=True)
+def research_inventory(out: Path) -> None:
+    """Stream every organization from a read-only, consistent database snapshot."""
+    import json
+    from .research import pipeline
+    click.echo(json.dumps(pipeline.inventory(out), indent=2, default=str))
+
+
+@research.command("init")
+@click.option("--targets", type=click.Path(exists=True, path_type=Path), required=True,
+              help="JSONL with org_id, org_name, website (nullable), optional research_urls.")
+@click.option("--run", type=click.Path(path_type=Path), required=True)
+def research_init(targets: Path, run: Path) -> None:
+    """Create a resumable private campaign from a hashed inventory or target file."""
+    import json
+    from .research import pipeline
+    click.echo(json.dumps(pipeline.initialize(run, targets), indent=2))
+
+
+@research.command("crawl")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--max-pages", type=click.IntRange(1, 12), default=6, show_default=True)
+@click.option("--limit", type=click.IntRange(min=1), default=None,
+              help="Explicit batch cap; omitted means every pending target.")
+@click.option("--retry-blocked", is_flag=True, help="Retry blocked targets once in this pass.")
+def research_crawl(run: Path, max_pages: int, limit: int | None, retry_blocked: bool) -> None:
+    """Fetch bounded public evidence; checkpoint each org; never publish claims."""
+    import json
+    from .research import pipeline
+    click.echo(json.dumps(pipeline.research(run, max_pages, limit, retry_blocked, click.echo), indent=2))
+
+
+@research.command("report")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+def research_report(run: Path) -> None:
+    """Show distinct inventory, crawl, blocked, discovery and review counts."""
+    import json
+    from .research import pipeline
+    click.echo(json.dumps(pipeline.report(run), indent=2))
+
+
+@research.command("assign-website")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--org-id", required=True)
+@click.option("--url", required=True)
+@click.option("--evidence-url", required=True)
+@click.option("--note", required=True, help="Identity evidence and unresolved ambiguity; no secrets.")
+def research_assign_website(run: Path, org_id: str, url: str, evidence_url: str, note: str) -> None:
+    """Attribute a discovered website candidate and queue it; never confirm identity."""
+    import json
+    from .research import pipeline
+    click.echo(json.dumps(pipeline.assign_website(run, org_id, url, evidence_url, note), indent=2))
+
+
 @main.command()
 def doctor() -> None:
     """Check Python, uv, extensions, DATABASE_URL reachability and disk space."""

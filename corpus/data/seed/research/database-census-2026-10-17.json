@@ -1,0 +1,88 @@
+{
+  "observed_on": "2026-10-17",
+  "source": "Read-only live database aggregate",
+  "organizations": 2309073,
+  "by_type": [
+    {
+      "org_type": "company",
+      "organizations": 68890,
+      "no_registry_website": 56561,
+      "missing_state": 1,
+      "missing_country": 0,
+      "missing_name": 0
+    },
+    {
+      "org_type": "fund",
+      "organizations": 180174,
+      "no_registry_website": 180174,
+      "missing_state": 30238,
+      "missing_country": 0,
+      "missing_name": 0
+    },
+    {
+      "org_type": "gov_agency",
+      "organizations": 18,
+      "no_registry_website": 8,
+      "missing_state": 8,
+      "missing_country": 0,
+      "missing_name": 0
+    },
+    {
+      "org_type": "investment_adviser",
+      "organizations": 16355,
+      "no_registry_website": 1869,
+      "missing_state": 3417,
+      "missing_country": 0,
+      "missing_name": 0
+    },
+    {
+      "org_type": "pe",
+      "organizations": 4015,
+      "no_registry_website": 592,
+      "missing_state": 1104,
+      "missing_country": 0,
+      "missing_name": 0
+    },
+    {
+      "org_type": "private_foundation",
+      "organizations": 166036,
+      "no_registry_website": 166036,
+      "missing_state": 173,
+      "missing_country": 0,
+      "missing_name": 0
+    },
+    {
+      "org_type": "public_charity",
+      "organizations": 1870317,
+      "no_registry_website": 1870317,
+      "missing_state": 1262,
+      "missing_country": 0,
+      "missing_name": 0
+    },
+    {
+      "org_type": "vc",
+      "organizations": 3268,
+      "no_registry_website": 330,
+      "missing_state": 1112,
+      "missing_country": 0,
+      "missing_name": 0
+    }
+  ],
+  "confirmed_web_profiles_before_run": 19,
+  "signal_sources_before_run": 0,
+  "candidate_signals_before_run": 0,
+  "signal_sources_after_run": 12,
+  "candidate_signals_added": 196,
+  "published_signals_added": 0,
+  "raw_file_ids": [
+    462,
+    463
+  ],
+  "ingestion_ledger_ids": [
+    548,
+    549
+  ],
+  "full_inventory_export_executed": false,
+  "website_coverage": "Unavailable: the global filing-website coverage query exceeded its time budget. Registry NULL is not proof of no website.",
+  "completion": "Incomplete. The full-population census is not per-organization online research."
+}

@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- Resumable organization research with an exhaustive inventory option, bounded
+  public-web acquisition, per-organization coverage, hashed private snapshots,
+  website-discovery amendments and a science-funder research/source compilation.
+  Acquisition does not automatically confirm profiles or publish signals.
 - 2026-10-08, audit record: the 300-pair recipient alias audit
   (`corpus/data/seed/er_labels/recipient_alias_audit_2026-10-08.csv` and its README) that gated
   the first alias apply. The labels were made by language-model agents, not people.

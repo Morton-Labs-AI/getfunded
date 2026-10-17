@@ -1,5 +1,13 @@
 # Open Funder Database — the `corpus/` pipeline
 
+For current website, program and news evidence, see the
+[organization research protocol](docs/ORGANIZATION-RESEARCH.md) and
+`funderdb research --help`. It provides an exhaustive inventory option and a
+resumable private acquisition queue. Profile/signal publication keeps its
+existing review process; a crawl does not mean research is complete.
+The [2026-10-17 research report](docs/RESEARCH-2026-10-17.md) records the actual
+coverage, database additions, findings and outstanding work.
+
 > This directory is the only maintained copy of the pipeline. It was imported from
 > `Morton-Labs-AI/open-funder-db` with its history in October 2026, and that repository is archived.
 > Migrations, the runner and the hash ledger all live here. See [../docs/REPOSITORY-MAP.md](../docs/REPOSITORY-MAP.md).
