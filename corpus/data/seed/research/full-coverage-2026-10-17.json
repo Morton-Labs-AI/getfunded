@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-17T21:23:49.355674+00:00",
+  "as_of": "2026-10-17T21:51:09.932274+00:00",
   "campaign": "full-2026-10-17",
   "inventory": {
     "schema": "organization_inventory/v1",
@@ -24,25 +24,25 @@
     "confirmed_sites_sha256": "698ff17dbe39ea03063d2020af1487ea67009d1156619d031cc369bae63e470d"
   },
   "coverage": {
-    "as_of": "2026-10-17T21:23:49.355674+00:00",
+    "as_of": "2026-10-17T21:51:09.932274+00:00",
     "scope": "all public organizations, reconciled to the internal census count",
     "input_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
     "organizations": 2309073,
     "states": {
-      "blocked": 1778,
-      "evidence_ready": 3062,
-      "needs_discovery": 1979831,
-      "pending": 324386,
+      "blocked": 3087,
+      "evidence_ready": 5289,
+      "needs_discovery": 1979826,
+      "pending": 320855,
       "running": 16
     },
-    "crawl_attempted": 4872,
-    "evidence_ready": 3062,
+    "crawl_attempted": 8408,
+    "evidence_ready": 5289,
     "organizations_with_recorded_research_steps": {
-      "claim_review": 12,
-      "identity_review": 10,
-      "news_search": 3,
-      "reverse_research": 9,
-      "website_search": 77
+      "claim_review": 27,
+      "identity_review": 24,
+      "news_search": 5,
+      "reverse_research": 17,
+      "website_search": 157
     },
     "human_reviewed": 0,
     "published_by_this_workflow": 0,
@@ -50,20 +50,20 @@
     "pending_work": "Identity verification, missing-site search, reverse research, evidence review and publication are separate steps."
   },
   "acquisition_observations": {
-    "result_files": 4840,
-    "html_observations": 11976,
-    "pages_with_target_ein": 340,
-    "resource_links": 8406,
-    "feed_links": 9780,
-    "reused_observations": 150,
-    "distinct_html_urls": 11617,
-    "distinct_page_snapshots": 11826,
-    "scan_started_at": "2026-10-17T21:23:49.357974+00:00",
-    "scan_completed_at": "2026-10-17T21:23:59.642864+00:00",
+    "result_files": 8381,
+    "html_observations": 20620,
+    "pages_with_target_ein": 611,
+    "resource_links": 14081,
+    "feed_links": 16739,
+    "reused_observations": 292,
+    "distinct_html_urls": 19910,
+    "distinct_page_snapshots": 20328,
+    "scan_started_at": "2026-10-17T21:51:09.935319+00:00",
+    "scan_completed_at": "2026-10-17T21:51:22.295871+00:00",
     "scope": "current per-organization result references; manual supplemental acquisitions are separate"
   },
-  "database_sources": 17,
-  "database_candidate_signals": 245,
+  "database_sources": 19,
+  "database_candidate_signals": 255,
   "signals_published": 0,
   "followup_raw_file_ids": [
     464,
@@ -88,10 +88,22 @@
   "continuation_candidate_websites": 5,
   "continuation_review_notes": 26,
   "research_step_records_by_stage": {
-    "claim_review": 14,
-    "identity_review": 10,
-    "news_search": 3,
-    "reverse_research": 9,
-    "website_search": 77
-  }
+    "claim_review": 29,
+    "identity_review": 24,
+    "news_search": 5,
+    "reverse_research": 17,
+    "website_search": 157
+  },
+  "evening_raw_file_ids": [
+    468,
+    469
+  ],
+  "evening_ledger_ids": [
+    554,
+    555
+  ],
+  "evening_website_search_organizations": 80,
+  "evening_candidate_websites": 5,
+  "evening_review_notes": 39,
+  "evening_review_organizations": 36
 }
