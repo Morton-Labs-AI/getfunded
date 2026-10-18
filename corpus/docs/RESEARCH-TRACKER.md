@@ -1,5 +1,13 @@
 # Research progress tracker
 
+The private `active_funders_run` configuration adds the current
+[active-funder target](ACTIVE-FUNDERS-150K.md): search-pool size, processed cases,
+website criteria candidates awaiting semantic review, verified count, and
+separate liveness/freshness/inquiry dispositions. It reports status age and
+worker lease. The old cohort panel is labeled retained baseline. The aggregate
+API does not return source paths, excerpts, contact routes or proposal payloads.
+
+
 The optional `evidence_run` path in the private `tracker-config.json` connects
 the [150,000-member evidence campaign](EVIDENCE-150K.md). Its panel reports fixed
 cohort size, initial dispositions, page checks, candidate submissions, review

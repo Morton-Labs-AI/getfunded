@@ -25,7 +25,8 @@ from .pipeline import sha256, write_json
 
 FIELDS = Literal["program_name", "application_status", "application_deadline",
                  "award_amount", "round_budget", "partnership_budget", "eligibility",
-                 "geography", "duration", "recipient_award", "grantmaking_role"]
+                 "geography", "duration", "recipient_award", "grantmaking_role",
+                 "funding_focus", "geographic_focus", "inquiry_policy", "inquiry_route"]
 EIN_PATTERN = re.compile(
     r"\b(?:EIN|Employer Identification Number|Tax\s*(?:ID|Identification)(?:\s*Number)?)"
     r"\s*[:#]?\s*(\d{2}[-\s]?\d{7})\b", re.I)
@@ -58,7 +59,8 @@ class Claim(StrictModel):
 
     @model_validator(mode="after")
     def scope_required(self):
-        if self.field != "grantmaking_role" and (not self.program or not self.cycle):
+        organization_fields = ("grantmaking_role", "funding_focus", "geographic_focus", "inquiry_policy", "inquiry_route")
+        if self.field not in organization_fields and (not self.program or not self.cycle):
             raise ValueError("program and explicit cycle (or 'not_stated') are required")
         if self.field in ("award_amount", "round_budget", "partnership_budget", "recipient_award"):
             if not self.currency or not self.unit:

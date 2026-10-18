@@ -26,7 +26,7 @@ ELIGIBILITY_SELECT = (
 @contextmanager
 def evidence_db(run: Path):
     run.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(run / "verification.sqlite3", timeout=30)
+    db = sqlite3.connect((run / "verification.sqlite3").resolve().as_uri(), uri=True, timeout=30)
     db.row_factory = sqlite3.Row
     db.execute("pragma journal_mode=wal")
     db.executescript("""

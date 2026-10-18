@@ -1,6 +1,22 @@
 # Research restart handoff and SQL approval correction
 
-## Latest scope: 150,000-member evidence campaign
+## Latest scope correction: recent givers or active funder websites
+
+The user prioritizes funding organizations with a paid donation in the past
+twelve months, or a live funder website. Record liveness, supported update
+month/year and fit/inquiry guidance separately. Read
+[the active-funder protocol](ACTIVE-FUNDERS-150K.md) and
+[dated revision report](ACTIVE-FUNDERS-2026-10-18.md). The original fixed cohort
+is retained and superseded for selection; its initial mechanical pass does not
+complete the revised target. Do not pad 150,000 with unknowns.
+
+Private current run: `data/research/active-funders-150k-2026-10-18/`. Its
+`APPLICATION-BACKLOG.json` links every previous pending batch. All live
+application is deferred. The original evidence follower is stopped; the new
+active-funder follower uses the same existing bounded crawler. Inspect recorded
+PIDs, locks and checkpoint state before restarting anything. Heartbeat paused.
+
+## Historical launch: 150,000-member evidence campaign
 
 The user authorized a bounded 501(c)(3) evidence-first enhancement campaign.
 Exactly 150,000 unique-EIN members were frozen with explicit subsection03 source

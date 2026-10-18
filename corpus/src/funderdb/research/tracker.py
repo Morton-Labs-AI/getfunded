@@ -114,6 +114,31 @@ class Tracker:
                                 evidence["lease_held"] = True
                     except OSError:
                         evidence["lease_held"] = None
+            active = None
+            if config.get("active_funders_run"):
+                active_run = Path(config["active_funders_run"]).resolve()
+                active_path = active_run / "active-status.json"
+                if active_path.exists():
+                    detail = _json(active_path)
+                    if detail.get("source_inventory_sha256") != settings["input_sha256"]:
+                        raise ValueError("active-funder pool does not match this inventory")
+                    active = {k: detail[k] for k in (
+                        "as_of", "target_qualified_funders", "search_pool_size", "processed_search_candidates",
+                        "states", "dimensions", "website_criteria_candidates", "semantically_verified_funders",
+                        "target_remaining_unverified", "remote_applied", "human_reviewed", "published",
+                        "model_calls", "worker_state", "completion_note") if k in detail}
+                    active["status_age_seconds"] = round((timestamp - datetime.fromisoformat(
+                        detail["as_of"].replace("Z", "+00:00"))).total_seconds())
+                    try:
+                        with (active_run / "active-worker.lock").open("r") as lease:
+                            try:
+                                fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                                active["lease_held"] = False
+                                fcntl.flock(lease, fcntl.LOCK_UN)
+                            except BlockingIOError:
+                                active["lease_held"] = True
+                    except OSError:
+                        active["lease_held"] = None
             point = {
                 "as_of": status["as_of"], "attempted": status["crawl_attempted"],
                 "evidence_ready": status["states"].get("evidence_ready", 0),
@@ -131,6 +156,7 @@ class Tracker:
                 "research_organizations": touched, "research_stages": stages,
                 "fully_cross_verified": None,
                 "evidence_cohort": evidence,
+                "active_funders": active,
                 "human_reviewed_by_workflow": status.get("human_reviewed"),
                 "published_by_workflow": status.get("published_by_this_workflow"),
                 "worker": {

@@ -47,8 +47,8 @@ class ReadAPI:
         self.client.close()
 
     def get(self, table: str, params: dict) -> httpx.Response:
-        if table not in ("organizations", "filings"):
-            raise ValueError("only the public inventory views are supported")
+        if table not in ("organizations", "filings", "funding_events"):
+            raise ValueError("only the public inventory/funding-event views are supported")
         for attempt in range(3):
             try:
                 response = self.client.get(table, params=params)

@@ -55,7 +55,11 @@
             "geography",
             "duration",
             "recipient_award",
-            "grantmaking_role"
+            "grantmaking_role",
+            "funding_focus",
+            "geographic_focus",
+            "inquiry_policy",
+            "inquiry_route"
           ],
           "title": "Field",
           "type": "string"
@@ -228,7 +232,11 @@
           "geography",
           "duration",
           "recipient_award",
-          "grantmaking_role"
+          "grantmaking_role",
+          "funding_focus",
+          "geographic_focus",
+          "inquiry_policy",
+          "inquiry_route"
         ],
         "type": "string"
       },

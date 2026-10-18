@@ -176,6 +176,49 @@ def research_evidence_init(source_run: Path, run: Path, access: Path, size: int)
     click.echo(json.dumps(initialize_cohort(source_run, run, access, size, click.echo), indent=2))
 
 
+@research.command("active-funders-init")
+@click.option("--source-run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--previous", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--run", type=click.Path(path_type=Path), required=True)
+def research_active_init(source_run: Path, previous: Path, run: Path) -> None:
+    """Build/extend a private URL-bearing c3 search pool, without padding the 150k target."""
+    import json
+    from .research.active_funders import initialize
+    click.echo(json.dumps(initialize(source_run, previous, run), indent=2))
+
+
+@research.command("active-funders-work")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--follow", is_flag=True)
+@click.option("--limit", type=click.IntRange(min=1), default=None)
+def research_active_work(run: Path, follow: bool, limit: int | None) -> None:
+    """Check saved URL liveness, scoped update dates and grant-inquiry leads locally."""
+    import json
+    from .research.active_funders import work
+    click.echo(json.dumps(work(run, follow, limit, click.echo), indent=2))
+
+
+@research.command("active-funders-recent-giving")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--access", type=click.Path(exists=True, path_type=Path), required=True)
+def research_active_giving(run: Path, access: Path) -> None:
+    """GET dated paid-grant candidates; source payment/date precision still needs review."""
+    import json
+    from datetime import datetime, timezone
+    from .research.active_funders import recent_giving
+    click.echo(json.dumps(recent_giving(access, run, datetime.now(timezone.utc).date()), indent=2))
+
+
+@research.command("active-funders-prepare")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--org-id", required=True)
+def research_active_prepare(run: Path, org_id: str) -> None:
+    """Prepare one private bounded review item using the existing proposal format."""
+    import json
+    from .research.active_funders import prepare_review
+    click.echo(json.dumps(prepare_review(run, org_id), indent=2))
+
+
 @research.command("evidence-work")
 @click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
 @click.option("--follow", is_flag=True, help="Follow new saved crawler results, without network/model calls.")

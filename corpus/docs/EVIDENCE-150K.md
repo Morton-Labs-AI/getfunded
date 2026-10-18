@@ -1,4 +1,9 @@
-# Evidence-first 150,000-organization campaign
+# Original evidence-first 150,000-organization campaign
+
+**Historical selection:** the user subsequently narrowed the target to recent
+givers or active funder websites. [The active-funder protocol](ACTIVE-FUNDERS-150K.md)
+governs current work. Preserve this cohort and its source hashes; its mechanical
+initial pass is not completion of the revised funder target.
 
 This campaign implements the October 18, 2026 request to work through a bounded
 501(c)(3) cohort, make supporting evidence reproducible, then document observed
@@ -71,7 +76,11 @@ offsets. The claimed literal value must appear within the cited passage;
 program/cycle scope must occur in the source. Amount claims distinguish award,
 round and partnership scope and require currency explicitly in the passage:
 `$` alone is insufficient to assert `USD`. General eligibility can use
-`cycle=not_stated`; deadline/posture claims require a stated cycle. These checks
+`cycle=not_stated`; deadline/posture claims require a stated cycle. The active
+funder revision adds organization-level `funding_focus`, `geographic_focus`,
+`inquiry_policy` and `inquiry_route`, alongside `grantmaking_role`; these do not
+require an invented program/cycle. A general policy is distinct from a
+cycle-specific application-status claim. These checks
 still leave attribution, interpretation and conflicts for semantic review.
 
 A staged proposal records author/model and reported usage, exact source-result

@@ -1,6 +1,9 @@
 # Open Funder Database — the `corpus/` pipeline
 
-The [150,000-member evidence campaign](docs/EVIDENCE-150K.md) freezes an explicit
+The [active-funder campaign](docs/ACTIVE-FUNDERS-150K.md) targets 150,000 evidenced
+501(c)(3) funders with recent paid donations or live funder websites, recording
+source-scoped update dates and fit/inquiry gaps. The retained original
+[150,000-member evidence campaign](docs/EVIDENCE-150K.md) freezes an explicit
 IRS-subsection03 cohort, reuses saved sources for deterministic checks, and stages
 structured claims with exact source spans before semantic review. Its counts
 distinguish processed cases, unresolved evidence and approved publication.
