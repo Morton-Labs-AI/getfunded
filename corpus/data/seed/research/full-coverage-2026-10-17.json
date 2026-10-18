@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-18T02:47:12.613356+00:00",
+  "as_of": "2026-10-18T07:37:00.281436+00:00",
   "campaign": "full-2026-10-17",
   "inventory": {
     "schema": "organization_inventory/v1",
@@ -24,25 +24,25 @@
     "confirmed_sites_sha256": "698ff17dbe39ea03063d2020af1487ea67009d1156619d031cc369bae63e470d"
   },
   "coverage": {
-    "as_of": "2026-10-18T02:47:12.613356+00:00",
+    "as_of": "2026-10-18T07:37:00.281436+00:00",
     "scope": "all public organizations, reconciled to the internal census count",
     "input_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
     "organizations": 2309073,
     "states": {
-      "blocked": 17158,
-      "evidence_ready": 26354,
-      "needs_discovery": 1979822,
-      "pending": 285723,
+      "blocked": 25426,
+      "evidence_ready": 42261,
+      "needs_discovery": 1979816,
+      "pending": 261554,
       "running": 16
     },
-    "crawl_attempted": 43528,
-    "evidence_ready": 26354,
+    "crawl_attempted": 67703,
+    "evidence_ready": 42261,
     "organizations_with_recorded_research_steps": {
-      "claim_review": 98,
-      "identity_review": 54,
-      "news_search": 13,
-      "reverse_research": 30,
-      "website_search": 285
+      "claim_review": 139,
+      "identity_review": 86,
+      "news_search": 16,
+      "reverse_research": 41,
+      "website_search": 349
     },
     "human_reviewed": 0,
     "published_by_this_workflow": 0,
@@ -50,16 +50,16 @@
     "pending_work": "Identity verification, missing-site search, reverse research, evidence review and publication are separate steps."
   },
   "acquisition_observations": {
-    "result_files": 43582,
-    "html_observations": 106101,
-    "pages_with_target_ein": 1822,
-    "resource_links": 89592,
-    "feed_links": 80630,
-    "reused_observations": 2346,
-    "distinct_html_urls": 100218,
-    "distinct_page_snapshots": 103755,
-    "scan_started_at": "2026-10-18T02:47:12.614516+00:00",
-    "scan_completed_at": "2026-10-18T02:47:45.195482+00:00",
+    "result_files": 67728,
+    "html_observations": 177001,
+    "pages_with_target_ein": 4433,
+    "resource_links": 173082,
+    "feed_links": 140393,
+    "reused_observations": 3271,
+    "distinct_html_urls": 167748,
+    "distinct_page_snapshots": 173730,
+    "scan_started_at": "2026-10-18T07:37:00.284085+00:00",
+    "scan_completed_at": "2026-10-18T07:38:01.470387+00:00",
     "scope": "current per-organization result references; supplemental manual acquisitions are separate"
   },
   "database_sources": 21,
@@ -88,11 +88,11 @@
   "continuation_candidate_websites": 5,
   "continuation_review_notes": 26,
   "research_step_records_by_stage": {
-    "claim_review": 102,
-    "identity_review": 54,
-    "news_search": 13,
-    "reverse_research": 30,
-    "website_search": 285
+    "claim_review": 151,
+    "identity_review": 86,
+    "news_search": 17,
+    "reverse_research": 41,
+    "website_search": 349
   },
   "evening_raw_file_ids": [
     468,
@@ -129,7 +129,7 @@
   "late_review_notes": 29,
   "late_review_organizations": 26,
   "structured_signal_candidates_prepared_this_continuation": 8,
-  "database_structured_signal_candidates": 17,
+  "database_structured_signal_candidates": 25,
   "overnight_raw_file_ids": [
     481,
     482,
@@ -150,11 +150,30 @@
   "overnight_review_notes": 95,
   "overnight_review_organizations": 60,
   "overnight_exact_ein_identity_crosschecks": 24,
-  "organizations_with_any_research_step": 386,
+  "organizations_with_any_research_step": 483,
   "tracker": {
     "command": "funderdb research tracker --run data/research/full-2026-10-17 --port 8768",
     "local_url": "http://127.0.0.1:8768",
     "fully_cross_verified": null,
     "history_is_append_only": true
-  }
+  },
+  "morning_raw_file_ids": [
+    491,
+    492,
+    493,
+    494,
+    495,
+    496,
+    497,
+    498,
+    499
+  ],
+  "morning_ledger_ids": [
+    561
+  ],
+  "morning_website_search_organizations": 64,
+  "morning_candidate_websites": 6,
+  "morning_review_notes": 96,
+  "morning_review_organizations": 45,
+  "morning_exact_ein_identity_crosschecks": 32
 }

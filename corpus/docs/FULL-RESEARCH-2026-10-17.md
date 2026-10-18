@@ -1,6 +1,106 @@
 # Full-population research — 2026-10-17
 
-## Latest continuation — 2026-10-18, 02:47 UTC
+## Latest continuation — 2026-10-18, 07:37 UTC
+
+The campaign remains active across **all 2,309,073 organizations**. The
+[live local tracker](RESEARCH-TRACKER.md) continues at http://127.0.0.1:8768.
+No profile-completion count has been established; acquisitions, exact-EIN
+matches and agent-prepared notes remain distinct from full cross-verification.
+
+| State at 2026-10-18T07:37:00.281436+00:00 | Organizations |
+| --- | ---: |
+| HTML acquired; identity and claims need review | 42,261 |
+| Attempted with an acquisition blocker | 25,426 |
+| Running | 16 |
+| Candidate website awaiting acquisition | 261,554 |
+| Website discovery unresolved | 1,979,816 |
+| Full population | 2,309,073 |
+
+**67,703 organizations have a crawl attempt.** The dated result scan through
+07:38:01 UTC found 177,001 HTML observations across 167,748 URLs, 173,082 linked
+resources and 4,433 pages with an explicit target-EIN match. The worker advanced
+during the scan; supplemental acquisitions remain separate.
+
+This continuation executed **100 distinct query strings**, recorded
+[64 additional organization searches](../data/seed/research/morning-searches-2026-10-18.jsonl),
+queued [six attributed site candidates](../data/seed/research/morning-websites-2026-10-18.jsonl)
+and added [96 original notes across 45 organizations](../data/seed/research/morning-notes-2026-10-18.jsonl).
+Thirty-two new identity preparations cross-check website EINs with registry
+and filed-website evidence. The new candidates concern ALTIS, Jeffrey Dahn,
+Lake Stevens Youth Cheer, Rise Up/Trey's Legacy, AMDG 1933 and Allure Alliance.
+Specific corporate-hosted and administered-program pages retain those roles;
+they are not silently reclassified as foundation-owned domains. Absent EINs,
+address differences and alias bridges remain human-review items.
+
+There are **644 durable research steps across 483 organizations**:
+
+| Stage | Records | Distinct organizations |
+| --- | ---: | ---: |
+| Website search | 349 | 349 |
+| Identity review preparation | 86 | 86 |
+| News search | 17 | 16 |
+| Recipient reverse research | 41 | 41 |
+| Claim review preparation | 151 | 139 |
+
+The new reviews preserve several consequential distinctions:
+
+- [Yuvaan Tiwari's funding guidance](https://www.ytfoundation.org/funding)
+  separates rolling research grants from venture investments. Its typical
+  annual grant range is $50,000–$150,000; larger multiyear requests are distinct.
+  [Seattle Children's Vitanza Lab](https://www.seattlechildrens.org/research/centers-programs/childhood-cancer/our-labs/vitanza-lab/news/)
+  independently acknowledges $200,000 under March 2025, whereas the funder's
+  announcement is dated May 2025. Commitment, announcement and payment dates
+  remain separate.
+- [Joseph Kiley's memorial grant](https://www.josephkiley.org/joseph-kiley-memorial-grant)
+  reimburses eligible clinical-trial participants' expenses. Money raised for
+  laboratory work is not their reimbursement ceiling.
+- [Serini's Small Grants](https://www.hjsfoundation.org/small-grants-program)
+  are also explicitly closed. Retained rolling-process guidance does not
+  reopen that program; historical leadership grants have been consolidated.
+- [SCRED's recipient announcement](https://www.scred.k12.mn.us/news/what_s_new/grant_support_for_coaching_2025)
+  names PrairieCare representatives but attributes its three-year coaching
+  grant to the Chorzempa family foundation. Presenter, intermediary and funder
+  must not be collapsed into one payment attribution.
+- AMDG's January 7–March 4, 2027 window, Harrington's December 1, 2026 opening
+  for 2027, expired scholarship windows, Gloria's conflicting fellowship-term
+  text, Talem's inconsistent grant range and SOAR's district-count discrepancy
+  are retained in the source-specific notes. Forms for membership, adoption
+  and in-kind assistance are not automatically grant applications.
+- Historical recipient evidence separates Cogut's donor tier, Betty Mae Ling's
+  contribution to a jointly supported scholarship and Bentonville West MTB
+  Club's incoming Outride award. Namesakes and later Gross-family entities
+  remain separate. Robots blocks and an unacquired board-packet lead remain
+  explicit gaps.
+
+[Eight structured Simons preparations](../data/seed/research/morning-structured-signals-2026-10-18.jsonl)
+now enrich existing candidates: New Ideas, the mathematics/AI partnership,
+SURFiN, Fellows-to-Faculty, plant biology, HBCU programs, Open Interval and
+Empire AI. The $15 million joint cash/resource initiative and $23 million
+joint HBCU pool are not encoded as Simons-only cash amounts. The $600,000
+faculty grant excludes separate postdoctoral support; Open Interval's $30,000
+is per trio, and Empire AI's $6 million is a total pool. Current deadlines,
+future program periods and historical commitments remain separate.
+
+Database totals are **21 sources, 259 candidates and 25 structured candidates**,
+with **zero published signals**. Private publisher snapshots are registered as
+raw files 491–498; original compilation 499 and completed ledger 561 retain
+the eight updates. An expired connector request was confirmed unapplied before
+guarded recovery. Final readback verified all eight updates, source hashes,
+organization links, licensing and absent human reviewers.
+
+The crawler, tracker and temporary keep-awake process were healthy at 07:35
+UTC, with about 195.4 GiB free disk. The 16-worker crawler retains shared host
+pacing, robots checks, locks, checkpoints and the disk guard. The existing
+30-minute continuation remains active. The requested work window through
+14:40 UTC is neither a completion forecast nor a stop timer. No files or
+database records were deleted; human DCO and publication decisions remain
+pending on the draft PR.
+
+Verified by: actual research record commands, existing classification/evidence
+validation, direct source-hash/denominator checks and live Supabase provenance
+readback. Tests: not run (weekly review policy).
+
+## Previous continuation — 2026-10-18, 02:47 UTC
 
 The full **2,309,073-organization** campaign remains active. The new
 [local progress tracker](RESEARCH-TRACKER.md) displays live acquisition,
