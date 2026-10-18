@@ -1,5 +1,22 @@
 # Research restart handoff and SQL approval correction
 
+## Latest identity and inquiry continuation
+
+Read [the identity/inquiry report](ACTIVE-FUNDERS-IDENTITY-GUIDANCE-2026-10-18.md)
+before older snapshots. Nineteen organizations received source review; 22 local
+proposals hold 107 claim records, six superseded, leaving 101 current records.
+Forty-one actual research steps and twelve queries were recorded once. Supabase
+remained read-only; all application and human approval remain pending.
+
+Private continuation: `active-funders-150k-2026-10-18/identity-guidance-2026-10-18/`.
+The root `APPLICATION-BACKLOG.json` links its proposals, identity comparisons and
+mandatory operator-cycle supersession, alongside all earlier pending batches.
+Best Friends' Binky award has a separate legal operator; do not attribute its
+year-round intake to Binky Foundation. Filer-domain identity bridges do not
+create human approval. The dated snapshot has 988 steps/693 organizations; the
+150,000 target remains unverified. Workers/tracker continue; inspect current
+leases/PIDs/checkpoints/disk before a restart. Heartbeat remains paused.
+
 ## Latest evidence-gap continuation
 
 Read [the new evidence-gap report](ACTIVE-FUNDERS-GAPS-2026-10-18.md) before the
