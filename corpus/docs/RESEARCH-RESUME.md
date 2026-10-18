@@ -1,5 +1,21 @@
 # Research restart handoff and SQL approval correction
 
+## Latest scope: 150,000-member evidence campaign
+
+The user authorized a bounded 501(c)(3) evidence-first enhancement campaign.
+Exactly 150,000 unique-EIN members were frozen with explicit subsection03 source
+observations; the full population remains unchanged. The evidence worker and the
+16-worker crawler are running; the tracker on port8768 now shows both scopes.
+The heartbeat remains paused. Remote writes remain deferred.
+
+Read [the dated launch report](EVIDENCE-150K-2026-10-18.md) and
+[operating contract](EVIDENCE-150K.md). Private run:
+`data/research/verification-150k-2026-10-18/`. Backlog:
+`APPLICATION-BACKLOG.json` under that directory, linking the prior pending batch.
+Initial dispositions, source checks, structured candidates and human approvals
+remain distinct. The detailed rules/model-benchmark phase is due after working
+through the cohort; no automatic rule/model promotion or paid model batch exists.
+
 ## Current state: resumed under read-only database policy
 
 The user explicitly authorized resumption on October 18. Local crawler (PID18540)

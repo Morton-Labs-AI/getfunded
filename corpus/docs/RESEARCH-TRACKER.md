@@ -1,5 +1,12 @@
 # Research progress tracker
 
+The optional `evidence_run` path in the private `tracker-config.json` connects
+the [150,000-member evidence campaign](EVIDENCE-150K.md). Its panel reports fixed
+cohort size, initial dispositions, page checks, candidate submissions, review
+counts and evidence-worker health separately from the full inventory. Source
+checks do not count as fully verified organizations. The status endpoint
+allowlists aggregate fields and never exposes packets, excerpts or proposals.
+
 Run the local dashboard beside an initialized research campaign:
 
     funderdb research tracker --run data/research/full-2026-10-17 --port 8768

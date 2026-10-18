@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A fixed 150,000-member IRS-subsection03 evidence campaign, deterministic saved-source
+  integrity checks, exact-span candidate validation and a local tracker panel.
+  Source checks, unresolved cases, staged claims and human approval remain distinct;
+  research uses read-only remote access and makes no model calls in the evidence worker.
 - Program-aware research link priority, 64 further performed website searches,
   five attributed website candidates, 26 review notes, and three first-party
   source definitions with 41 unreviewed announcement URL candidates. Cycle

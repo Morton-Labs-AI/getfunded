@@ -1,5 +1,10 @@
 # Open Funder Database — the `corpus/` pipeline
 
+The [150,000-member evidence campaign](docs/EVIDENCE-150K.md) freezes an explicit
+IRS-subsection03 cohort, reuses saved sources for deterministic checks, and stages
+structured claims with exact source spans before semantic review. Its counts
+distinguish processed cases, unresolved evidence and approved publication.
+
 For current website, program and news evidence, see the
 [organization research protocol](docs/ORGANIZATION-RESEARCH.md) and
 `funderdb research --help`. It provides an exhaustive inventory option and a

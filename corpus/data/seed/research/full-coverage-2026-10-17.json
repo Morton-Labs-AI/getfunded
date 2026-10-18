@@ -207,5 +207,23 @@
     "published": 0,
     "heartbeat": "paused",
     "free_disk_gib": 192.4
+  },
+  "evidence_cohort": {
+    "as_of": "2026-10-18T09:57:17.143203+00:00",
+    "cohort_size": 150000,
+    "processed_members": 7613,
+    "remaining_initial_pass": 142387,
+    "page_checks": 30188,
+    "candidate_submissions": 1,
+    "fully_verified_organizations": 0,
+    "remote_applied": 0,
+    "human_reviewed": 0,
+    "published": 0,
+    "model_calls_by_evidence_worker": 0,
+    "members_sha256": "01cc83e5690244bdd5d2e8299302c982eff41414aa6ac879df4450221155c024",
+    "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "operating_contract": "docs/EVIDENCE-150K.md",
+    "dated_report": "docs/EVIDENCE-150K-2026-10-18.md",
+    "counts_note": "Separate dated observation; earlier full-campaign counts retain their own timestamps. Initial dispositions are not fully verified profiles."
   }
 }

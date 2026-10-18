@@ -1,0 +1,288 @@
+{
+  "$defs": {
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        },
+        "text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Text Sha256",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "excerpt": {
+          "maxLength": 1200,
+          "minLength": 20,
+          "title": "Excerpt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "snapshot_sha256",
+        "text_sha256",
+        "start",
+        "end",
+        "excerpt"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "enum": [
+            "program_name",
+            "application_status",
+            "application_deadline",
+            "award_amount",
+            "round_budget",
+            "partnership_budget",
+            "eligibility",
+            "geography",
+            "duration",
+            "recipient_award",
+            "grantmaking_role"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        },
+        "program": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Program"
+        },
+        "cycle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cycle"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currency"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unit"
+        },
+        "effective_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Effective Date"
+        },
+        "published_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Published Date"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Timezone"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Citations",
+          "type": "array"
+        },
+        "conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Conflicts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "field",
+        "value",
+        "program",
+        "cycle",
+        "currency",
+        "unit",
+        "effective_date",
+        "published_date",
+        "timezone",
+        "citations",
+        "conflicts"
+      ],
+      "title": "Claim",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "evidence-first/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "org_id": {
+      "title": "Org Id",
+      "type": "string"
+    },
+    "author": {
+      "maxLength": 100,
+      "minLength": 7,
+      "pattern": "^agent:",
+      "title": "Author",
+      "type": "string"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "maxItems": 40,
+      "minItems": 1,
+      "title": "Claims",
+      "type": "array"
+    },
+    "unknown_fields": {
+      "items": {
+        "enum": [
+          "program_name",
+          "application_status",
+          "application_deadline",
+          "award_amount",
+          "round_budget",
+          "partnership_budget",
+          "eligibility",
+          "geography",
+          "duration",
+          "recipient_award",
+          "grantmaking_role"
+        ],
+        "type": "string"
+      },
+      "title": "Unknown Fields",
+      "type": "array"
+    },
+    "input_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Input Tokens"
+    },
+    "output_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Output Tokens"
+    },
+    "elapsed_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Elapsed Seconds"
+    }
+  },
+  "required": [
+    "schema_version",
+    "org_id",
+    "author",
+    "model",
+    "claims",
+    "unknown_fields",
+    "input_tokens",
+    "output_tokens",
+    "elapsed_seconds"
+  ],
+  "title": "Proposal",
+  "type": "object"
+}

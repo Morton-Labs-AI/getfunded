@@ -85,6 +85,35 @@ class Tracker:
                 pass
             config_path = self.run / "tracker-config.json"
             config = _json(config_path) if config_path.exists() else {}
+            evidence = None
+            if config.get("evidence_run"):
+                evidence_run = Path(config["evidence_run"]).resolve()
+                manifest_path = evidence_run / "cohort.json"
+                evidence_path = evidence_run / "evidence-status.json"
+                if manifest_path.exists() and evidence_path.exists():
+                    manifest, detail = _json(manifest_path), _json(evidence_path)
+                    if (manifest.get("source_inventory_sha256") != settings["input_sha256"]
+                            or manifest.get("members_sha256") != detail.get("cohort_sha256")):
+                        raise ValueError("evidence cohort does not match this inventory")
+                    # Aggregate allowlist only: no private paths, excerpts or proposals.
+                    evidence = {k: detail[k] for k in (
+                        "as_of", "cohort_size", "processed_members", "remaining_initial_pass",
+                        "states", "identity_evidence", "page_checks", "candidate_submissions",
+                        "remote_applied", "human_reviewed", "published", "fully_verified_organizations",
+                        "model_calls_by_evidence_worker", "model_tokens_by_evidence_worker",
+                        "rules_phase", "completion_note", "worker_state") if k in detail}
+                    evidence["status_age_seconds"] = round((timestamp - datetime.fromisoformat(
+                        detail["as_of"].replace("Z", "+00:00"))).total_seconds())
+                    try:
+                        with (evidence_run / "evidence-worker.lock").open("r") as lease:
+                            try:
+                                fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                                evidence["lease_held"] = False
+                                fcntl.flock(lease, fcntl.LOCK_UN)
+                            except BlockingIOError:
+                                evidence["lease_held"] = True
+                    except OSError:
+                        evidence["lease_held"] = None
             point = {
                 "as_of": status["as_of"], "attempted": status["crawl_attempted"],
                 "evidence_ready": status["states"].get("evidence_ready", 0),
@@ -101,6 +130,7 @@ class Tracker:
                 "states": status["states"], "attempted": status["crawl_attempted"],
                 "research_organizations": touched, "research_stages": stages,
                 "fully_cross_verified": None,
+                "evidence_cohort": evidence,
                 "human_reviewed_by_workflow": status.get("human_reviewed"),
                 "published_by_workflow": status.get("published_by_this_workflow"),
                 "worker": {
