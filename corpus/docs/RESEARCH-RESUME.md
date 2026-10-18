@@ -1,5 +1,39 @@
 # Research restart handoff and SQL approval correction
 
+## Latest identity/program-scope continuation
+
+Read [the new scope report](ACTIVE-FUNDERS-SCOPE3000-2026-10-18.md) first. New completed
+wave: 3,047 audits / 17,821 page checks, comprising 0 newly audited organizations and
+3,047 rechecks. Cumulative: 54,601 audits / 45,788 distinct organizations / 8,813
+rechecks. Proposal-input and scoped-literal duplicates remain separate from semantic
+facts.
+
+Actual manual work: 97 steps across 77 organizations, 61 program-source passes across 56
+organizations, 60 proposals / 253 cited records, and 10 queries. CJA's member
+attribution blocks its two automatic grant-role proposals. Murdock/Headwaters/CCRF
+calendars retain table, cycle and stage scope; date/viewport conflicts remain. CCRF now
+supplies its exact publisher EIN. Current-cycle calls do not imply portal operation or
+recent payment.
+
+Selected new 3,000 acquisitions: `{"blocked": 8, "evidence_ready": 2820, "pending": 156,
+"running": 16}`. Separate wave/acquisition cohorts and qualified target remain
+incomplete. Explicit source URLs now keep analyst order under the same six-page cap.
+Crawler75359 recovered old95983 checkpoints; evidence96864, bulk43126 and tracker43128
+retained held leases. Inspect live metadata/leases/checkpoints/disk before restart; 16
+workers, six pages and all guards are unchanged.
+
+Private newest handoff:
+`active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/scope-3000-2026-10-18/HANDOFF.json`.
+The root APPLICATION-BACKLOG links all new proposal, identity, scope and duplicate
+dependencies alongside older backlogs. Supabase had zero calls and zero mutations; the
+dated 19-row baseline needs fresh exact state only in a separately requested application
+session. Raw files 500–508 and ledger562 remain untouched; continuation-0758 and
+heartbeat-0744 were not replayed. No human approval, confirmed-profile publication,
+outreach, deletion, subagents, new automation, main push or merge. Old heartbeat remains
+paused. Inventory 2,309,073 and its hash were rechecked unchanged. Routine suites were
+not run; one escaped-bug regression failed before and passed once after the fix. No CI
+polling.
+
 ## Latest next-3000 evidence continuation
 
 Read [the next-wave report](ACTIVE-FUNDERS-NEXT3000-2026-10-18.md) before older

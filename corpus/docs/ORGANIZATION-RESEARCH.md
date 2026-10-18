@@ -96,7 +96,11 @@ recorded. Six pages can reveal leads; they do not prove research completeness.
 
 When the seed names a specific program, prioritize links sharing that program's
 path and links in the page body before generic navigation. Keep explicitly
-supplied research URLs ahead of discovered links. Scholarship, fellowship and
+supplied research URLs in their given order ahead of discovered links. Newly
+requested evidence gaps must not lose their place to older curated links merely
+because those older links appear in the current page body. The page cap remains
+unchanged; previously saved source results are not retroactively rewritten.
+Scholarship, fellowship and
 award pages count as grant leads; routine branding, privacy and login pages do
 not consume the bounded crawl budget. Preserve their discovered links anyway.
 This priority improves depth but does not certify eligibility, identity or
@@ -177,6 +181,16 @@ license review. Do not silently relicense it into the public dataset.
 Prefer explicit current-cycle guidelines over general pages. Compare effective
 dates and scope, not download timestamps. A newer page about a different cycle
 does not supersede an old cycle's amount. Preserve both assertions if uncertain.
+
+Inspect speaker and source structure before normalizing a literal statement.
+An About page can contain another organization's first-person member profile;
+that passage does not establish the host's grantmaking. A page can also retain
+different desktop/mobile notices. Keep each component's source hash, structural
+scope and dated calendar rather than selecting the first open/closed keyword.
+General contact, brief introductions, initial LOIs and invited full proposals are
+different routes. Table headers and cycle columns must stay attached to dates;
+do not flatten adjacent cycles into one deadline. These are review requirements,
+not a claim that the current mechanical screen adjudicates every such case.
 
 Initial research surfaced useful examples: Packard's 2026 announcement and its
 general fellowship page state different amounts; Templeton's process describes

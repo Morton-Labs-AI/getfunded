@@ -1,5 +1,7 @@
 # Active-funder evidence protocol
 
+Latest continuation: [identity and program-scope report](ACTIVE-FUNDERS-SCOPE3000-2026-10-18.md). It separates completed source waves, targeted acquisitions, actual source interpretation and duplicate observations; all application remains pending.
+
 The October 18 scope correction replaces the original foundation-first ranking.
 The target is **150,000 evidenced 501(c)(3) funding organizations**, prioritizing
 actual outgoing donations in the trailing twelve months **or** a live funder
