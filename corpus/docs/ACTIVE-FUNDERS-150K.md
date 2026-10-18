@@ -9,14 +9,16 @@ cannot establish that 150,000 funders met these new criteria.
 The immutable 2,309,073-member inventory is unchanged. Supabase remains GET-only;
 all research and assessments stay local and private. No outreach is performed.
 
-Latest continuation: [bulk source review and targeted gap acquisition](ACTIVE-FUNDERS-BULK-2026-10-18.md),
+Latest continuation: [next 3,000-case wave and evidence gaps](ACTIVE-FUNDERS-NEXT3000-2026-10-18.md),
+following [bulk source review and targeted gap acquisition](ACTIVE-FUNDERS-BULK-2026-10-18.md),
 following [identity bridges and inquiry guidance](ACTIVE-FUNDERS-IDENTITY-GUIDANCE-2026-10-18.md),
 following [source gaps and corrected program guidance](ACTIVE-FUNDERS-GAPS-2026-10-18.md).
 Preserve claim-specific supersession records before any separate application.
 
 The [bulk source-review workflow](BULK-FUNDER-REVIEW.md) sweeps acquired live-site
-cases in large frozen batches and follows new acquisitions/source revisions in 1,000–10,000-case
-waves. Automated audits and literal candidate staging have their own tracker
+cases in large frozen batches and follows new acquisitions/source revisions with
+a configurable minimum, now 3,000, and a maximum of 10,000 cases per wave.
+Automated audits and literal candidate staging have their own tracker
 stage; they do not count as manual semantic review or qualified admission.
 
 ## Selection and admission
@@ -33,6 +35,10 @@ These mechanical gates produce **candidates pending semantic review**. A page
 may quote another organization, describe an old program, or repeat footer text.
 Such cases must abstain or retain a review dependency. No human approval is
 created by a worker. Broader legal-entity bridges require separate source review.
+HTTP success can contain a soft error or national/affiliate content, as the
+Downey chapter follow-up demonstrates. Review candidate-specific page content
+before applying a website; retain cached identity evidence and fresh failures
+as separate dated observations.
 
 The alternative giving route needs a payment/transfer actually made during the
 window, attributable to the legal funder. On October 18, 2026 the window starts

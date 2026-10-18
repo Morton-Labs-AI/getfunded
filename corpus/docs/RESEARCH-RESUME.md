@@ -1,5 +1,44 @@
 # Research restart handoff and SQL approval correction
 
+## Latest next-3000 evidence continuation
+
+Read [the next-wave report](ACTIVE-FUNDERS-NEXT3000-2026-10-18.md) before older
+snapshots. The raised 3,000-case minimum completed wave-0012 with **3,025 audits**:
+782 newly audited organizations and 2,243 rechecks, covering 16,948 saved page
+checks. Cumulative: 51,554 audits / 45,788 distinct organizations / 5,766 rechecks.
+Automatic proposals: 723 records / 634 distinct inputs / 89 identical-input
+repeats. A separate bulk-plus-workspace index has 2,053 claim observations,
+1,394 scoped literal keys and 659 repeated records, not distinct verified facts.
+
+Twenty-seven partial program reviews staged 27 proposals / 128 cited records;
+68 actual manual steps across 61 organizations and 15 queries are separate from
+automated audits. Conflicts, closed cycles, inquiry/application distinctions and
+SFI/SF or hosted-fund scope are retained. Downey's cached matching chapter page
+conflicts with a fresh soft-not-found/national-content result: proposed website
+application is blocked pending current chapter-specific evidence. Three prior
+timeout acquisitions recovered; robots/access/timeout dependencies remain.
+
+Exactly 3,000 distinct source-backed gap acquisitions were queued separately from
+the completed wave. The dated report records 2,347 evidence-ready, six blocked,
+632 pending and 15 running; the live queue continues. Do not call this acquisition
+cohort or the 150,000 qualified target complete. The next-wave minimum is now
+3,000, maximum 10,000; do not pad a smaller tail or replay audited org/result pairs.
+
+Private newest handoff:
+`active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/next-3000-2026-10-18/HANDOFF.json`.
+Root `APPLICATION-BACKLOG.json` links new manual/identity preparations and scope/
+duplicate gates alongside all prior backlogs. Supabase stayed read-only with no
+calls in this continuation; dated before-images require fresh exact readback only
+in a separately requested application session. No deferred/cancelled SQL replay,
+registration, ledger mutation or human approval. Raw500–508/ledger562 untouched.
+
+Current process metadata identifies crawler95983, evidence96864, bulk43126 and
+tracker43128@8768 with held leases at the dated handoff. Inspect live identities,
+leases, checkpoints and disk before any restart. Keep16 crawler workers/max6/all
+guards. Inventory2309073/hash unchanged. Old heartbeat stays paused; no scheduling,
+outreach, deletion, subagents, main push or merge. Actual command/new completed
+wave and one updated tracker reload verified; no suites or CI polling.
+
 ## Latest bulk source-review continuation
 
 Read [the bulk report](ACTIVE-FUNDERS-BULK-2026-10-18.md) and

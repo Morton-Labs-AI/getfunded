@@ -9,7 +9,7 @@ qualified-funder target remains separate from batch membership.
 funderdb research active-funders-sweep \
   --run data/research/active-funders-150k-2026-10-18 \
   --out data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18 \
-  --workers 4 --follow
+  --workers 4 --follow --minimum-wave-size 3000
 ```
 
 Inspect the existing worker PID, lease, checkpoints and disk before resuming.
@@ -63,10 +63,17 @@ checkpoint; completed review files and idempotent steps are reused. Original
 source and pending files are preserved.
 
 With `--follow`, newly acquired organizations and changed acquired source results
-accumulate into additional immutable waves of 1,000 to 10,000 cases. An already
-audited organization/result-hash pair is excluded. Queue timestamps and assessment
+accumulate into additional immutable waves with a **3,000-case minimum**, raised
+from 1,000 at the user's request, and a 10,000-case maximum. The command accepts
+`--minimum-wave-size` from 1,000 through 10,000; the saved follow policy and tracker
+show the configured minimum. Existing frozen waves are never enlarged or replayed.
+Within each new live-site selection, funding leads precede other cases, followed
+by inquiry-guidance and recent page-date leads. None is automatic qualification.
+An already audited organization/result-hash pair is excluded. Queue timestamps and assessment
 re-read times alone do not schedule another wave. A changed result is a recheck,
 not a new organization. Distinct organizations and rechecks have separate counters.
+Fewer than the configured minimum remain pending for another wave, rather than
+being padded with previously audited result pairs.
 This is a local acquisition follower, not a new heartbeat or scheduled automation.
 Completing a pass does not qualify the target or resolve
 every gap. A completed initial pass leaves its completion observation intact.
@@ -103,6 +110,14 @@ reviewer identities or publication decisions are generated. Each proposal is
 readback, speaker/program/cycle adjudication, duplicate checks against manual
 proposals and prior supersession, and existing human/licensing/publication gates.
 Publisher sources, excerpts, contacts, searches and before-images stay private.
+
+A successful response and sufficient text can still be a soft error or the wrong
+entity's content. The Downey chapter continuation exposed a page whose body says
+it is not found, followed by national-office pages. Treat automated liveness as
+a lead until candidate-specific content is reviewed. Retain the dated cached
+chapter evidence and fresh failure together; block website application rather
+than inheriting a national EIN, contact route or copyright date. The current
+mechanical liveness screen does not automatically adjudicate all such cases.
 
 This first rule version screens evidence; it is not an adjudicated benchmark or
 a learned policy. It makes no measured token-savings claim. Deep rules/model

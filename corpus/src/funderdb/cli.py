@@ -203,12 +203,13 @@ def research_active_work(run: Path, follow: bool, limit: int | None) -> None:
 @click.option("--out", type=click.Path(path_type=Path), required=True)
 @click.option("--limit", type=click.IntRange(min=1), default=None)
 @click.option("--workers", type=click.IntRange(1, 8), default=4, show_default=True)
-@click.option("--follow", is_flag=True, help="After the frozen pass, follow new acquisitions and source revisions in 1k–10k case waves.")
-def research_active_sweep(run: Path, out: Path, limit: int | None, workers: int, follow: bool) -> None:
+@click.option("--follow", is_flag=True, help="After the frozen pass, follow new acquisitions and changed source results in bulk waves.")
+@click.option("--minimum-wave-size", type=click.IntRange(1000, 10000), default=3000, show_default=True)
+def research_active_sweep(run: Path, out: Path, limit: int | None, workers: int, follow: bool, minimum_wave_size: int) -> None:
     """Audit a frozen bulk of live saved sites and stage literal candidates locally."""
     import json
     from .research.sweep import work
-    click.echo(json.dumps(work(run, out, limit, workers, follow), indent=2))
+    click.echo(json.dumps(work(run, out, limit, workers, follow, minimum_wave_size=minimum_wave_size), indent=2))
 
 
 @research.command("active-funders-recent-giving")

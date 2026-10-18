@@ -68,7 +68,11 @@ def initialize(active: Path, out: Path, exclude: set[tuple[str, str]] | None = N
                 from members m join assessments a using(org_id)
                 where json_extract(a.summary,'$.liveness')='live_content_observed_within_7_days'
                 order by case m.state when 'website_criteria_candidate_pending_semantic_review' then 0
-                  when 'live_funding_lead_identity_pending' then 1 else 2 end,m.selection_rank""").fetchall()
+                  when 'live_funding_lead_identity_pending' then 1 else 2 end,
+                  case json_extract(a.summary,'$.inquiry_readiness')
+                    when 'guidance_lead_requires_route_and_posture_review' then 0 else 1 end,
+                  case json_extract(a.summary,'$.freshness')
+                    when 'recent_page_date_lead' then 0 else 1 end,m.selection_rank""").fetchall()
         if exclude:
             rows = [row for row in rows if (row["org_id"], row["result_sha256"]) not in exclude]
         if size:
@@ -365,6 +369,9 @@ def status(out: Path, state="running") -> dict:
     result["rechecks_completed"] = result["processed"] - len(audited_ids)
     result["distinct_proposal_inputs"] = len(proposal_inputs)
     result["repeated_identical_proposal_inputs"] = result["candidate_proposals"] - len(proposal_inputs)
+    policy = out / "follow-policy.json"
+    if policy.exists():
+        result["minimum_wave_size"] = json.loads(policy.read_text())["minimum_wave_size"]
     write_json(out / "sweep-status.json", result)
     return result
 
@@ -377,7 +384,7 @@ def _source_revision(path: str, digest: str) -> str:
     return json.loads(assessment.read_text())["source_result_sha256"]
 
 
-def _follow(active: Path, out: Path, workers: int, echo) -> dict:
+def _follow(active: Path, out: Path, workers: int, echo, minimum_wave_size: int) -> dict:
     """Follow changed acquired results, not queue timestamps or re-read times."""
     while True:
         if shutil.disk_usage(out).free < 10 * 1024**3:
@@ -399,8 +406,8 @@ def _follow(active: Path, out: Path, workers: int, echo) -> dict:
                     from members m join assessments a using(org_id)
                     where json_extract(a.summary,'$.liveness')='live_content_observed_within_7_days'""")]
             count = sum(case not in seen for case in live)
-            if count < 1000:
-                current = status(out, "following_acquisition; waiting_for_next_1000_case_wave")
+            if count < minimum_wave_size:
+                current = status(out, f"following_acquisition; waiting_for_next_{minimum_wave_size}_case_wave")
                 current["new_live_cases_waiting_for_wave"] = count
                 write_json(out / "sweep-status.json", current)
                 echo(json.dumps(current), flush=True)
@@ -421,13 +428,27 @@ def _follow(active: Path, out: Path, workers: int, echo) -> dict:
 
 
 def work(active: Path, out: Path, limit: int | None = None, workers: int = 4,
-         follow: bool = False, echo=print) -> dict:
+         follow: bool = False, echo=print, minimum_wave_size: int = 3000) -> dict:
     if not 1 <= workers <= 8:
         raise ValueError("local source workers must be between1and8")
+    if not 1000 <= minimum_wave_size <= 10000:
+        raise ValueError("minimum wave size must be between1000and10000")
     manifest = initialize(active, out)
     out = out.resolve()
     with (out / "sweep-worker.lock").open("a") as lease:
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if follow:
+            policy = out / "follow-policy.json"
+            if policy.exists():
+                previous = json.loads(policy.read_text())
+                if previous["minimum_wave_size"] != minimum_wave_size:
+                    prior = out / "policy-history" / (sha256(policy) + ".json")
+                    if not prior.exists():
+                        prior.parent.mkdir(parents=True, exist_ok=True)
+                        prior.write_bytes(policy.read_bytes())
+            if not policy.exists() or json.loads(policy.read_text())["minimum_wave_size"] != minimum_wave_size:
+                write_json(policy, {"minimum_wave_size": minimum_wave_size, "maximum_wave_size": 10000,
+                                    "recorded_at": now(), "counts": "distinct organization/acquired-result pairs"})
         before = parse_before_images(out / "profile-before-image-envelope.json")
         write_json(out / "before-images.json", before)
         with evidence_db(out) as db:
@@ -472,5 +493,5 @@ def work(active: Path, out: Path, limit: int | None = None, workers: int = 4,
                     last = time.monotonic()
         # Close the initial CPU pool before additional waves create their own.
         if follow:
-            return _follow(active.resolve(), out, workers, echo)
+            return _follow(active.resolve(), out, workers, echo, minimum_wave_size)
         return complete
