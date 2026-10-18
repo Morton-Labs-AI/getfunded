@@ -12,7 +12,7 @@ from uuid import UUID
 from .crawl import canonical, now
 from .pipeline import queue, sha256, write_json
 
-STAGES = ("website_search", "news_search", "reverse_research", "identity_review", "claim_review")
+STAGES = ("website_search", "news_search", "reverse_research", "identity_review", "claim_review", "evidence_sweep")
 OUTCOMES = ("candidate_found", "no_result", "blocked", "needs_review")
 
 

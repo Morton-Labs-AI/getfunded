@@ -9,9 +9,15 @@ cannot establish that 150,000 funders met these new criteria.
 The immutable 2,309,073-member inventory is unchanged. Supabase remains GET-only;
 all research and assessments stay local and private. No outreach is performed.
 
-Latest substantive continuation: [identity bridges and inquiry guidance](ACTIVE-FUNDERS-IDENTITY-GUIDANCE-2026-10-18.md),
+Latest continuation: [bulk source review and targeted gap acquisition](ACTIVE-FUNDERS-BULK-2026-10-18.md),
+following [identity bridges and inquiry guidance](ACTIVE-FUNDERS-IDENTITY-GUIDANCE-2026-10-18.md),
 following [source gaps and corrected program guidance](ACTIVE-FUNDERS-GAPS-2026-10-18.md).
 Preserve claim-specific supersession records before any separate application.
+
+The [bulk source-review workflow](BULK-FUNDER-REVIEW.md) sweeps acquired live-site
+cases in large frozen batches and follows new acquisitions/source revisions in 1,000–10,000-case
+waves. Automated audits and literal candidate staging have their own tracker
+stage; they do not count as manual semantic review or qualified admission.
 
 ## Selection and admission
 

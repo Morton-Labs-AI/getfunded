@@ -1,5 +1,13 @@
 # Research progress tracker
 
+The private `sweep_run` configuration adds [bulk source review](BULK-FUNDER-REVIEW.md).
+Its panel separates frozen batch size, completed automated audits, remaining cases,
+checked pages, literal candidates, conflicts and fully verified count. It follows
+the local sweep lease/status. Automated audits have their own `evidence_sweep`
+stage and filter; they do not count as manual semantic review. Only aggregate
+fields reach the browser. Initial and later immutable waves stay distinct from
+qualified admission, application, human review and publication.
+
 The private `active_funders_run` configuration adds the current
 [active-funder target](ACTIVE-FUNDERS-150K.md): search-pool size, processed cases,
 website criteria candidates awaiting semantic review, verified count, and

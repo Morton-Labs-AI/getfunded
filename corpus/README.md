@@ -8,6 +8,11 @@ IRS-subsection03 cohort, reuses saved sources for deterministic checks, and stag
 structured claims with exact source spans before semantic review. Its counts
 distinguish processed cases, unresolved evidence and approved publication.
 
+[Bulk source review](docs/BULK-FUNDER-REVIEW.md) audits acquired live sites in
+large checkpointed batches, compares EIN/filer-domain evidence and stages literal
+funding/inquiry passages locally. Its automated audit counts remain separate from
+semantic verification and approved publication; Supabase remains read-only.
+
 For current website, program and news evidence, see the
 [organization research protocol](docs/ORGANIZATION-RESEARCH.md) and
 `funderdb research --help`. It provides an exhaustive inventory option and a

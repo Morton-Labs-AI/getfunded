@@ -1,5 +1,30 @@
 # Research restart handoff and SQL approval correction
 
+## Latest bulk source-review continuation
+
+Read [the bulk report](ACTIVE-FUNDERS-BULK-2026-10-18.md) and
+[operating contract](BULK-FUNDER-REVIEW.md) first. Initial pass: 37,063
+organizations/172,750 saved page checks/383 local proposals/868 literal claim
+records. Another 1,175 organizations completed a subsequent wave; new acquisitions
+and source revisions continue. These are automated source audits, not qualified
+admission. Unique organizations, source rechecks and manual reviews are separate.
+The 150,000 qualified target remains incomplete; applied/human/published are zero.
+
+An additional 2,500 source-backed gap acquisitions are queued through the same
+16-worker/six-page crawler. Three manual program reviews staged 14 claim records;
+eight entity-scope reviews and two matching-EIN website discoveries are retained.
+Private run: `active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/`.
+Read `next-semantic-review-worklist.json` and `targeted-gap-acquisition/queued-work.json`.
+Generated/queued work is not completed research. Inspect current PIDs/leases and
+checkpoints before restarting; do not duplicate the workers.
+
+Supabase remains read-only. Root `APPLICATION-BACKLOG.json` links bulk/wave
+pending indexes, manual proposals, identity supplements and prior supersessions.
+Before-images are dated complete read-only observations, requiring refresh before
+any separately requested application. The deferred grant-census SELECT has an
+unknown remote outcome; do not replay or reroute it. Heartbeat stays paused;
+no new scheduling, outreach, deletion, main push or merge is authorized.
+
 ## Latest identity and inquiry continuation
 
 Read [the identity/inquiry report](ACTIVE-FUNDERS-IDENTITY-GUIDANCE-2026-10-18.md)

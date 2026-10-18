@@ -139,6 +139,30 @@ class Tracker:
                                 active["lease_held"] = True
                     except OSError:
                         active["lease_held"] = None
+            sweep = None
+            if config.get("sweep_run"):
+                sweep_run = Path(config["sweep_run"]).resolve()
+                sweep_path = sweep_run / "sweep-status.json"
+                if sweep_path.exists():
+                    detail = _json(sweep_path)
+                    if detail.get("source_inventory_sha256") != settings["input_sha256"]:
+                        raise ValueError("bulk sweep does not match this inventory")
+                    sweep = {k: detail[k] for k in (
+                        "as_of", "batch_size", "processed", "remaining", "states", "dispositions",
+                        "initial_batch_size", "initial_processed", "distinct_organizations_audited", "rechecks_completed",
+                        "identity_evidence", "pages_checked", "candidate_proposals", "candidate_claim_records",
+                        "distinct_proposal_inputs", "repeated_identical_proposal_inputs",
+                        "cases_with_conflict_flags", "fully_verified", "human_reviewed", "remote_applied",
+                        "published", "worker_state", "completion_note") if k in detail}
+                    sweep["status_age_seconds"] = round((timestamp - datetime.fromisoformat(
+                        detail["as_of"].replace("Z", "+00:00"))).total_seconds())
+                    with (sweep_run / "sweep-worker.lock").open("a") as lease:
+                        try:
+                            fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                            sweep["lease_held"] = False
+                            fcntl.flock(lease, fcntl.LOCK_UN)
+                        except BlockingIOError:
+                            sweep["lease_held"] = True
             point = {
                 "as_of": status["as_of"], "attempted": status["crawl_attempted"],
                 "evidence_ready": status["states"].get("evidence_ready", 0),
@@ -157,6 +181,7 @@ class Tracker:
                 "fully_cross_verified": None,
                 "evidence_cohort": evidence,
                 "active_funders": active,
+                "bulk_sweep": sweep,
                 "human_reviewed_by_workflow": status.get("human_reviewed"),
                 "published_by_workflow": status.get("published_by_this_workflow"),
                 "worker": {
