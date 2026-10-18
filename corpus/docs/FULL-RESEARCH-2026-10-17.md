@@ -1,5 +1,120 @@
 # Full-population research — 2026-10-17
 
+## Latest continuation — 2026-10-18, 02:17 UTC
+
+The campaign still includes **all 2,309,073 organizations**. The worker remains
+active with 16 threads, shared host pacing and its original lock/checkpoints.
+**40,081 organizations have a crawl attempt; this is not completed research.**
+No files or records were deleted, no human decisions were recorded, and nothing
+was published or merged to main.
+
+| State at 2026-10-18T02:17:20.727121+00:00 | Organizations |
+| --- | ---: |
+| HTML acquired; identity and claims need review | 24,418 |
+| Attempted with an acquisition blocker | 15,647 |
+| Running | 16 |
+| Candidate website awaiting acquisition | 289,168 |
+| Website discovery unresolved | 1,979,824 |
+| Full population | 2,309,073 |
+
+The result scan through 02:17:51 UTC found **98,003 HTML observations** across
+**92,595 distinct URLs**, 80,050 linked resource references and 1,822 pages with
+an explicit target-EIN match. Acquisition continued during this scan. These
+counts exclude supplemental manual acquisitions and do not imply identity
+confirmation or exhaustive review. Human-reviewed profiles and published
+signals remain **zero**.
+
+This continuation adds [64 performed website searches](../data/seed/research/late-searches-2026-10-17.jsonl),
+[two attributed website candidates](../data/seed/research/late-websites-2026-10-17.jsonl)
+and [29 original review notes across 26 organizations](../data/seed/research/late-notes-2026-10-17.jsonl).
+The immutable inventory is unchanged; 27 discoveries have now been attributed
+since initialization. Morphs & Milestones prints the exact target EIN.
+Fawley's candidate is its specific trustee-hosted page, with the legal-name
+variation retained for review.
+
+The queue contains **325 durable research-step records**:
+
+| Stage | Records | Distinct organizations |
+| --- | ---: | ---: |
+| Website search | 221 | 221 |
+| Identity review preparation | 26 | 26 |
+| News search | 7 | 7 |
+| Recipient reverse research | 19 | 19 |
+| Claim review preparation | 52 | 48 |
+
+Current-cycle and identity findings include:
+
+- The [2027 Grass Fellowship announcement](https://grassfoundation.org/apply-for-the-2027-grass-fellowship/)
+  gives a December 1, 2026 deadline and an extra week for recommendations.
+  Its $5,000 research budget is not total fellowship compensation. The general
+  awards page still contains older application text.
+- [Pallottine Buckhannon's 2027 call](https://pallottinebuckhannon.org/healthy-communities-initiative/)
+  closed September 30, 2026. Its two stated request pathways leave exactly
+  $5,000 unspecified; that gap is retained, not silently repaired.
+- [Borchard](https://www.borchardfoundation.org/how-to-apply-for-a-grant/application-process)
+  accepts solicited organizational proposals only. Its separate centers have
+  distinct research and fellowship routes.
+- [Erb's October announcement](https://www.erbff.org/12-2-million-granted-across-alzheimers-research-democracy-arts-and-great-lakes-stewardship/)
+  reports $12.2 million in new and ongoing grants. Its [Detroit Arts Support
+  announcement](https://www.erbff.org/detroit-arts-support-commits-over-11-2-million-in-grants-for-multiyear-support/)
+  separates Erb's $6 million share from the larger joint pool. Neither award
+  evidence nor a general inquiry route overrides the Alzheimer's program's
+  restriction on unsolicited proposals.
+- [Fawley's trustee guidance](https://www.truistmanagedfdns.org/fawley)
+  describes a Lake County, Florida focus, an annual February 1 deadline and
+  typical grants of $5,000–$20,000, without an explicit cycle year.
+- [Wayne State's Sastry acknowledgment](https://neurology.med.wayne.edu/sastry)
+  supports historical neuroscience-funding research, not a current open call.
+  [Tryon Palace's donor wall](https://www.tryonpalacefoundation.org/support/donor-wall)
+  separately lists the Emily Monk Davidson Foundation and an individual
+  donor. Contribution tiers are not exact dated grant payments.
+
+Other notes preserve expired TDECU and Cincinnati seniors cycles, the Smart
+Life Foundation's forthcoming application process, individual-versus-foundation
+giving on Greenbaum's grantee page, separate state scholarships on a credit
+union site, and a content-integrity concern on the Willy Foundation site.
+Namesake and parent-company leads remain unresolved where identity evidence
+does not support an assignment. The Met supporter-page acquisition stopped at
+robots HTTP 429; no bypass or donor-fact promotion occurred.
+
+### Structured candidate enrichment
+
+The live database now contains **21 first-party sources and 259 candidates**.
+This continuation added [two sources](../data/seed/late_signal_sources.csv) and
+[four announcement URLs](../data/seed/research/late-signal-candidates-2026-10-17.csv),
+then prepared [eight structured announcements](../data/seed/research/late-structured-signals-2026-10-17.jsonl)
+through the existing signal schema. They cover McKnight, AAJR, Grass and Erb.
+The preparation supplies source-backed signal types, amounts where unambiguous,
+recipient categories, geography and original summaries. This is manual agent
+preparation, not a new automated program-extraction adapter.
+
+Annual amounts, award ceilings, joint funding totals and research-expense
+budgets are explicitly distinguished. Unknown dates remain empty. Existing
+SignalClassification validation and verify_evidence found no unsupported
+excerpts across the eight preparations. Excerpts remain private.
+
+Raw files **470–477** register the eight immutable publisher snapshots as
+nonrepublishable publisher_website; **478–480** register original source,
+candidate and structured compilations. Ledgers **556–558** completed with two
+source insertions, four candidate insertions and eight guarded updates. All
+eight candidates have organization links, private snapshot provenance and no
+reviewer. The connector rejected two large requests with an expired request
+state; readbacks showed no partial writes, and smaller guarded transactions
+completed the work without duplicates.
+
+The database candidate path remains the review boundary. No existing source
+records, raw evidence, exports or access settings were deleted. Worker PID
+91991 was healthy with about 202 GiB free disk and its 10 GiB guard intact.
+The full pending queue and recurring continuation remain active.
+
+Verified by: existing field/evidence validation, one direct compilation and
+population check, and live database counts, links, snapshot licenses and
+completed ledgers. Tests: not run (weekly review policy). No CI polling.
+
+## Historical continuation — 2026-10-17, 21:51 UTC
+
+The following retains the preceding observation and its evidence links.
+
 The existing Supabase access now supports research across **all 2,309,073
 organizations**. The read-only Data API exported that complete population and
 **1,266,695 unsuperseded filing website records**, with both counts reconciled
