@@ -5,6 +5,8 @@ For current website, program and news evidence, see the
 `funderdb research --help`. It provides an exhaustive inventory option and a
 resumable private acquisition queue. Profile/signal publication keeps its
 existing review process; a crawl does not mean research is complete.
+The [local progress tracker](docs/RESEARCH-TRACKER.md) shows live coverage,
+worker health, research activity and the remaining work without exposing raw evidence.
 The [2026-10-17 research report](docs/RESEARCH-2026-10-17.md) records the actual
 coverage, database additions, findings and outstanding work.
 The [full-population follow-up](docs/FULL-RESEARCH-2026-10-17.md) records the

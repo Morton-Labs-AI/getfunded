@@ -84,6 +84,17 @@ def research_export_api(access: Path, run: Path, workers: int) -> None:
     click.echo(json.dumps(bulk.export_api(access, run, workers), indent=2))
 
 
+@research.command("tracker")
+@click.option("--run", type=click.Path(exists=True, file_okay=False, path_type=Path),
+              required=True)
+@click.option("--port", type=click.IntRange(1024, 65535), default=8768, show_default=True)
+def research_tracker(run: Path, port: int) -> None:
+    """Show live campaign coverage and research activity on localhost."""
+    from .research.tracker import serve
+    click.echo(f"Research tracker: http://127.0.0.1:{port}")
+    serve(run, port)
+
+
 @research.command("compile-inventory")
 @click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
 @click.option("--expected-organizations", type=click.IntRange(min=1), required=True)

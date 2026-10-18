@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Funder Research · Progress</title>
+<style>
+:root{color-scheme:dark;--bg:#0d141a;--panel:#15212a;--border:#2c3d48;--muted:#9eafb9;--text:#eef4f2;--mint:#8fdbbd;--amber:#f0c682;--blue:#8fbde8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:40px 28px 70px}
+header{display:flex;justify-content:space-between;gap:20px;align-items:start}.eyebrow{color:var(--mint);font-size:12px;letter-spacing:.18em;text-transform:uppercase}
+h1{font-size:38px;line-height:1.1;letter-spacing:-1.4px;margin:10px 0 15px}h2{font-size:18px;margin:0 0 18px}p{margin:0 0 14px}small,.muted{color:var(--muted)}
+.badge{border:1px solid var(--border);padding:7px 12px;border-radius:30px;white-space:nowrap;font-size:13px}.ok{color:var(--mint)}.warn{color:var(--amber)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:30px 0 20px}.card,.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px}
+.card label{display:block;font-size:13px;color:var(--muted)}.number{display:block;font-size:31px;font-weight:650;letter-spacing:-1px;margin:7px 0 5px}.card small{font-size:12px}
+.layout{display:grid;grid-template-columns:1.15fr 1fr;gap:20px}.panel{margin-bottom:20px}.row{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--border)}.row:last-child{border-bottom:0}
+.row strong{font-variant-numeric:tabular-nums}.bar{height:12px;display:flex;border-radius:5px;overflow:hidden;background:#243540;margin-bottom:15px}.bar div{height:100%}
+.swatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px}.note{border-left:3px solid var(--amber);padding:10px 16px;color:#dfd8c9;background:#28271f;border-radius:0 6px 6px 0}
+button,select{font:inherit;color:var(--text);background:#20343f;border:1px solid #47606d;border-radius:6px;padding:7px 12px;cursor:pointer}button:hover{background:#2d4654}.tools{display:flex;gap:10px;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-weight:500}td,th{padding:12px 8px;border-bottom:1px solid var(--border);vertical-align:top}td:first-child{padding-left:0}.scroll{overflow:auto}
+.tabletitle{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:12px}.tabletitle h2{margin:0}svg{width:100%;height:130px;display:block}#error{display:none;margin-top:18px}.foot{font-size:12px;color:var(--muted)}code{word-break:break-all;font-size:11px}
+@media(max-width:850px){.cards{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}h1{font-size:31px}header{display:block}.tools{margin-top:18px}.card{padding:16px}}
+@media(max-width:460px){main{padding:25px 15px}.number{font-size:25px}.tabletitle{align-items:start;flex-direction:column}}
+</style>
+</head>
+<body><main>
+<header><div><div class="eyebrow">GetFunded / research operations</div><h1>Every organization counts.</h1><p class="muted">Live acquisition, evidence review and unresolved work across the full inventory.</p></div>
+<div class="tools"><span id="health" class="badge">Connecting…</span><button id="refresh">Refresh</button></div></header>
+<p id="error" class="note" role="alert"></p>
+<div class="cards">
+<div class="card"><label>Full population</label><span class="number" id="population">—</span><small>Fixed campaign denominator</small></div>
+<div class="card"><label>Crawl attempted</label><span class="number" id="attempted">—</span><small id="attemptedPct">Waiting for live data</small></div>
+<div class="card"><label>Organizations with research steps</label><span class="number" id="researched">—</span><small>Actual recorded work; includes unresolved cases</small></div>
+<div class="card"><label>Fully cross-verified</label><span class="number">Not recorded</span><small>Completion requires corroboration and review</small></div>
+</div>
+<p class="note" id="completion">Acquisition is one stage of research. An unresolved case stays in the inventory.</p>
+<div class="layout" style="margin-top:22px">
+<section class="panel"><h2>Website coverage</h2><div class="bar" id="coveragebar" aria-label="Share of the full population by website status"></div><div id="states"></div><p class="foot" id="queueTime" style="margin-top:14px"></p></section>
+<section class="panel"><h2>Research and review</h2><div id="stages"></div><div class="row"><span>Human-reviewed by this workflow</span><strong id="human">—</strong></div><div class="row"><span>Published by this workflow</span><strong id="published">—</strong></div><p class="foot" style="margin-top:14px">Stage counts overlap. They show distinct organizations with a recorded attempt, not completed profiles.</p></section>
+<section class="panel"><h2>Acquisition over time</h2><svg id="chart" viewBox="0 0 500 130" role="img" aria-label="Recorded crawl attempts over time"></svg><p class="foot" id="chartnote">Collecting dated observations…</p></section>
+<section class="panel"><h2>Continuous work</h2><div id="worker"></div><p class="foot" id="window" style="margin-top:14px"></p><p class="foot">The requested work window is not a completion forecast. Work remains queued after it ends.</p></section>
+</div>
+<section class="panel"><div class="tabletitle"><h2>Latest recorded research</h2><label class="foot">Stage <select id="filter"><option value="">All stages</option><option value="website_search">Website search</option><option value="identity_review">Identity review</option><option value="claim_review">Claim review</option><option value="news_search">News search</option><option value="reverse_research">Recipient research</option></select></label></div>
+<div class="scroll"><table><thead><tr><th>Organization</th><th>Work performed</th><th>Disposition</th><th>Recorded</th></tr></thead><tbody id="activity"></tbody></table></div></section>
+<p class="foot" id="updated" aria-live="polite"></p><p class="foot">Local tracker · refreshes every 30 seconds · raw pages and access configuration remain private</p><p class="foot">Inventory SHA-256: <code id="hash">—</code></p>
+</main><script>
+const $=id=>document.getElementById(id), nf=new Intl.NumberFormat(), n=x=>x==null?'Not available':nf.format(x);
+const stages={website_search:'Website searches',identity_review:'Identity review',claim_review:'Claim review',news_search:'News searches',reverse_research:'Recipient research'};
+const labels={evidence_ready:['HTML acquired; review pending','#8fdbbd'],blocked:['Acquisition blocked','#f0c682'],running:['Currently crawling','#8fbde8'],pending:['Website queued','#557889'],needs_discovery:['Website unresolved','#344852']};
+let latest=null,busy=false;
+function row(container,label,value,color){const e=document.createElement('div');e.className='row';const a=document.createElement('span'),b=document.createElement('strong');if(color){const s=document.createElement('i');s.className='swatch';s.style.background=color;a.append(s)}a.append(document.createTextNode(label));b.textContent=value;e.append(a,b);container.append(e)}
+function activity(){const body=$('activity');body.replaceChildren();for(const x of latest.recent){if($('filter').value&&x.stage!==$('filter').value)continue;const tr=document.createElement('tr');for(const v of [x.organization,stages[x.stage]||x.stage,x.outcome.replaceAll('_',' '),new Date(x.recorded_at).toLocaleString()]){const td=document.createElement('td');td.textContent=v;tr.append(td)}body.append(tr)}if(!body.children.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=4;td.textContent='No recent records for this stage.';tr.append(td);body.append(tr)}}
+function graph(h){const svg=$('chart');svg.replaceChildren();if(h.length<2){$('chartnote').textContent='Collecting observations; the first point has been saved.';return}const times=h.map(p=>new Date(p.as_of).getTime()),vals=h.map(p=>p.attempted),lo=Math.min(...vals),hi=Math.max(...vals),start=times[0],span=Math.max(1,times.at(-1)-start);const p=document.createElementNS('http://www.w3.org/2000/svg','polyline');p.setAttribute('points',h.map((v,i)=>(8+484*(times[i]-start)/span)+','+(116-100*(v.attempted-lo)/Math.max(1,hi-lo))).join(' '));p.setAttribute('fill','none');p.setAttribute('stroke','#8fdbbd');p.setAttribute('stroke-width','3');svg.append(p);$('chartnote').textContent=n(vals[0])+' → '+n(vals.at(-1))+' crawl attempts · '+new Date(start).toLocaleTimeString()+' to '+new Date(times.at(-1)).toLocaleTimeString()+'. Vertical scale spans this observed range.'}
+function render(d){latest=d;for(const [id,v]of [['population',d.population],['attempted',d.attempted],['researched',d.research_organizations],['human',d.human_reviewed_by_workflow],['published',d.published_by_workflow]])$(id).textContent=n(v);
+$('attemptedPct').textContent=(100*d.attempted/d.population).toFixed(2)+'% of the full population';$('completion').textContent=d.completion_note;$('hash').textContent=d.inventory_sha256;
+$('states').replaceChildren();$('coveragebar').replaceChildren();for(const [key,[label,color]]of Object.entries(labels)){const count=d.states[key]||0;row($('states'),label,n(count),color);const b=document.createElement('div');b.style.width=100*count/d.population+'%';b.style.background=color;b.title=label+': '+n(count);$('coveragebar').append(b)}
+$('stages').replaceChildren();for(const s of d.research_stages)row($('stages'),stages[s.stage]||s.stage,n(s.organizations)+' orgs / '+n(s.records)+' steps');
+const w=d.worker,ok=w.fresh&&w.lease_held===true;$('health').textContent=ok?'Worker active':w.fresh?'Check worker lease':'Worker status stale';$('health').className='badge '+(ok?'ok':'warn');
+$('worker').replaceChildren();row($('worker'),'Reported state',w.reported_state.replaceAll('_',' '));row($('worker'),'Bounded workers',n(w.workers));row($('worker'),'Worker lease',w.lease_held===true?'Held':w.lease_held===false?'Not held':'Unknown');row($('worker'),'Free disk',n(w.free_gib)+' GiB');row($('worker'),'Status age',n(w.snapshot_age_seconds)+' seconds');
+const end=d.requested_work_window.continue_through;$('window').textContent=end?'Requested continuous work through '+new Date(end).toLocaleString()+'.':'No timed work window recorded.';
+$('queueTime').textContent='Queue snapshot: '+new Date(d.queue_as_of).toLocaleString();$('updated').textContent='Last refreshed '+new Date(d.observed_at).toLocaleString();graph(d.history);activity()}
+async function refresh(){if(busy)return;busy=true;try{const res=await fetch('/api/status',{cache:'no-store'});if(!res.ok)throw new Error('The live snapshot is unavailable. The last display may be stale; retained evidence is unchanged.');render(await res.json());$('error').style.display='none'}catch(e){$('error').textContent=e.message;$('error').style.display='block';$('health').textContent='Tracker disconnected';$('health').className='badge warn'}finally{busy=false}}
+$('refresh').addEventListener('click',refresh);$('filter').addEventListener('change',()=>latest&&activity());refresh();setInterval(refresh,30000);
+</script></body></html>

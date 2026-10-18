@@ -1,6 +1,114 @@
 # Full-population research — 2026-10-17
 
-## Latest continuation — 2026-10-18, 02:17 UTC
+## Latest continuation — 2026-10-18, 02:47 UTC
+
+The full **2,309,073-organization** campaign remains active. The new
+[local progress tracker](RESEARCH-TRACKER.md) displays live acquisition,
+research-stage counts, worker health, dated history and unresolved work at
+http://127.0.0.1:8768. It reads the queue without changing it and appends aggregate
+observations even when the browser is closed. Fully cross-verified profiles
+remain **unconfirmed**, rather than treating a crawl or an agent note as completion.
+
+| State at 2026-10-18T02:47:12.613356+00:00 | Organizations |
+| --- | ---: |
+| HTML acquired; identity and claims need review | 26,354 |
+| Attempted with an acquisition blocker | 17,158 |
+| Running | 16 |
+| Candidate website awaiting acquisition | 285,723 |
+| Website discovery unresolved | 1,979,822 |
+| Full population | 2,309,073 |
+
+**43,528 organizations have a crawl attempt.** The result scan through
+02:47:45 UTC found 106,101 HTML observations across 100,218 distinct URLs,
+89,592 linked resource references and 1,822 pages with an explicit target-EIN
+match. The worker advanced during that scan; supplemental manual acquisitions
+are separate. These are acquisition measures, not completed profiles.
+
+This continuation adds [64 performed website searches](../data/seed/research/overnight-searches-2026-10-18.jsonl),
+[two attributed site candidates](../data/seed/research/overnight-websites-2026-10-18.jsonl),
+[38 review notes](../data/seed/research/overnight-notes-2026-10-18.jsonl) and
+[57 further cross-check notes](../data/seed/research/crosscheck-notes-2026-10-18.jsonl).
+The **95 notes cover 60 organizations**. Twenty-four identity preparations
+cross-check an explicit website EIN against the registry identity and filed
+website, retaining the inventory and filing source hashes. Neither matching
+identifiers nor donor acknowledgments establish exhaustive review.
+
+There are now **484 durable research-step records across 386 organizations**:
+
+| Stage | Records | Distinct organizations |
+| --- | ---: | ---: |
+| Website search | 285 | 285 |
+| Identity review preparation | 54 | 54 |
+| News search | 13 | 13 |
+| Recipient reverse research | 30 | 30 |
+| Claim review preparation | 102 | 98 |
+
+The new website candidates are Springs Christian Radio and Deerfield's
+specific corporate-hosted philanthropy page. FCC authorization terminology is
+not philanthropic grant evidence. Deerfield's historical Partnership name and
+current shortened foundation name retain an identity-review requirement.
+Twenty-nine discoveries have now been attributed without changing the base
+inventory. Unresolved Mariposa and Prescott leads remain unassigned.
+
+Consequential program and identity findings include:
+
+- [Serini's Major Grants page](http://www.hjsfoundation.org/grant-applications)
+  excludes new requests in both 2026 and 2027. Historical application guidance
+  does not make that program open; its separate Small Grants pathway remains
+  a follow-up task.
+- [Pave HER Way's current FAQ](https://paveherway.org/grant-programs) closes the
+  2026 cycle on October 16. Different grant tracks, award ceilings and the
+  nomination-only pathway remain separate.
+- [Hanley's procedures](https://www.hanleyfamilyfoundation.org/grantmaking-procedures/)
+  halt LOIs while funding treatment-center expansion and exclude organizations
+  primarily focused on medical research, prevention, education or public policy.
+  A suggestion to check later in 2026 is not evidence of reopening.
+- [Philippe's homepage](https://www.philippefoundation.org/) announces planned
+  dissolution and no further funding sessions while older application pages
+  survive. No completed legal dissolution date is inferred.
+- [Reidsville's application guidance](https://www.rafoundation.org/how-to-apply)
+  gives a November 16, 2026 next deadline but conflicts internally about
+  eligibility for individuals and religious organizations. That wording is
+  retained for resolution. Deacon's Idaho coverage and Steve Nash's US-versus-
+  Canadian entity attribution also remain explicit conflicts.
+- [Woka's grants guidance](https://www.wokafoundation.org/grants) is invitation
+  only; independent Activate acknowledgment supports a recipient relationship,
+  without establishing an exact payment. Other recipient work separates
+  personal Seidenberg giving, joint Barr initiatives, donor tiers and
+  multiyear commitments from direct legal-foundation payments.
+
+### Structured candidate enrichment and continued operation
+
+[Nine additional structured preparations](../data/seed/research/overnight-structured-signals-2026-10-18.jsonl)
+enrich existing Burroughs Wellcome Fund, Arnold and Mabel Beckman Foundation
+and Jane Coffin Childs candidates. They distinguish per-award amounts,
+installments, multi-recipient totals, research budgets and joint funding pools.
+Ambiguous amounts remain empty. The database still has **21 sources and 259
+candidates**, now including **17 structured candidates**, with zero published.
+
+Raw files 481–489 register private publisher snapshots as nonrepublishable;
+490 registers the original structured compilation. Ledger 559 completed nine
+guarded updates. Direct readback confirmed all nine organization links,
+snapshot licenses, candidate states and absent human reviewers. Existing
+classification and excerpt validation found no unsupported evidence after
+correcting one excerpt to the acquired article body. Excerpts remain private.
+
+The 16-worker crawler continues with its original lock, checkpoints, shared
+host pacing and 10 GiB disk guard; about 202 GiB was free. The tracker runs
+independently. The existing 30-minute continuation remains active and carries
+the requested work window through **2026-10-18 14:40 UTC**. This window neither
+stops pending work nor predicts exhaustive completion. A temporary keep-awake
+process covers the window without changing permanent power settings.
+
+No files, evidence or database records were deleted. Human review and
+publication remain pending. All organizations, including blocked and
+missing-site cases, remain in the denominator.
+
+Verified by: the live tracker command and one browser inspection, direct
+compilation/data checks, existing classification/evidence validation and live
+database provenance readback. Tests: not run (weekly review policy). No CI polling.
+
+## Historical continuation — 2026-10-18, 02:17 UTC
 
 The campaign still includes **all 2,309,073 organizations**. The worker remains
 active with 16 threads, shared host pacing and its original lock/checkpoints.
