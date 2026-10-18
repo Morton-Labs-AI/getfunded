@@ -9,6 +9,9 @@ cannot establish that 150,000 funders met these new criteria.
 The immutable 2,309,073-member inventory is unchanged. Supabase remains GET-only;
 all research and assessments stay local and private. No outreach is performed.
 
+Latest substantive continuation: [source gaps and corrected program guidance](ACTIVE-FUNDERS-GAPS-2026-10-18.md).
+Preserve claim-specific supersession records before any separate application.
+
 ## Selection and admission
 
 A search candidate needs an exact UUID/EIN bridge to a hashed IRS-BMF subsection03

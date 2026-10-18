@@ -28,7 +28,7 @@ AGENT_TOKEN = "FunderResearch"
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ROBOTS_BYTES = 512 * 1024
 LINK_TOPICS = {
-    "application": re.compile(r"apply|application|eligib|guideline|deadline|funding.opportun|request.for|\brfp\b", re.I),
+    "application": re.compile(r"apply|application|applicant|eligib|guideline|deadline|funding.opportun|request.for|\brfp\b", re.I),
     "program": re.compile(r"program|research|science|priorit|strategy", re.I),
     "grants": re.compile(r"\bgrants?\b|grantee|grant.database|award|fellowship|scholarship|funded.project|portfolio", re.I),
     "news": re.compile(r"news|press|announcement|insight", re.I),

@@ -4,6 +4,7 @@ from __future__ import annotations
 import fcntl
 import json
 import shutil
+import sqlite3
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -11,6 +12,22 @@ from pathlib import Path
 from ..config import get_settings
 from .crawl import PublicWeb, crawl_org, now
 from .pipeline import queue, report, sha256, write_json
+
+
+def checkpoint_write(db, statement, parameters):
+    """Keep a completed crawl across temporary local writer contention."""
+    deadline = time.monotonic() + 180
+    while True:
+        try:
+            db.execute(statement, parameters)
+            db.commit()
+            return
+        except sqlite3.OperationalError as exc:
+            code = getattr(exc, "sqlite_errorcode", 0) & 0xff
+            db.rollback()
+            if code not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.25)
 
 
 def prepare(db):
@@ -40,8 +57,7 @@ def run_worker(run: Path, workers: int = 8, max_pages: int = 6,
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with queue(run) as db, ThreadPoolExecutor(max_workers=workers) as pool:
             prepare(db)
-            db.execute("update organizations set state='pending' where state='running'")
-            db.commit()
+            checkpoint_write(db, "update organizations set state='pending' where state='running'", ())
             pending = {}
             completed, last_report = 0, 0.0
             while True:
@@ -52,9 +68,8 @@ def run_worker(run: Path, workers: int = 8, max_pages: int = 6,
                     if row is None:
                         break
                     target = json.loads(row["target"])
-                    db.execute("update organizations set state='running',attempts=attempts+1,updated_at=? where org_id=?",
-                               (now(), row["org_id"]))
-                    db.commit()
+                    checkpoint_write(db, "update organizations set state='running',attempts=attempts+1,updated_at=? where org_id=?",
+                                     (now(), row["org_id"]))
                     pending[pool.submit(crawl_org, target, web, max_pages)] = dict(row)
                 if not pending and (not follow or not disk_ok):
                     status = report(run)
@@ -74,9 +89,8 @@ def run_worker(run: Path, workers: int = 8, max_pages: int = 6,
                             archive.parent.mkdir(parents=True, exist_ok=True)
                             previous.replace(archive)
                         write_json(output, result)
-                        db.execute("update organizations set state=?,updated_at=?,result_path=? where org_id=?",
-                                   (result["status"], now(), str(output), row["org_id"]))
-                        db.commit()
+                        checkpoint_write(db, "update organizations set state=?,updated_at=?,result_path=? where org_id=?",
+                                         (result["status"], now(), str(output), row["org_id"]))
                         completed += 1
                 else:
                     time.sleep(15)

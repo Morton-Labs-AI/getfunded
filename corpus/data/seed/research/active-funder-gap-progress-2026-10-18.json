@@ -1,0 +1,93 @@
+{
+  "at": "2026-10-18T12:37:37.674883+00:00",
+  "distinct_organizations_reviewed": 12,
+  "claim_review_records": 16,
+  "search_records": 7,
+  "actual_search_queries": 8,
+  "targeted_reacquisitions": 5,
+  "proposals_staged": 16,
+  "claim_records_staged": 59,
+  "superseded_claim_records": 1,
+  "currently_supported_new_claim_records": 58,
+  "database_applied": 0,
+  "human_reviewed": 0,
+  "published": 0,
+  "fully_verified_profiles": 0,
+  "recorded_at": "2026-10-18T12:38:49.872750+00:00",
+  "active_pool": {
+    "schema": "active-funders/v2",
+    "as_of": "2026-10-18T12:38:22.815228+00:00",
+    "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "target_qualified_funders": 150000,
+    "search_pool_size": 235322,
+    "processed_search_candidates": 235322,
+    "states": {
+      "candidate_url_not_confirmed_or_stale": 1035,
+      "funder_role_not_established": 25339,
+      "live_funding_lead_identity_pending": 1235,
+      "not_observed_or_acquisition_blocked": 207603,
+      "source_integrity_blocked": 4,
+      "suspected_parking_or_unrelated_content": 55,
+      "website_criteria_candidate_pending_semantic_review": 51
+    },
+    "dimensions": {
+      "liveness": {
+        "candidate_url_not_confirmed_or_stale": 1035,
+        "live_content_observed_within_7_days": 26625,
+        "not_observed_or_acquisition_blocked": 207603,
+        "source_integrity_blocked": 4,
+        "suspected_parking_or_unrelated_content": 55
+      },
+      "freshness": {
+        "older_page_dates_only; overall_currency_unknown": 1411,
+        "recent_page_date_lead": 7362,
+        "unknown": 4,
+        "update_month_unknown": 226545
+      },
+      "inquiry_readiness": {
+        "grant_inquiry_route_not_established": 234673,
+        "guidance_lead_requires_route_and_posture_review": 645,
+        "unknown": 4
+      }
+    },
+    "website_criteria_candidates": 51,
+    "recent_dated_grant_records_pending_payment_review": 0,
+    "semantically_verified_funders": 0,
+    "target_remaining_unverified": 150000,
+    "remote_applied": 0,
+    "human_reviewed": 0,
+    "published": 0,
+    "model_calls": 0,
+    "worker_state": "following_crawler",
+    "free_gib": 182.0,
+    "completion_note": "Search-pool dispositions and date/keyword leads are not verified funders. Unknown dates and inquiry routes remain gaps; no padding to 150,000."
+  },
+  "public_charity_observations": 1523060,
+  "public_charity_export_complete": true,
+  "full_campaign_snapshot": {
+    "as_of": "2026-10-18T12:38:13.085286+00:00",
+    "organizations": 2309073,
+    "crawl_attempted": 81381,
+    "states": {
+      "blocked": 28786,
+      "evidence_ready": 52545,
+      "needs_discovery": 1979809,
+      "pending": 247918,
+      "running": 15
+    },
+    "worker_state": "crawling"
+  },
+  "full_research_steps": 947,
+  "full_organizations_with_steps": 678,
+  "remaining_mechanical_candidates_for_source_review": 37,
+  "crawler_process": 95983,
+  "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+  "regression": "Two separate focused escaped-bug regressions; each failed before its fix and passed after. Routine suites not run under weekly policy.",
+  "malformed_link_rechecks": {
+    "assessments_reprocessed": 4,
+    "original_source_integrity_blocks": 4,
+    "remaining_source_integrity_blocks": 0,
+    "as_of": "2026-10-18T12:41:25.149235+00:00"
+  },
+  "active_worker_pid": 96864
+}

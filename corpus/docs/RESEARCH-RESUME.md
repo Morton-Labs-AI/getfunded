@@ -1,5 +1,21 @@
 # Research restart handoff and SQL approval correction
 
+## Latest evidence-gap continuation
+
+Read [the new evidence-gap report](ACTIVE-FUNDERS-GAPS-2026-10-18.md) before the
+historical snapshots below. Twelve substantive source reviews produced16new
+proposals/59claim records; one rolling-intake claim is superseded by a dedicated
+closure notice, leaving58current records in this continuation. All are local,
+unapplied and pending human review. Pool235322 is a search scope, not150000
+verified funders. GET eligibility export completed. No Supabase mutations.
+
+The crawler recovered a local lock interruption; source-evidence reader now
+isolates malformed publisher links and rechecks four saved-source failures.
+Current PID/lease files, not older IDs below, govern restart checks. The
+application backlog additionally links followup proposals and a claim-specific
+supersession record. Preserve all old bytes and before-images. Old heartbeat
+paused; no new automation, outreach, deletion, main push or merge.
+
 ## Latest scope correction: recent givers or active funder websites
 
 The user prioritizes funding organizations with a paid donation in the past

@@ -133,7 +133,7 @@ def date_evidence(page: dict, as_of: date, raw: dict) -> list[dict]:
 def assess(packet: dict, as_of: date) -> dict:
     target_site = packet.get("candidate_website")
     pages = [p for p in packet.get("pages", []) if target_site and site(p["url"]) == site(target_site)]
-    observed, dates, routes, url_checks, leads = [], [], [], [], {key: [] for key in LEADS}
+    observed, dates, routes, url_checks, invalid_links, leads = [], [], [], [], [], {key: [] for key in LEADS}
     parking = False
     for page in pages:
         text = page["text"]
@@ -151,7 +151,16 @@ def assess(packet: dict, as_of: date) -> dict:
         for i, anchor in enumerate(doc.xpath("//a[@href]")):
             label = " ".join(anchor.text_content().split())[:160]
             href = anchor.get("href", "")
-            url = urljoin(page["url"], href)
+            try:
+                url = canonical(urljoin(page["url"], href))
+            except ValueError as exc:
+                # A malformed link is inert publisher data, not a corrupt page.
+                # Canonical validation still rejects credentials, bad ports and
+                # unsupported schemes before a route can become a candidate.
+                if len(invalid_links) < 30:
+                    invalid_links.append({"source_url": page["url"], "snapshot_sha256": page["snapshot"]["sha256"],
+                                          "locator": f"a[{i}]/href", "href": href[:256], "reason": str(exc)[:200]})
+                continue
             if (site(url) == site(target_site) and url.startswith(("http://", "https://"))
                     and re.search(r"contact|grant.?inquir|funding.?inquir", label + " " + href, re.I)):
                 routes.append({"url": url, "label": label, "source_url": page["url"],
@@ -180,6 +189,7 @@ def assess(packet: dict, as_of: date) -> dict:
     return {"schema": RULESET, "as_of": as_of.isoformat(), "state": state,
             "liveness": live, "live_observed_at": max(observed) if observed else None,
             "url_checks": url_checks, "contact_page_candidates": routes[:30],
+            "invalid_contact_links": invalid_links,
             "identity_evidence": identity, "site_last_updated_month": None,
             "site_update_scope": "unknown; page dates do not establish site-wide updates",
             "latest_page_modified_month": max(modified) if modified else None,
@@ -280,10 +290,9 @@ def prioritize_acquisition(run: Path) -> dict:
     with sqlite3.connect((source / "queue.sqlite3").resolve().as_uri(), uri=True, timeout=30) as db:
         db.row_factory = sqlite3.Row
         db.execute("attach database ? as active", ((run / "verification.sqlite3").resolve().as_uri() + "?mode=ro",))
-        db.execute("begin immediate")
         rows = [dict(r) for r in db.execute("""select o.org_id,o.priority,o.state,o.updated_at,
             case json_extract(m.target,'$.org_type') when 'private_foundation' then 4 else 5 end as next_priority
-            from organizations o join active.members m using(org_id) where o.state='pending'
+            from active.members m cross join organizations o using(org_id) where o.state='pending'
             and o.priority > case json_extract(m.target,'$.org_type') when 'private_foundation' then 4 else 5 end
             order by o.org_id""")]
         if not rows:
@@ -295,9 +304,18 @@ def prioritize_acquisition(run: Path) -> dict:
         path.parent.mkdir(exist_ok=True)
         if not path.exists():
             path.write_bytes(body)
-        db.executemany("update organizations set priority=? where org_id=? and state='pending' and priority=?",
-                       [(r["next_priority"], r["org_id"], r["priority"]) for r in rows])
-    return {"local_priority_changes": len(rows), "before_image_sha256": digest}
+        # No write reservation during the join, sort or before-image file IO.
+        # Commit bounded batches so acquisition checkpoints are not starved.
+        changed = 0
+        for offset in range(0, len(rows), 500):
+            batch = rows[offset:offset + 500]
+            db.execute("begin immediate")
+            before = db.total_changes
+            db.executemany("update organizations set priority=? where org_id=? and state='pending' and priority=? and updated_at=?",
+                           [(r["next_priority"], r["org_id"], r["priority"], r["updated_at"]) for r in batch])
+            changed += db.total_changes - before
+            db.commit()
+    return {"local_priority_changes": changed, "observed_rows": len(rows), "before_image_sha256": digest}
 
 
 def status(run: Path, worker_state: str) -> dict:
