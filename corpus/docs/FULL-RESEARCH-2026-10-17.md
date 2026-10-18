@@ -1,5 +1,19 @@
 # Full-population research — 2026-10-17
 
+## Latest resume — 2026-10-18, 09:17 UTC
+
+The local crawler and tracker resumed with explicit authorization and existing
+safeguards. Supabase remained untouched; the heartbeat remains paused. The latest
+snapshot preserves all 2,309,073 organizations, with 74,230 crawl attempts and
+914 actual research steps across 661 organizations. Added 129 records, executed
+104 new queries and reconciled eight saved queries without replay. Eight saved
+candidate updates and one new structured candidate await separate application;
+zero applied, human-reviewed or published this session.
+
+See [the dated resumed report](RESEARCH-2026-10-18-RESUMED.md) for original
+compilations, conflicts, pending backlog and exact next steps. All older counts
+and active-automation statements below are historical.
+
 ## Latest continuation — 2026-10-18, 07:56 UTC
 
 PR #18 was merged at the user's explicit request (merge `38e2a4c`). Further

@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-18T07:56:10.055643+00:00",
+  "as_of": "2026-10-18T09:17:53.646726+00:00",
   "campaign": "full-2026-10-17",
   "inventory": {
     "schema": "organization_inventory/v1",
@@ -24,30 +24,38 @@
     "confirmed_sites_sha256": "698ff17dbe39ea03063d2020af1487ea67009d1156619d031cc369bae63e470d"
   },
   "coverage": {
-    "as_of": "2026-10-18T07:56:10.055643+00:00",
+    "as_of": "2026-10-18T09:17:53.646726+00:00",
     "scope": "all public organizations, reconciled to the internal census count",
     "input_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
     "organizations": 2309073,
     "states": {
-      "blocked": 25762,
-      "evidence_ready": 43356,
-      "needs_discovery": 1979811,
-      "pending": 260128,
+      "blocked": 26963,
+      "evidence_ready": 47235,
+      "needs_discovery": 1979809,
+      "pending": 255050,
       "running": 16
     },
-    "crawl_attempted": 69134,
-    "evidence_ready": 43356,
+    "crawl_attempted": 74230,
+    "evidence_ready": 47235,
     "organizations_with_recorded_research_steps": {
-      "claim_review": 176,
-      "identity_review": 118,
-      "news_search": 16,
-      "reverse_research": 49,
-      "website_search": 413
+      "claim_review": 192,
+      "identity_review": 127,
+      "news_search": 25,
+      "reverse_research": 54,
+      "website_search": 477
     },
     "human_reviewed": 0,
     "published_by_this_workflow": 0,
     "all_organizations_researched": false,
-    "pending_work": "Identity verification, missing-site search, reverse research, evidence review and publication are separate steps."
+    "pending_work": "Identity verification, missing-site search, reverse research, evidence review and publication are separate steps.",
+    "research_step_records_by_stage": {
+      "claim_review": 217,
+      "identity_review": 127,
+      "news_search": 29,
+      "reverse_research": 61,
+      "website_search": 480
+    },
+    "organizations_with_any_research_step": 661
   },
   "acquisition_observations": {
     "result_files": 67728,
@@ -74,7 +82,7 @@
     551
   ],
   "continuous_worker_count": 16,
-  "continuation_interval_minutes": 30,
+  "continuation_interval_minutes": null,
   "research_complete": false,
   "continuation_raw_file_ids": [
     466,
@@ -88,11 +96,11 @@
   "continuation_candidate_websites": 5,
   "continuation_review_notes": 26,
   "research_step_records_by_stage": {
-    "claim_review": 188,
-    "identity_review": 118,
-    "news_search": 17,
-    "reverse_research": 49,
-    "website_search": 413
+    "claim_review": 217,
+    "identity_review": 127,
+    "news_search": 29,
+    "reverse_research": 61,
+    "website_search": 480
   },
   "evening_raw_file_ids": [
     468,
@@ -150,7 +158,7 @@
   "overnight_review_notes": 95,
   "overnight_review_organizations": 60,
   "overnight_exact_ein_identity_crosschecks": 24,
-  "organizations_with_any_research_step": 579,
+  "organizations_with_any_research_step": 661,
   "tracker": {
     "command": "funderdb research tracker --run data/research/full-2026-10-17 --port 8768",
     "local_url": "http://127.0.0.1:8768",
@@ -181,5 +189,23 @@
   "dawn_review_notes": 77,
   "dawn_review_organizations": 39,
   "dawn_exact_ein_identity_crosschecks": 32,
-  "dawn_executed_queries": 86
+  "dawn_executed_queries": 86,
+  "automation_status": "paused; not modified in resumed session",
+  "database_counts_observed_at": "2026-10-18T07:36:00Z (historical; not refreshed during resume)",
+  "resume": {
+    "resumed_at": "2026-10-18T09:01:40Z",
+    "new_research_step_records": 129,
+    "saved_batch_reconciliation_records": 10,
+    "new_executed_queries": 104,
+    "saved_queries_reconciled": 8,
+    "missing_site_orgs_searched": 64,
+    "local_candidate_websites_queued": 2,
+    "pending_saved_candidate_updates": 8,
+    "pending_new_structured_candidates": 1,
+    "remote_mutations": 0,
+    "human_reviewed": 0,
+    "published": 0,
+    "heartbeat": "paused",
+    "free_disk_gib": 192.4
+  }
 }
