@@ -1,0 +1,13 @@
+{
+  "organizations": 109,
+  "crawl_attempted": 99,
+  "evidence_ready": 82,
+  "blocked": 17,
+  "needs_discovery": 10,
+  "html_pages": 422,
+  "unique_html_urls": 405,
+  "additional_news_index_pages": 12,
+  "additional_recipient_pages": 1,
+  "additional_rss_feeds": 1,
+  "human_reviewed": 0
+}

@@ -10,6 +10,18 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- Program-aware research link priority, 64 further performed website searches,
+  five attributed website candidates, 26 review notes, and three first-party
+  source definitions with 41 unreviewed announcement URL candidates. Cycle
+  conflicts, namesake domains and acquisition blockers remain explicit.
+- Full-population research through the existing read-only Supabase Data API,
+  resumable hashed export shards, local latest-filing website selection, a
+  concurrent crawler with shared host pacing and compressed evidence, and
+  durable logs separating actual searches from suggested queries.
+- Resumable organization research with an exhaustive inventory option, bounded
+  public-web acquisition, per-organization coverage, hashed private snapshots,
+  website-discovery amendments and a science-funder research/source compilation.
+  Acquisition does not automatically confirm profiles or publish signals.
 - 2026-10-08, audit record: the 300-pair recipient alias audit
   (`corpus/data/seed/er_labels/recipient_alias_audit_2026-10-08.csv` and its README) that gated
   the first alias apply. The labels were made by language-model agents, not people.

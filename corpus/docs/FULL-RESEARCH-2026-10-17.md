@@ -1,0 +1,481 @@
+# Full-population research — 2026-10-17
+
+## Latest continuation — 2026-10-18, 07:37 UTC
+
+The campaign remains active across **all 2,309,073 organizations**. The
+[live local tracker](RESEARCH-TRACKER.md) continues at http://127.0.0.1:8768.
+No profile-completion count has been established; acquisitions, exact-EIN
+matches and agent-prepared notes remain distinct from full cross-verification.
+
+| State at 2026-10-18T07:37:00.281436+00:00 | Organizations |
+| --- | ---: |
+| HTML acquired; identity and claims need review | 42,261 |
+| Attempted with an acquisition blocker | 25,426 |
+| Running | 16 |
+| Candidate website awaiting acquisition | 261,554 |
+| Website discovery unresolved | 1,979,816 |
+| Full population | 2,309,073 |
+
+**67,703 organizations have a crawl attempt.** The dated result scan through
+07:38:01 UTC found 177,001 HTML observations across 167,748 URLs, 173,082 linked
+resources and 4,433 pages with an explicit target-EIN match. The worker advanced
+during the scan; supplemental acquisitions remain separate.
+
+This continuation executed **100 distinct query strings**, recorded
+[64 additional organization searches](../data/seed/research/morning-searches-2026-10-18.jsonl),
+queued [six attributed site candidates](../data/seed/research/morning-websites-2026-10-18.jsonl)
+and added [96 original notes across 45 organizations](../data/seed/research/morning-notes-2026-10-18.jsonl).
+Thirty-two new identity preparations cross-check website EINs with registry
+and filed-website evidence. The new candidates concern ALTIS, Jeffrey Dahn,
+Lake Stevens Youth Cheer, Rise Up/Trey's Legacy, AMDG 1933 and Allure Alliance.
+Specific corporate-hosted and administered-program pages retain those roles;
+they are not silently reclassified as foundation-owned domains. Absent EINs,
+address differences and alias bridges remain human-review items.
+
+There are **644 durable research steps across 483 organizations**:
+
+| Stage | Records | Distinct organizations |
+| --- | ---: | ---: |
+| Website search | 349 | 349 |
+| Identity review preparation | 86 | 86 |
+| News search | 17 | 16 |
+| Recipient reverse research | 41 | 41 |
+| Claim review preparation | 151 | 139 |
+
+The new reviews preserve several consequential distinctions:
+
+- [Yuvaan Tiwari's funding guidance](https://www.ytfoundation.org/funding)
+  separates rolling research grants from venture investments. Its typical
+  annual grant range is $50,000–$150,000; larger multiyear requests are distinct.
+  [Seattle Children's Vitanza Lab](https://www.seattlechildrens.org/research/centers-programs/childhood-cancer/our-labs/vitanza-lab/news/)
+  independently acknowledges $200,000 under March 2025, whereas the funder's
+  announcement is dated May 2025. Commitment, announcement and payment dates
+  remain separate.
+- [Joseph Kiley's memorial grant](https://www.josephkiley.org/joseph-kiley-memorial-grant)
+  reimburses eligible clinical-trial participants' expenses. Money raised for
+  laboratory work is not their reimbursement ceiling.
+- [Serini's Small Grants](https://www.hjsfoundation.org/small-grants-program)
+  are also explicitly closed. Retained rolling-process guidance does not
+  reopen that program; historical leadership grants have been consolidated.
+- [SCRED's recipient announcement](https://www.scred.k12.mn.us/news/what_s_new/grant_support_for_coaching_2025)
+  names PrairieCare representatives but attributes its three-year coaching
+  grant to the Chorzempa family foundation. Presenter, intermediary and funder
+  must not be collapsed into one payment attribution.
+- AMDG's January 7–March 4, 2027 window, Harrington's December 1, 2026 opening
+  for 2027, expired scholarship windows, Gloria's conflicting fellowship-term
+  text, Talem's inconsistent grant range and SOAR's district-count discrepancy
+  are retained in the source-specific notes. Forms for membership, adoption
+  and in-kind assistance are not automatically grant applications.
+- Historical recipient evidence separates Cogut's donor tier, Betty Mae Ling's
+  contribution to a jointly supported scholarship and Bentonville West MTB
+  Club's incoming Outride award. Namesakes and later Gross-family entities
+  remain separate. Robots blocks and an unacquired board-packet lead remain
+  explicit gaps.
+
+[Eight structured Simons preparations](../data/seed/research/morning-structured-signals-2026-10-18.jsonl)
+now enrich existing candidates: New Ideas, the mathematics/AI partnership,
+SURFiN, Fellows-to-Faculty, plant biology, HBCU programs, Open Interval and
+Empire AI. The $15 million joint cash/resource initiative and $23 million
+joint HBCU pool are not encoded as Simons-only cash amounts. The $600,000
+faculty grant excludes separate postdoctoral support; Open Interval's $30,000
+is per trio, and Empire AI's $6 million is a total pool. Current deadlines,
+future program periods and historical commitments remain separate.
+
+Database totals are **21 sources, 259 candidates and 25 structured candidates**,
+with **zero published signals**. Private publisher snapshots are registered as
+raw files 491–498; original compilation 499 and completed ledger 561 retain
+the eight updates. An expired connector request was confirmed unapplied before
+guarded recovery. Final readback verified all eight updates, source hashes,
+organization links, licensing and absent human reviewers.
+
+The crawler, tracker and temporary keep-awake process were healthy at 07:35
+UTC, with about 195.4 GiB free disk. The 16-worker crawler retains shared host
+pacing, robots checks, locks, checkpoints and the disk guard. The existing
+30-minute continuation remains active. The requested work window through
+14:40 UTC is neither a completion forecast nor a stop timer. No files or
+database records were deleted; human DCO and publication decisions remain
+pending on the draft PR.
+
+Verified by: actual research record commands, existing classification/evidence
+validation, direct source-hash/denominator checks and live Supabase provenance
+readback. Tests: not run (weekly review policy).
+
+## Previous continuation — 2026-10-18, 02:47 UTC
+
+The full **2,309,073-organization** campaign remains active. The new
+[local progress tracker](RESEARCH-TRACKER.md) displays live acquisition,
+research-stage counts, worker health, dated history and unresolved work at
+http://127.0.0.1:8768. It reads the queue without changing it and appends aggregate
+observations even when the browser is closed. Fully cross-verified profiles
+remain **unconfirmed**, rather than treating a crawl or an agent note as completion.
+
+| State at 2026-10-18T02:47:12.613356+00:00 | Organizations |
+| --- | ---: |
+| HTML acquired; identity and claims need review | 26,354 |
+| Attempted with an acquisition blocker | 17,158 |
+| Running | 16 |
+| Candidate website awaiting acquisition | 285,723 |
+| Website discovery unresolved | 1,979,822 |
+| Full population | 2,309,073 |
+
+**43,528 organizations have a crawl attempt.** The result scan through
+02:47:45 UTC found 106,101 HTML observations across 100,218 distinct URLs,
+89,592 linked resource references and 1,822 pages with an explicit target-EIN
+match. The worker advanced during that scan; supplemental manual acquisitions
+are separate. These are acquisition measures, not completed profiles.
+
+This continuation adds [64 performed website searches](../data/seed/research/overnight-searches-2026-10-18.jsonl),
+[two attributed site candidates](../data/seed/research/overnight-websites-2026-10-18.jsonl),
+[38 review notes](../data/seed/research/overnight-notes-2026-10-18.jsonl) and
+[57 further cross-check notes](../data/seed/research/crosscheck-notes-2026-10-18.jsonl).
+The **95 notes cover 60 organizations**. Twenty-four identity preparations
+cross-check an explicit website EIN against the registry identity and filed
+website, retaining the inventory and filing source hashes. Neither matching
+identifiers nor donor acknowledgments establish exhaustive review.
+
+There are now **484 durable research-step records across 386 organizations**:
+
+| Stage | Records | Distinct organizations |
+| --- | ---: | ---: |
+| Website search | 285 | 285 |
+| Identity review preparation | 54 | 54 |
+| News search | 13 | 13 |
+| Recipient reverse research | 30 | 30 |
+| Claim review preparation | 102 | 98 |
+
+The new website candidates are Springs Christian Radio and Deerfield's
+specific corporate-hosted philanthropy page. FCC authorization terminology is
+not philanthropic grant evidence. Deerfield's historical Partnership name and
+current shortened foundation name retain an identity-review requirement.
+Twenty-nine discoveries have now been attributed without changing the base
+inventory. Unresolved Mariposa and Prescott leads remain unassigned.
+
+Consequential program and identity findings include:
+
+- [Serini's Major Grants page](http://www.hjsfoundation.org/grant-applications)
+  excludes new requests in both 2026 and 2027. Historical application guidance
+  does not make that program open; its separate Small Grants pathway remains
+  a follow-up task.
+- [Pave HER Way's current FAQ](https://paveherway.org/grant-programs) closes the
+  2026 cycle on October 16. Different grant tracks, award ceilings and the
+  nomination-only pathway remain separate.
+- [Hanley's procedures](https://www.hanleyfamilyfoundation.org/grantmaking-procedures/)
+  halt LOIs while funding treatment-center expansion and exclude organizations
+  primarily focused on medical research, prevention, education or public policy.
+  A suggestion to check later in 2026 is not evidence of reopening.
+- [Philippe's homepage](https://www.philippefoundation.org/) announces planned
+  dissolution and no further funding sessions while older application pages
+  survive. No completed legal dissolution date is inferred.
+- [Reidsville's application guidance](https://www.rafoundation.org/how-to-apply)
+  gives a November 16, 2026 next deadline but conflicts internally about
+  eligibility for individuals and religious organizations. That wording is
+  retained for resolution. Deacon's Idaho coverage and Steve Nash's US-versus-
+  Canadian entity attribution also remain explicit conflicts.
+- [Woka's grants guidance](https://www.wokafoundation.org/grants) is invitation
+  only; independent Activate acknowledgment supports a recipient relationship,
+  without establishing an exact payment. Other recipient work separates
+  personal Seidenberg giving, joint Barr initiatives, donor tiers and
+  multiyear commitments from direct legal-foundation payments.
+
+### Structured candidate enrichment and continued operation
+
+[Nine additional structured preparations](../data/seed/research/overnight-structured-signals-2026-10-18.jsonl)
+enrich existing Burroughs Wellcome Fund, Arnold and Mabel Beckman Foundation
+and Jane Coffin Childs candidates. They distinguish per-award amounts,
+installments, multi-recipient totals, research budgets and joint funding pools.
+Ambiguous amounts remain empty. The database still has **21 sources and 259
+candidates**, now including **17 structured candidates**, with zero published.
+
+Raw files 481–489 register private publisher snapshots as nonrepublishable;
+490 registers the original structured compilation. Ledger 559 completed nine
+guarded updates. Direct readback confirmed all nine organization links,
+snapshot licenses, candidate states and absent human reviewers. Existing
+classification and excerpt validation found no unsupported evidence after
+correcting one excerpt to the acquired article body. Excerpts remain private.
+
+The 16-worker crawler continues with its original lock, checkpoints, shared
+host pacing and 10 GiB disk guard; about 202 GiB was free. The tracker runs
+independently. The existing 30-minute continuation remains active and carries
+the requested work window through **2026-10-18 14:40 UTC**. This window neither
+stops pending work nor predicts exhaustive completion. A temporary keep-awake
+process covers the window without changing permanent power settings.
+
+No files, evidence or database records were deleted. Human review and
+publication remain pending. All organizations, including blocked and
+missing-site cases, remain in the denominator.
+
+Verified by: the live tracker command and one browser inspection, direct
+compilation/data checks, existing classification/evidence validation and live
+database provenance readback. Tests: not run (weekly review policy). No CI polling.
+
+## Historical continuation — 2026-10-18, 02:17 UTC
+
+The campaign still includes **all 2,309,073 organizations**. The worker remains
+active with 16 threads, shared host pacing and its original lock/checkpoints.
+**40,081 organizations have a crawl attempt; this is not completed research.**
+No files or records were deleted, no human decisions were recorded, and nothing
+was published or merged to main.
+
+| State at 2026-10-18T02:17:20.727121+00:00 | Organizations |
+| --- | ---: |
+| HTML acquired; identity and claims need review | 24,418 |
+| Attempted with an acquisition blocker | 15,647 |
+| Running | 16 |
+| Candidate website awaiting acquisition | 289,168 |
+| Website discovery unresolved | 1,979,824 |
+| Full population | 2,309,073 |
+
+The result scan through 02:17:51 UTC found **98,003 HTML observations** across
+**92,595 distinct URLs**, 80,050 linked resource references and 1,822 pages with
+an explicit target-EIN match. Acquisition continued during this scan. These
+counts exclude supplemental manual acquisitions and do not imply identity
+confirmation or exhaustive review. Human-reviewed profiles and published
+signals remain **zero**.
+
+This continuation adds [64 performed website searches](../data/seed/research/late-searches-2026-10-17.jsonl),
+[two attributed website candidates](../data/seed/research/late-websites-2026-10-17.jsonl)
+and [29 original review notes across 26 organizations](../data/seed/research/late-notes-2026-10-17.jsonl).
+The immutable inventory is unchanged; 27 discoveries have now been attributed
+since initialization. Morphs & Milestones prints the exact target EIN.
+Fawley's candidate is its specific trustee-hosted page, with the legal-name
+variation retained for review.
+
+The queue contains **325 durable research-step records**:
+
+| Stage | Records | Distinct organizations |
+| --- | ---: | ---: |
+| Website search | 221 | 221 |
+| Identity review preparation | 26 | 26 |
+| News search | 7 | 7 |
+| Recipient reverse research | 19 | 19 |
+| Claim review preparation | 52 | 48 |
+
+Current-cycle and identity findings include:
+
+- The [2027 Grass Fellowship announcement](https://grassfoundation.org/apply-for-the-2027-grass-fellowship/)
+  gives a December 1, 2026 deadline and an extra week for recommendations.
+  Its $5,000 research budget is not total fellowship compensation. The general
+  awards page still contains older application text.
+- [Pallottine Buckhannon's 2027 call](https://pallottinebuckhannon.org/healthy-communities-initiative/)
+  closed September 30, 2026. Its two stated request pathways leave exactly
+  $5,000 unspecified; that gap is retained, not silently repaired.
+- [Borchard](https://www.borchardfoundation.org/how-to-apply-for-a-grant/application-process)
+  accepts solicited organizational proposals only. Its separate centers have
+  distinct research and fellowship routes.
+- [Erb's October announcement](https://www.erbff.org/12-2-million-granted-across-alzheimers-research-democracy-arts-and-great-lakes-stewardship/)
+  reports $12.2 million in new and ongoing grants. Its [Detroit Arts Support
+  announcement](https://www.erbff.org/detroit-arts-support-commits-over-11-2-million-in-grants-for-multiyear-support/)
+  separates Erb's $6 million share from the larger joint pool. Neither award
+  evidence nor a general inquiry route overrides the Alzheimer's program's
+  restriction on unsolicited proposals.
+- [Fawley's trustee guidance](https://www.truistmanagedfdns.org/fawley)
+  describes a Lake County, Florida focus, an annual February 1 deadline and
+  typical grants of $5,000–$20,000, without an explicit cycle year.
+- [Wayne State's Sastry acknowledgment](https://neurology.med.wayne.edu/sastry)
+  supports historical neuroscience-funding research, not a current open call.
+  [Tryon Palace's donor wall](https://www.tryonpalacefoundation.org/support/donor-wall)
+  separately lists the Emily Monk Davidson Foundation and an individual
+  donor. Contribution tiers are not exact dated grant payments.
+
+Other notes preserve expired TDECU and Cincinnati seniors cycles, the Smart
+Life Foundation's forthcoming application process, individual-versus-foundation
+giving on Greenbaum's grantee page, separate state scholarships on a credit
+union site, and a content-integrity concern on the Willy Foundation site.
+Namesake and parent-company leads remain unresolved where identity evidence
+does not support an assignment. The Met supporter-page acquisition stopped at
+robots HTTP 429; no bypass or donor-fact promotion occurred.
+
+### Structured candidate enrichment
+
+The live database now contains **21 first-party sources and 259 candidates**.
+This continuation added [two sources](../data/seed/late_signal_sources.csv) and
+[four announcement URLs](../data/seed/research/late-signal-candidates-2026-10-17.csv),
+then prepared [eight structured announcements](../data/seed/research/late-structured-signals-2026-10-17.jsonl)
+through the existing signal schema. They cover McKnight, AAJR, Grass and Erb.
+The preparation supplies source-backed signal types, amounts where unambiguous,
+recipient categories, geography and original summaries. This is manual agent
+preparation, not a new automated program-extraction adapter.
+
+Annual amounts, award ceilings, joint funding totals and research-expense
+budgets are explicitly distinguished. Unknown dates remain empty. Existing
+SignalClassification validation and verify_evidence found no unsupported
+excerpts across the eight preparations. Excerpts remain private.
+
+Raw files **470–477** register the eight immutable publisher snapshots as
+nonrepublishable publisher_website; **478–480** register original source,
+candidate and structured compilations. Ledgers **556–558** completed with two
+source insertions, four candidate insertions and eight guarded updates. All
+eight candidates have organization links, private snapshot provenance and no
+reviewer. The connector rejected two large requests with an expired request
+state; readbacks showed no partial writes, and smaller guarded transactions
+completed the work without duplicates.
+
+The database candidate path remains the review boundary. No existing source
+records, raw evidence, exports or access settings were deleted. Worker PID
+91991 was healthy with about 202 GiB free disk and its 10 GiB guard intact.
+The full pending queue and recurring continuation remain active.
+
+Verified by: existing field/evidence validation, one direct compilation and
+population check, and live database counts, links, snapshot licenses and
+completed ledgers. Tests: not run (weekly review policy). No CI polling.
+
+## Historical continuation — 2026-10-17, 21:51 UTC
+
+The following retains the preceding observation and its evidence links.
+
+The existing Supabase access now supports research across **all 2,309,073
+organizations**. The read-only Data API exported that complete population and
+**1,266,695 unsuperseded filing website records**, with both counts reconciled
+against the live database census. No database password, privileged API key,
+role change or schema migration was needed.
+
+This remains an active whole-database campaign, **not completed research**.
+A detached 16-worker crawler processes the entire pending website queue.
+The current-chat continuation runs every 30 minutes to inspect health, recover
+interrupted work and continue missing-site searches, news, program review and
+recipient research. All organization types remain in scope; no cohort stopping
+limit is configured. Nothing has been merged or pushed to main.
+
+## Population and acquisition
+
+The immutable inventory contains **329,222 candidate websites** and
+**1,979,851 organizations without one**. Twenty-five attributed website
+discoveries have since been queued, including five during this continuation.
+These are candidates, not human-confirmed identities.
+
+Inventory SHA-256: `f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7`.
+
+The API export is a paginated observation interval, not a repeatable-read
+transaction. Matching counts cannot exclude same-count membership changes
+during export. The census found no canonical merges or unparsed website-bearing
+filings; future exports must repeat those checks.
+
+Queue snapshot: **2026-10-17T21:51:09.932274+00:00**.
+
+| State | Organizations |
+| --- | ---: |
+| HTML acquired; identity and claims still need review | 5,289 |
+| Attempted, with an acquisition blocker | 3,087 |
+| Currently running | 16 |
+| Candidate website awaiting acquisition | 320,855 |
+| Website discovery unresolved | 1,979,826 |
+| Complete inventory | 2,309,073 |
+
+**8,408 distinct organizations have a crawl attempt**, including interrupted
+attempts returned to pending during recovery. The result scan from 21:51:09
+through 21:51:22 UTC observed **20,620 HTML page observations** across
+**19,910 distinct URLs**, **14,081 publisher-linked resource references**, and
+**611 pages with an explicitly labelled EIN matching the target**.
+Scanning overlaps continued acquisition, so result totals can advance beyond
+the queue snapshot. Supplemental manual acquisitions are separate.
+
+Inventory, acquired pages, query suggestions and exact-EIN observations are
+not completed profiles. Human-reviewed profiles: **0**. Signals published by
+this work: **0**.
+
+## Performed research and attributed findings
+
+This continuation recorded [80 actual website searches](../data/seed/research/evening-searches-2026-10-17.jsonl),
+[five attributed candidate websites](../data/seed/research/evening-websites-2026-10-17.jsonl)
+and [39 original review notes across 36 organizations](../data/seed/research/evening-notes-2026-10-17.jsonl).
+The queries were executed; their output hashes and source links are retained.
+An unsuccessful search leaves the website and application posture unresolved.
+
+The full campaign now has **232 durable research-step records**:
+
+| Stage | Records | Distinct organizations |
+| --- | ---: | ---: |
+| Website search | 157 | 157 |
+| Identity review preparation | 24 | 24 |
+| News search | 5 | 5 |
+| Recipient reverse research | 17 | 17 |
+| Claim review preparation | 29 | 27 |
+
+These are agent research records, not human approvals. They do not establish
+exhaustive completion for the organizations involved.
+
+The latest substantive findings include:
+
+- [Kelly Foundation of Washington](https://kellyfoundationwashington.org/)
+  says grant and scholarship applications have stopped and dissolution is
+  planned during 2026. Older application PDFs remain indexed. The notice does
+  not establish a completed legal dissolution or its effective date.
+- The [Hawaii Public Health Fund](https://www.cochawaii.org/programs/public-health-fund/)
+  lists a December 18, 2026 deadline. Its Oahu health program is distinct from
+  the Chamber's state-funded business-disaster grants.
+- [Endowment for Health Opportunity Grants](https://www.endowmentforhealth.org/opportunity-grants)
+  describe monthly review, typically $1,000–$20,000 and one-time terms of a
+  year or less. The program's exclusions and New Hampshire scope are retained.
+- [AAJR's dissertation call](https://aajr.org/funding-opportunities/dissertation-research-funding/)
+  is for 2026–2027, with a February 2, 2027 deadline. News publication dates,
+  award years and application cycles remain separate.
+- The [Health Care Foundation of the Oranges](https://www.hcfoinc.org/grants)
+  explicitly closes its 2026 LOI window. This is a cycle-specific application
+  finding, not organizational closure.
+- FARFE's [mission page](https://www.farfe.org/mission.html) describes a
+  $100,000 Ross Prize, while its [ninth-prize announcement](https://www.farfe.org/ross_prize.html)
+  says $75,000. Both source-specific amounts are retained as a conflict.
+- [O'Reilly's foundation page](https://corporate.oreillyauto.com/foundation/)
+  was readable through indexed web evidence, but direct acquisition was
+  blocked at robots HTTP 403. Annual application timing and exclusions are
+  attributed to that page, without treating the window as currently open.
+
+New recipient evidence includes Nichols/Culver-Stockton, Beyond Reynosa/Chennault,
+Sigrids/Lacawac, Lorch/Apron, Blum/Berkeley Law, the Lauren family foundation/NYRP
+and Abramson/Brem. Donor tiers, membership prices, date ranges, acknowledgments
+and exact paid grants are kept distinct. The Meyer trust name variant remains
+unresolved. Provider profiles and a host site's grants navigation do not turn
+the profiled organization into a grantmaker.
+
+Earlier [follow-up notes](../data/seed/research/followup-notes-2026-10-17.jsonl)
+and [continuation notes](../data/seed/research/continuation-notes-2026-10-17.jsonl)
+retain the Stabler DAF transition report, UK Biobank recipient evidence,
+McKnight's separate 2027 cycles and conflicting opening dates, Sarkisian's
+student/institution rules, a TYH namesake with a different EIN, and a filed
+domain now serving unrelated casino content. Namesakes, parent organizations
+and affiliated foundations are not automatically merged.
+
+## Existing database candidate path
+
+The live workflow contains **19 first-party source definitions** and **255
+unreviewed URL candidates**, with **zero published signals**. The latest
+addition is two sources and ten URLs from Endowment for Health and AAJR.
+All ten link to existing organizations; none has a reviewer.
+
+Raw files **468–469** were registered before parsing. Ledger runs **554–555**
+completed with two source insertions, ten candidate insertions and no skips.
+The original compilations are
+[evening source definitions](../data/seed/evening_signal_sources.csv) and
+[URL candidates](../data/seed/research/evening-signal-candidates-2026-10-17.csv).
+Earlier additions retain raw files 462–467 and ledger runs 548–553.
+Candidate discovery does not automatically promote deadlines, amounts,
+eligibility, identity matches or editorial posts into approved facts.
+
+Publisher bodies, search-result bodies, snapshots, full exports, the local
+queue and access configuration remain private. Public compilations retain
+attribution and source hashes. Original compilation licensing does not
+relicense publisher content. Existing human review and publication gates
+remain intact; no agent marked a human decision.
+
+## Continuation and verification
+
+The [research protocol](ORGANIZATION-RESEARCH.md) covers resumable API shards,
+shared host pacing, robots and Retry-After handling, immutable compressed
+snapshots, original observation dates, disk protection and performed
+research-step records. Worker PID 91991 remained healthy during this turn,
+with about 250 GiB free disk; no restart was needed.
+
+Program-path and body-link priority was directly verified in the earlier
+six-page McKnight crawl. Six pages do not complete research. The worker
+continues every pending website job while missing-site and claim research
+proceed independently. The [additional source opportunities](RESEARCH-SOURCE-OPPORTUNITIES.md)
+document identifies 990-N, linked PDFs, rendered public pages and recipient
+adapters as proposals subject to source-intake and licensing review. They are
+not counted as implemented coverage. The [initial report](RESEARCH-2026-10-17.md)
+remains a dated historical baseline.
+
+Verified by: actual research-step recording and candidate assignment; one
+direct data check of the 80 searches, five websites, 39 notes and full
+population total; live source/candidate counts, all ten organization links,
+zero new reviewers and completed ingestion ledgers.
+Tests: not run (weekly review policy). CI checks were not polled.

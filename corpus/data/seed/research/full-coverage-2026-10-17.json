@@ -1,0 +1,179 @@
+{
+  "as_of": "2026-10-18T07:37:00.281436+00:00",
+  "campaign": "full-2026-10-17",
+  "inventory": {
+    "schema": "organization_inventory/v1",
+    "completed_at": "2026-10-17T20:39:39.710493+00:00",
+    "organizations": 2309073,
+    "expected_organizations": 2309073,
+    "with_candidate_website": 329222,
+    "by_type": {
+      "public_charity": 1870317,
+      "private_foundation": 166036,
+      "company": 68890,
+      "fund": 180174,
+      "investment_adviser": 16355,
+      "vc": 3268,
+      "pe": 4015,
+      "gov_agency": 18
+    },
+    "sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "scope": "all public organizations, reconciled to the internal census count",
+    "consistency": "keyset-paginated observation interval; not a transactional snapshot",
+    "is_research_completion": false,
+    "confirmed_sites_sha256": "698ff17dbe39ea03063d2020af1487ea67009d1156619d031cc369bae63e470d"
+  },
+  "coverage": {
+    "as_of": "2026-10-18T07:37:00.281436+00:00",
+    "scope": "all public organizations, reconciled to the internal census count",
+    "input_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "organizations": 2309073,
+    "states": {
+      "blocked": 25426,
+      "evidence_ready": 42261,
+      "needs_discovery": 1979816,
+      "pending": 261554,
+      "running": 16
+    },
+    "crawl_attempted": 67703,
+    "evidence_ready": 42261,
+    "organizations_with_recorded_research_steps": {
+      "claim_review": 139,
+      "identity_review": 86,
+      "news_search": 16,
+      "reverse_research": 41,
+      "website_search": 349
+    },
+    "human_reviewed": 0,
+    "published_by_this_workflow": 0,
+    "all_organizations_researched": false,
+    "pending_work": "Identity verification, missing-site search, reverse research, evidence review and publication are separate steps."
+  },
+  "acquisition_observations": {
+    "result_files": 67728,
+    "html_observations": 177001,
+    "pages_with_target_ein": 4433,
+    "resource_links": 173082,
+    "feed_links": 140393,
+    "reused_observations": 3271,
+    "distinct_html_urls": 167748,
+    "distinct_page_snapshots": 173730,
+    "scan_started_at": "2026-10-18T07:37:00.284085+00:00",
+    "scan_completed_at": "2026-10-18T07:38:01.470387+00:00",
+    "scope": "current per-organization result references; supplemental manual acquisitions are separate"
+  },
+  "database_sources": 21,
+  "database_candidate_signals": 259,
+  "signals_published": 0,
+  "followup_raw_file_ids": [
+    464,
+    465
+  ],
+  "followup_ledger_ids": [
+    550,
+    551
+  ],
+  "continuous_worker_count": 16,
+  "continuation_interval_minutes": 30,
+  "research_complete": false,
+  "continuation_raw_file_ids": [
+    466,
+    467
+  ],
+  "continuation_ledger_ids": [
+    552,
+    553
+  ],
+  "continuation_website_search_organizations": 64,
+  "continuation_candidate_websites": 5,
+  "continuation_review_notes": 26,
+  "research_step_records_by_stage": {
+    "claim_review": 151,
+    "identity_review": 86,
+    "news_search": 17,
+    "reverse_research": 41,
+    "website_search": 349
+  },
+  "evening_raw_file_ids": [
+    468,
+    469
+  ],
+  "evening_ledger_ids": [
+    554,
+    555
+  ],
+  "evening_website_search_organizations": 80,
+  "evening_candidate_websites": 5,
+  "evening_review_notes": 39,
+  "evening_review_organizations": 36,
+  "late_raw_file_ids": [
+    470,
+    471,
+    472,
+    473,
+    474,
+    475,
+    476,
+    477,
+    478,
+    479,
+    480
+  ],
+  "late_ledger_ids": [
+    556,
+    557,
+    558
+  ],
+  "late_website_search_organizations": 64,
+  "late_candidate_websites": 2,
+  "late_review_notes": 29,
+  "late_review_organizations": 26,
+  "structured_signal_candidates_prepared_this_continuation": 8,
+  "database_structured_signal_candidates": 25,
+  "overnight_raw_file_ids": [
+    481,
+    482,
+    483,
+    484,
+    485,
+    486,
+    487,
+    488,
+    489,
+    490
+  ],
+  "overnight_ledger_ids": [
+    559
+  ],
+  "overnight_website_search_organizations": 64,
+  "overnight_candidate_websites": 2,
+  "overnight_review_notes": 95,
+  "overnight_review_organizations": 60,
+  "overnight_exact_ein_identity_crosschecks": 24,
+  "organizations_with_any_research_step": 483,
+  "tracker": {
+    "command": "funderdb research tracker --run data/research/full-2026-10-17 --port 8768",
+    "local_url": "http://127.0.0.1:8768",
+    "fully_cross_verified": null,
+    "history_is_append_only": true
+  },
+  "morning_raw_file_ids": [
+    491,
+    492,
+    493,
+    494,
+    495,
+    496,
+    497,
+    498,
+    499
+  ],
+  "morning_ledger_ids": [
+    561
+  ],
+  "morning_website_search_organizations": 64,
+  "morning_candidate_websites": 6,
+  "morning_review_notes": 96,
+  "morning_review_organizations": 45,
+  "morning_exact_ein_identity_crosschecks": 32
+}

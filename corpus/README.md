@@ -1,5 +1,20 @@
 # Open Funder Database — the `corpus/` pipeline
 
+For current website, program and news evidence, see the
+[organization research protocol](docs/ORGANIZATION-RESEARCH.md) and
+`funderdb research --help`. It provides an exhaustive inventory option and a
+resumable private acquisition queue. Profile/signal publication keeps its
+existing review process; a crawl does not mean research is complete.
+The [local progress tracker](docs/RESEARCH-TRACKER.md) shows live coverage,
+worker health, research activity and the remaining work without exposing raw evidence.
+The [2026-10-17 research report](docs/RESEARCH-2026-10-17.md) records the actual
+coverage, database additions, findings and outstanding work.
+The [full-population follow-up](docs/FULL-RESEARCH-2026-10-17.md) records the
+complete Supabase API inventory and ongoing campaign. It uses existing
+publishable-key access when a Postgres connection string is unavailable.
+See [additional source opportunities](docs/RESEARCH-SOURCE-OPPORTUNITIES.md) for
+proposed 990-N, PDF, public export and rendered-page adapters.
+
 > This directory is the only maintained copy of the pipeline. It was imported from
 > `Morton-Labs-AI/open-funder-db` with its history in October 2026, and that repository is archived.
 > Migrations, the runner and the hash ledger all live here. See [../docs/REPOSITORY-MAP.md](../docs/REPOSITORY-MAP.md).
