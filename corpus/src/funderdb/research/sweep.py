@@ -28,6 +28,7 @@ from .evidence_worker import eligibility_check
 from .pipeline import sha256, write_json
 
 RULESET = "bulk-source-review/v1"
+EXTRACTION_POLICY = "substantive-main-boundary/v2"
 ROLE = re.compile(r"\bwe\s+(?:(?:also|primarily|annually)\s+)?(?:award|make|provide|distribute|offer)\s+(?:(?:competitive|charitable|financial|research|matching|annual|small|unrestricted|project|operating)\s+){0,3}(?:grants|scholarships|funding)\b|\bour grantmaking (?:supports|focuses|provides|prioritizes)\b", re.I)
 POLICY = re.compile(r"\b(?:we|the foundation|our foundation)\s+(?:do(?:es)?\s+not\s+|are\s+not\s+|currently\s+|only\s+|welcome\s+|accept\s+|encourage\s+|invite\s+|consider\s+|review\s+|will\s+|can\s+|cannot\s+)|\b(?:unsolicited\s+(?:grant\s+)?(?:proposals|applications|inquiries)|(?:applications|proposals|inquiries|grants)\s+(?:are\s+)?(?:by\s+)?invitation.only)\b", re.I)
 GRANT = re.compile(r"\bgrant\w*|\bscholarship\w*|\bfunding|\b(?:letter|letters) of (?:inquiry|intent)|\bLOIs?\b", re.I)
@@ -99,6 +100,7 @@ def initialize(active: Path, out: Path, exclude: set[tuple[str, str]] | None = N
                 db.execute("insert or ignore into sweep_jobs(org_id,assessment_path,assessment_sha256,selection_rank) values(?,?,?,?)",
                            (row["org_id"], row["packet_path"], Path(row["packet_path"]).stem, rank))
         manifest = {"schema": RULESET, "created_at": now(), "active_run": str(active),
+                    "extraction_policy": EXTRACTION_POLICY,
                     "source_run": pool["source_run"], "source_inventory_sha256": pool["source_inventory_sha256"],
                     "members": len(rows), "members_sha256": _digest(body), "ruleset": RULESET,
                     "scope": "frozen acquired live-site source-review batch; not qualified membership",
@@ -168,6 +170,23 @@ def filing_bridge(target: dict, source: Path, pages: list[dict]) -> dict:
             "semantic_identity_review": "pending", "current_standing": "not_checked"}
 
 
+def _excluded_block(node) -> bool:
+    # An unclosed site menu can make lxml place <main> inside nav/header.
+    # Explicit main content bounds site chrome, but not forms or quotations.
+    inside_main = False
+    for ancestor in node.iterancestors():
+        if ancestor.tag in {"form", "blockquote", "script", "style", "noscript", "svg"}:
+            return True
+        if ancestor.tag == "main" or ancestor.get("role") == "main":
+            inside_main = True
+        if not inside_main and (
+            ancestor.tag in {"nav", "header", "footer", "aside"}
+            or ancestor.get("role") in {"navigation", "contentinfo", "banner"}
+        ):
+            return True
+    return False
+
+
 def substantive_passages(page: dict) -> tuple[list[dict], int]:
     """Inspect content blocks, excluding navigation, footer, forms and quotes.
 
@@ -178,8 +197,7 @@ def substantive_passages(page: dict) -> tuple[list[dict], int]:
     doc = html.fromstring(raw["text"])
     passages, seen, heading, matched = [], set(), "", 0
     for node in doc.xpath("//h1|//h2|//h3|//h4|//p|//li|//td|//div[not(*)]"):
-        if any(a.tag in {"nav", "header", "footer", "aside", "form", "blockquote", "script", "style", "noscript", "svg"}
-               or a.get("role") in {"navigation", "contentinfo", "banner"} for a in node.iterancestors()):
+        if _excluded_block(node):
             continue
         text = " ".join(node.text_content().split())
         if node.tag in {"h1", "h2", "h3", "h4"}:
@@ -228,7 +246,8 @@ def review_case(out: Path, manifest: dict, row: dict, before: dict) -> dict:
             raise ValueError("preserve incompatible completed case")
         _record(out, Path(manifest["source_run"]), review)
         return review
-    review = {"org_id": oid, "ruleset": RULESET, "assessment_sha256": row["assessment_sha256"],
+    review = {"org_id": oid, "ruleset": RULESET, "extraction_policy": EXTRACTION_POLICY,
+              "assessment_sha256": row["assessment_sha256"],
               "reviewed_at": now(), "identity": "unresolved", "disposition": "source_review_blocked",
               "pages_checked": 0, "claims_staged": 0, "conflict_flags": [], "source_urls": [], "source_hashes": [],
               "status": "awaiting_separate_application", "semantic_review": "pending", "human_reviewed": False,

@@ -1,4 +1,61 @@
-## Latest continuation — next 20,000 in progress
+## Latest state — resumed by explicit user request, October 19, 2026
+
+The user explicitly resumed the saved 20,000 batch after the pause below. The
+complete inventory was rehashed: 2,309,073 organizations, unchanged SHA-256
+`f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7`.
+Stopped process identities, released research leases and more than 110 GiB free
+were checked before launch. The crawler recovered the 16 interrupted rows
+through its existing startup mechanism; no queue reset or lock deletion occurred.
+
+Current processes: crawler 73799 (16 workers/six pages/all guards), active evidence
+73800, bulk follower 75093 (four CPUs/minimum and maximum 10,000), first-wave
+observer 73802, local card finisher 73807 and finite 20,000 coordinator 73808.
+Tracker 45085 remains available on port 8768. Always inspect current identities
+and leases before acting; these are dated observations, not reusable PID authority.
+
+The bulk follower was reloaded at its idle checkpoint for the main-content
+extraction fix. New reviews/manifests identify `substantive-main-boundary/v2`;
+old reviews are preserved and not replayed. One reproducing regression failed
+before the fix and passed afterward, under the escaped-bug testing exception.
+The actual saved Kresge page recovered ten policy passages and zero outgoing-role
+passages; this readback adds no source-audit, claim, funder or qualification count.
+
+Private resume metadata and logs:
+`data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-2026-10-19/latest-resume.json`
+and `bulk-extractor-reload.json` in the same folder. The finite coordinator still
+requires two actual new 10,000-wave proofs before declaring this batch complete.
+Supabase remains read-only; no Supabase calls or mutations were made. Duplicate
+inputs, repeated literal observations and organization rechecks stay separate.
+The old heartbeat remains paused; no new automation or remote application.
+
+---
+
+## Previous state — paused by explicit user request, October 19, 2026
+
+Do not restart research without a later explicit resume request. The crawler,
+active-evidence follower, bulk follower, first-wave observer, card finisher and
+finite 20,000 coordinator are stopped. Their leases are released; lock files and
+checkpoints remain. Tracker PID 45085 remains available on port 8768.
+
+Private pause receipt and exact restart steps:
+`data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-2026-10-19/PAUSE-HANDOFF.json`.
+The last waiting snapshot was 4,798 live-source pairs. The requested extension
+has zero completed source audits and 20,000 remaining. Sixteen running crawler
+rows remain recoverable through the existing startup mechanism; do not reset
+them manually. Latest bounded work: 80 cards plus 11 presentation revisions,
+102 recorded steps across 86 organizations, 20 actual queries and 74 strict
+preparations. These counts do not advance the source-wave completion counter.
+
+Pending application remains at
+`data/research/active-funders-150k-2026-10-18/APPLICATION-BACKLOG.json`.
+Supabase received zero calls and zero mutations. Inventory remains 2,309,073
+with the immutable hash. Checkpoint `530ef0d` was pushed to draft PR19 before
+pause; the pause receipt and later private followups are saved locally. The old
+heartbeat stays paused. No automatic restart, new automation or remote application.
+
+---
+
+## Previous active continuation — next 20,000 in progress
 
 Read [the dated report](ACTIVE-FUNDERS-NEXT20000-2026-10-19.md). The outstanding
 10,000 request extends to two actual10,000 source waves, excluding baseline waves

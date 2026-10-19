@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-19 — Resume the checkpointed 20,000-source continuation
+
+Resume the existing guarded research processes after the requested pause,
+preserving the full inventory, old evidence and separate duplicate counters.
+Supabase remains read-only. Fix a saved-source extraction gap where malformed
+navigation could hide explicit main content; new reviews identify the extraction
+policy, and prior audits are preserved. One reproducing regression failed before
+and passed after the fix under the escaped-bug exception; routine suites and CI
+polling were not run. The 20,000-source batch remains in progress.
+
 All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).

@@ -69,6 +69,16 @@ unsupported candidate is fabricated to improve counts.
 
 ## Checkpoints, waves and counters
 
+New manifests and reviews record the extraction policy. Under
+`substantive-main-boundary/v2`, explicit `<main>` or `role="main"` content remains
+eligible when malformed HTML places it beneath a site menu/header. Navigation,
+headers, footers and sidebars within main still do not contribute assertions;
+forms, quotations and executable/style content remain excluded even outside
+that boundary. Exact literal locators and semantic gates are unchanged. Earlier
+reviews without this policy label retain their original extraction and are not
+retroactively rewritten or counted again. A changed extractor alone does not
+create a new acquired-source pair for the follower.
+
 The first batch freezes all then-current acquired live-site candidates and an
 immutable member hash. Per-case reviews, local proposals and research-step
 inputs are durable. An interrupted worker recovers running jobs through its

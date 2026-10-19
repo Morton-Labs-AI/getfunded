@@ -1,5 +1,32 @@
 # Next 20,000 source candidates — in progress
 
+Resumed from the saved checkpoints at the user's request on October 19, 2026.
+The complete inventory hash/count, stopped processes, locks and available disk
+were checked first. The same guarded workers and finite two-wave completion
+process are running again; the old heartbeat remains paused. The requested
+20,000 is still incomplete. Previously completed waves are not credited again.
+
+The resumed work also corrects a source-extraction gap: explicit main content
+inside malformed navigation is retained, while navigation within main, forms
+and quoted material remain excluded. New manifests and reviews label the
+extraction policy `substantive-main-boundary/v2`; old audits remain immutable.
+One regression was run under the escaped-bug exception, failing before and
+passing after the fix. Actual saved-page readback recovered ten Kresge policy
+passages and zero outgoing-role passages. This is implementation verification,
+not an additional audit, strict claim or verified-funder count.
+
+The pause checkpoint below and its dated counts are preserved as history.
+
+Paused at the user's explicit request on October 19, 2026. All acquisition,
+evidence, audit and completion processes are stopped; the read-only tracker
+remains available. The last waiting snapshot was 4,798 source pairs, with zero
+new completed audits and 20,000 remaining. Latest individual work totals 80
+bounded cards, 11 presentation revisions, 102 steps across 86 organizations,
+20 actual queries and 74 strict preparations. No qualified, applied,
+human-reviewed or confirmed-profile publication count was added. Resume only
+after a new user instruction; exact steps are in the private `PAUSE-HANDOFF.json`
+under this continuation. The dated active checkpoint below is preserved.
+
 Original research and implementation by Codex; human review and DCO pending.
 This continues the approved before/after evidence format. It does not apply
 profiles or certify qualified funders.
