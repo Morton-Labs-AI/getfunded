@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A dated next-10,000 funder-source report, 13 cited-reference refreshes and
+  19 semantic followup resolutions, with original attributed notes and separate
+  organization-recheck, duplicate, candidate and human-approval counts.
+
 - A selected-batch tracker panel separating terminal acquisition outcomes, access
   blockers and current-source audits from cumulative campaign counts. Completion
   remains separate from qualified funders, application and human review.

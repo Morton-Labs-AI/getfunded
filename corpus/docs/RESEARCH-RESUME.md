@@ -1,3 +1,15 @@
+# Next 10,000 source audits complete; Supabase read-only
+
+Read [the latest report](ACTIVE-FUNDERS-NEXT10000-2026-10-19.md). The next exact 10,000 live-source audits are complete: 9,993 newly audited organizations / 7 rechecks / 49,608 page checks. The 20,000 background audits completed between deliveries remain separate. Cumulative: 106,752 audits / 87,248 distinct organizations / 19,504 rechecks. Fully verified, applied, human reviewed and confirmed profiles published remain zero; the 150,000 target is incomplete.
+
+The 13 cited references across seven URLs and five organizations were reobserved without duplicate manual claims. All 19 requested semantic followups were interpreted. Actual work: 47 steps across 38 organizations, 15 queries, and 21 strict proposals carrying 49 candidate records across 20 organizations. Three target-actor holds and two context-only field holds remain, alongside the earlier two identity-only holds. Duplicate inputs, literal observations and semantic facts remain separate. The 164 generated new-wave followups are unreviewed.
+
+Newest private handoff: `active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/next-10000-2026-10-19/HANDOFF.json`. Root APPLICATION-BACKLOG retains all prior and new pending work, exact expected state, dated 19-row before-images and source/vintage/scope/duplicate gates. Fresh exact remote readback and application belong only in a separately requested session. Supabase received zero calls and zero mutations. Raw 500–508, ledger 562, 0758 and 0744 are untouched. Do not replay completed cohorts or cancelled SQL.
+
+Existing crawler 75359 (16 workers / six pages / all network and 10 GiB guards), evidence 96864, bulk 50195 (four CPUs / minimum and maximum 10,000) and tracker 29122 at port 8768 continue without restart. Inspect current PIDs, commands, leases, checkpoints and disk before restarting. Inventory 2,309,073 and its hash were rechecked unchanged. Old heartbeat remains paused; no new automation, outreach, deletion, subagents, main push or merge. Tests not run under weekly policy; no CI polling.
+
+---
+
 # Research restart handoff and SQL approval correction
 
 ## Latest completed selected 10,000 batch

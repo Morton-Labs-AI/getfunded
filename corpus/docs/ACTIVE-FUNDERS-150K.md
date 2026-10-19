@@ -1,3 +1,5 @@
+Latest continuation: [the next 10,000-source-batch report](ACTIVE-FUNDERS-NEXT10000-2026-10-19.md) records 9,993 newly audited organizations and 7 rechecks, separately from background work, duplicates and qualification. The 13 prior cited references were reobserved and 19 semantic followups interpreted. Supabase remains read-only.
+
 # Active-funder evidence protocol
 
 ## Latest completed selected 10,000 batch
