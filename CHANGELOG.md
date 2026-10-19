@@ -10,6 +10,14 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- An in-progress next-10,000 evidence-format research report with 128 bounded
+  followup dispositions, separate pending-wave and duplicate counts, and a local
+  tracker readiness counter. Supabase remains read-only; no completion or human
+  approval is inferred from source acquisition.
+
+- A spreadsheet-style section comparison in the local Greenbook evidence demo,
+  showing retained baseline fields, staged additions, source checks and open gaps.
+
 - A private before/after evidence-card projection for completed source sweeps,
   preserving unknown fit/inquiry conclusions, dated sources, conflicts and
   separate audit, substantive-review, duplicate and application counts.

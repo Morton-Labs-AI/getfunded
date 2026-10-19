@@ -1,3 +1,15 @@
+# Next 10,000 evidence-format wave in progress; Supabase read-only
+
+Read [the dated continuation](ACTIVE-FUNDERS-CHART-NEXT10000-2026-10-19.md). At 20:53 UTC, 2,628 unseen live-source pairs were waiting toward 10,000; 2,503 were already waiting at the request baseline. No new source wave has completed. Do not replay completed wave-0023.
+
+The continuation records 128 bounded cards and 140 actual research steps across 137 organizations: 88 identity, 42 claim, one recipient and nine website-search steps. There are 42 strict preparations across 40 organizations, including two typed revisions. Ninety-one card holds and four original context/field holds remain. Nine queries returned responses; three failed attempts have unknown remote execution, and three other generated queries remain unexecuted. No website was assigned.
+
+Exact private handoff: `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/chart-evidence-next10000-2026-10-19/HANDOFF.json`. The bounded local observer and one-time finisher retain the next-wave/card checkpoints; they are not schedulers or remote writers. Source 75359, evidence 96864 and bulk 50195 continue with their existing guards. Only tracker 24027 was restarted on port 8768 to separate the latest frozen batch from next-wave readiness.
+
+Pending application: `data/research/active-funders-150k-2026-10-18/APPLICATION-BACKLOG.json`. All before-images, source hashes, expected state, scope, licensing, duplicates and supersession gates remain preserved. Supabase received zero calls and zero mutations. Raw 500–508, ledger 562 and 0758/0744 are untouched. Inventory count/hash are unchanged. Qualified, applied, human-reviewed and confirmed-profile published counts remain zero. The old heartbeat stays paused. Tests not run under the weekly policy; no CI polling.
+
+---
+
 # Next 10,000 evidence-format source cards complete; Supabase read-only
 
 Read [the latest report](ACTIVE-FUNDERS-EVIDENCE-FORMAT10000-2026-10-19.md). Exact `wave-0023`: 10,000 completed source audits and 10,000 private automated evidence-card projections; 10,000 newly audited organizations / 0 rechecks / 49,458 page checks. Projection adds no research or semantic approval. Cumulative 126,752 audits / 107,245 organizations / 19,507 rechecks. Manual243steps/216orgs/39queries; all125priorfollowups interpreted,204boundedcards+4presentationrevisions,124strictobservations. Fully verified/applied/human/confirmed-profile published remain0. The150000target is incomplete.

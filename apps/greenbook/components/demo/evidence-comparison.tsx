@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Section } from "@/components/page-primitives";
 import { CategoryRule, TrichotomyBadge } from "@/components/trichotomy-badge";
 import { evidenceExamples, type EvidenceExample } from "@/lib/demo/evidence-examples";
 import styles from "./evidence-comparison.module.css";
 
-type View = "compare" | "before" | "after";
+type View = "chart" | "compare" | "before" | "after";
 
 function Arrow() {
   return <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
@@ -137,9 +137,40 @@ function EnhancedProfile({ record }: { record: EvidenceExample }) {
   );
 }
 
+function ComparisonChart({ record }: { record: EvidenceExample }) {
+  const notIncluded = "Not included in this baseline snapshot.";
+  const rows: { section: string; before: ReactNode; after: ReactNode; change: string }[] = [
+    { section: "Organization", before: <>{record.name}<br />EIN {record.ein}<br />{record.location} · 501(c)(3) public charity</>, after: <>Same registry identity and location. Current IRS standing is not established by this website research.</>, change: "Retained" },
+    { section: "Financials & grant history", before: "Not loaded in this demo; missing figures are not zero.", after: "Not loaded in this demo. No new financial or payment verification is claimed.", change: "Outside this preview" },
+    { section: "Website is live", before: <a href={record.website} target="_blank" rel="noreferrer">Candidate website: {new URL(record.website).hostname} ↗</a>, after: "Reachable on the saved check, 19 Oct 2026. This is an observation, not continuous monitoring.", change: "Check added" },
+    { section: "How current is it?", before: notIncluded, after: <><strong>{record.update}</strong><p>{record.dateNote}</p><span className={styles.chartUnknown}>Whole-site last-update month: unknown.</span></>, change: "Dates separated" },
+    { section: "Program & timing", before: notIncluded, after: <><strong>{record.program} · {record.posture}</strong><p>{record.summary}</p><SourceRef record={record} source={record.fitSource} /></>, change: "Guidance added" },
+    { section: "Where the work happens", before: <>Organization location only: {record.location}. Program geography is not included.</>, after: <>{record.scope} <SourceRef record={record} source={record.fitSource} /></>, change: "Scope added" },
+    { section: "Who can apply?", before: notIncluded, after: <>{record.eligibility} <SourceRef record={record} source={record.fitSource} /></>, change: "Criteria added" },
+    { section: "Funding focus", before: notIncluded, after: <>{record.focus.join(" · ")} <SourceRef record={record} source={record.fitSource} /></>, change: "Focus added" },
+    { section: "How do we inquire?", before: "Visit the website and research the next step.", after: <ol className={styles.chartSteps}>{record.steps.map((step) => <li key={step.title}><strong>{step.title}.</strong> {step.detail} <SourceRef record={record} source={step.source} /></li>)}</ol>, change: "Steps added" },
+    { section: "Cautions & conflicts", before: notIncluded, after: record.caution, change: "Caveats visible" },
+    { section: "Supporting evidence", before: "Registry fields and a website link. Website source checks are not included in this snapshot; existing filing provenance is outside the demo.", after: <ul className={styles.chartSources}>{record.sources.map((source, index) => <li id={`evidence-${record.id}-${source.id}`} key={source.id}><a href={source.url} target="_blank" rel="noreferrer">E{index + 1} · {source.title} ↗</a><span>Observed {source.observed}</span><span>SHA-256 prefix: {source.fingerprint ?? "not available for this view"}</span></li>)}</ul>, change: "Sources added" },
+    { section: "Still to verify", before: "Program evidence gaps are not itemized in this snapshot.", after: <ul className={styles.chartQuestions}>{record.unknowns.map((item) => <li key={item}>{item}</li>)}</ul>, change: "Gaps explicit" },
+    { section: "Review & publication", before: "Limited local registry snapshot; not a full historical database before-image.", after: "AI-assisted interpretation. Staged locally, human review pending; not applied to the database or published as a verified profile.", change: "Pending review" },
+  ];
+
+  return <section className={styles.chartPanel} aria-labelledby="chart-title">
+    <header className={styles.chartHeader}><div><span className={styles.eyebrow}>SECTION-BY-SECTION COMPARISON</span><h2 id="chart-title">{record.program}</h2><p>The same record, with the research laid out side by side.</p></div><span className={styles.chartDraft}>Local draft · review pending</span></header>
+    <div className={styles.chartScroll} role="region" aria-label="Before and after comparison spreadsheet" tabIndex={0}>
+      <table className={styles.chartTable}>
+        <caption>Before is a limited loaded snapshot, not everything Greenbook supports. After is staged research, not a verified profile or a prediction of funder interest.</caption>
+        <colgroup><col className={styles.chartNumberColumn} /><col className={styles.chartSectionColumn} /><col /><col /><col className={styles.chartChangeColumn} /></colgroup>
+        <thead><tr><th scope="col"><span className="sr-only">Row</span></th><th scope="col"><span className={styles.columnLetter}>A</span>Section</th><th scope="col"><span className={styles.columnLetter}>B</span>Before enhancement</th><th scope="col"><span className={styles.columnLetter}>C</span>After enhancement</th><th scope="col"><span className={styles.columnLetter}>D</span>What changed</th></tr></thead>
+        <tbody>{rows.map((row, index) => <tr key={row.section}><td className={styles.chartRowNumber}>{index + 1}</td><th scope="row">{row.section}</th><td>{row.before}</td><td>{row.after}</td><td><span className={styles.chartChange}>{row.change}</span></td></tr>)}</tbody>
+      </table>
+    </div>
+  </section>;
+}
+
 export function EvidenceComparison() {
   const [selectedId, setSelectedId] = useState(evidenceExamples[0].id);
-  const [view, setView] = useState<View>("compare");
+  const [view, setView] = useState<View>("chart");
   const record = evidenceExamples.find((item) => item.id === selectedId)!;
   return (
     <div className={styles.page}>
@@ -150,13 +181,13 @@ export function EvidenceComparison() {
 
       <div className={styles.toolbar}>
         <div className={styles.examplePicker}><label htmlFor="evidence-example">Explore an example</label><select id="evidence-example" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{evidenceExamples.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></div>
-        <div className={styles.viewSwitch} role="group" aria-label="Comparison view">{([['compare', 'Compare'], ['before', 'Before'], ['after', 'After']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={view === value} onClick={() => setView(value)}>{label}</button>)}</div>
+        <div className={styles.viewSwitch} role="group" aria-label="Comparison view">{([['chart', 'Chart'], ['compare', 'Compare'], ['before', 'Before'], ['after', 'After']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={view === value} onClick={() => setView(value)}>{label}</button>)}</div>
       </div>
 
-      <div className={styles.comparison} data-view={view}>
+      {view === "chart" ? <ComparisonChart record={record} /> : <div className={styles.comparison} data-view={view}>
         {view !== "after" ? <BaselineProfile record={record} /> : null}
         {view !== "before" ? <EnhancedProfile key={record.id} record={record} /> : null}
-      </div>
+      </div>}
       <footer className={styles.pageFoot}><strong>What changed?</strong><span>Filing history remains the foundation. This adds current program guidance, visible uncertainty and a supported next step.</span><span className={styles.pageFootNote}>Local baseline + staged research. No live database read, model call or application submission.</span></footer>
     </div>
   );

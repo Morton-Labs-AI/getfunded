@@ -34,7 +34,14 @@ whole-site update month. It makes no personalized eligibility or funder-interest
 prediction. All interpretations remain staged, agent-reviewed and awaiting human
 review; none become verified profiles or published database facts.
 
-Use the example selector and Compare / Before / After controls to inspect:
+The default **Chart** view lays out 13 numbered rows in a spreadsheet-style
+comparison: section, before enhancement, after enhancement and what changed.
+It reuses the same example fields as the profile views, including cited inquiry
+steps, saved source dates/hash prefixes and unresolved questions. Retained identity
+and financial data outside the preview are distinguished from added guidance.
+The table scrolls horizontally on narrow screens and uses native table headers.
+
+Use the example selector and Chart / Compare / Before / After controls to inspect:
 
 - **South Dakota Fund:** year-round letters of inquiry, followed by an invited
   full application; other foundation funds retain separate terms.
@@ -63,6 +70,17 @@ campaign's private pending-application backlog remains the source for applicatio
 work in a separately authorized session.
 
 ## Direct verification
+
+The chart addition was verified on 2026-10-19 with one successful
+`node_modules/.bin/tsc --noEmit` and one desktop browser pass: the default South
+Dakota chart rendered all 13 rows, a citation navigated to its source row, and
+the existing Compare view remained available. The chart was left selected and
+visually inspected. Narrow-screen behavior and the other examples were not
+separately exercised for this addition. No Supabase calls were made.
+
+Verified by: TypeScript typecheck and one desktop browser interaction pass. Tests: not run (weekly review policy).
+
+### Original profile comparison
 
 On 2026-10-19, `node_modules/.bin/tsc --noEmit` completed successfully. One
 desktop browser pass loaded the route (HTTP 200), switched all three comparison

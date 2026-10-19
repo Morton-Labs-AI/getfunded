@@ -196,6 +196,7 @@ class Tracker:
                         "identity_evidence", "pages_checked", "candidate_proposals", "candidate_claim_records",
                         "distinct_proposal_inputs", "repeated_identical_proposal_inputs",
                         "minimum_wave_size",
+                        "new_live_cases_waiting_for_wave",
                         "cases_with_conflict_flags", "fully_verified", "human_reviewed", "remote_applied",
                         "published", "worker_state", "completion_note") if k in detail}
                     sweep["status_age_seconds"] = round((timestamp - datetime.fromisoformat(
