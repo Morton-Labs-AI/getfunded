@@ -10,6 +10,11 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A development-only Greenbook before/after evidence demonstration with three
+  staged examples, program-fit and inquiry guidance, dated provenance, visible
+  conflicts and open questions. Existing profiles remain unchanged; the demo
+  makes no database or model calls.
+
 - Another 10,000 funder-source audit report and 164 semantic/identity followup
   interpretations, with original attributed notes, source/scope holds and separate
   recheck, duplicate, qualification and application counts.
