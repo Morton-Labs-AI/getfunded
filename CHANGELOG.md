@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A private before/after evidence-card projection for completed source sweeps,
+  preserving unknown fit/inquiry conclusions, dated sources, conflicts and
+  separate audit, substantive-review, duplicate and application counts.
+
 - A development-only Greenbook before/after evidence demonstration with three
   staged examples, program-fit and inquiry guidance, dated provenance, visible
   conflicts and open questions. Existing profiles remain unchanged; the demo

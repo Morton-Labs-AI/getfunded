@@ -13,6 +13,12 @@ large checkpointed batches, compares EIN/filer-domain evidence and stages litera
 funding/inquiry passages locally. Its automated audit counts remain separate from
 semantic verification and approved publication; Supabase remains read-only.
 
+The [evidence-card format](docs/FUNDER-EVIDENCE-FORMAT.md) carries the approved
+before/after demonstration into private bulk research. Completed source audits
+can be projected with `funderdb research evidence-cards`; unresolved fit and
+inquiry guidance stays explicitly unknown, and projection adds no research or
+qualification count.
+
 For current website, program and news evidence, see the
 [organization research protocol](docs/ORGANIZATION-RESEARCH.md) and
 `funderdb research --help`. It provides an exhaustive inventory option and a

@@ -1,3 +1,5 @@
+Latest completed observation: [10,000 evidence-format source cards](ACTIVE-FUNDERS-EVIDENCE-FORMAT10000-2026-10-19.md): 10,000 source audits and private projections, separately from 204 individually interpreted cards, 243 actual manual steps, duplicates and qualification. Projection adds no research steps. Existing tracker remains at http://127.0.0.1:8768/.
+
 Latest completed observation: the [10,000-source audit and 164-followup report](ACTIVE-FUNDERS-FOLLOWUPS164-2026-10-19.md) records 10,000 selected/acquired/audited and zero remaining, separately from qualification and publication. The tracker remains at http://127.0.0.1:8768/ with the existing guarded workers.
 
 # Research progress tracker

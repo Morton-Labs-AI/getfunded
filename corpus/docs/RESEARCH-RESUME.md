@@ -1,3 +1,13 @@
+# Next 10,000 evidence-format source cards complete; Supabase read-only
+
+Read [the latest report](ACTIVE-FUNDERS-EVIDENCE-FORMAT10000-2026-10-19.md). Exact `wave-0023`: 10,000 completed source audits and 10,000 private automated evidence-card projections; 10,000 newly audited organizations / 0 rechecks / 49,458 page checks. Projection adds no research or semantic approval. Cumulative 126,752 audits / 107,245 organizations / 19,507 rechecks. Manual243steps/216orgs/39queries; all125priorfollowups interpreted,204boundedcards+4presentationrevisions,124strictobservations. Fully verified/applied/human/confirmed-profile published remain0. The150000target is incomplete.
+
+Newest private handoff: `active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next10000-2026-10-19/HANDOFF.json`. RootAPPLICATION-BACKLOG links all prior/current candidates, exactexpectedstate, dated19rowbeforeimages, source/scope/licensing/duplicate/supersession gates and correction. 128new generatedfollowups are unreviewed. Fresh remote readback/application only separatelyrequested. Supabase0calls/0mutations; raw500–508,ledger562,0758/0744untouched. Do not replaycompletedcohorts or cancelledSQL.
+
+Existing16crawlerworkers/max6pages/allnetworkguards/10GiBguard,four-CPUbulkminimum10000 and tracker8768continue. Inspectactualcommands/leases/checkpoints/disk before restart. Oldheartbeatpaused; nooutreach/deletion/subagents/newautomation/mainpush/merge. Humanreview/DCO pending. Testsnotrunweeklypolicy; noCIpoll.
+
+---
+
 # Next 10,000 source audits and 164 followups complete; Supabase read-only
 
 Read [the latest report](ACTIVE-FUNDERS-FOLLOWUPS164-2026-10-19.md). Exact new wave `wave-0022`: 10,000 completed source audits / 9,997 newly audited organizations / 3 rechecks / 49,454 page checks. Cumulative 116,752 audits / 97,245 organizations / 19,507 rechecks. All 164 requested followups were interpreted: 276 actual steps across 212 organizations and 58 queries. There are 129 strict observations across 110 organizations, including one metadata-only repeat. The 125 generated next-wave followups remain unreviewed. Fully verified, applied, human reviewed and confirmed profiles published remain zero; the 150,000 target is incomplete.

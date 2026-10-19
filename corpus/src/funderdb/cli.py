@@ -212,6 +212,16 @@ def research_active_sweep(run: Path, out: Path, limit: int | None, workers: int,
     click.echo(json.dumps(work(run, out, limit, workers, follow, minimum_wave_size=minimum_wave_size), indent=2))
 
 
+@research.command("evidence-cards")
+@click.option("--run", type=click.Path(exists=True, file_okay=False, path_type=Path), required=True)
+@click.option("--out", type=click.Path(file_okay=False, path_type=Path), required=True)
+def research_evidence_cards(run: Path, out: Path) -> None:
+    """Project a completed private sweep into before/after cards, without approvals."""
+    import json
+    from .research.experience import project_cards
+    click.echo(json.dumps(project_cards(run, out), indent=2))
+
+
 @research.command("active-funders-recent-giving")
 @click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
 @click.option("--access", type=click.Path(exists=True, path_type=Path), required=True)
