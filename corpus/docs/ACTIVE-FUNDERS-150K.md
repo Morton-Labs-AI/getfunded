@@ -1,5 +1,7 @@
 # Active-funder evidence protocol
 
+Latest continuation: [large-batch and current inquiry report](ACTIVE-FUNDERS-LARGE10000-2026-10-19.md). It separates between-chat completed waves from new acquisition work, confirms JFEW call terms and Headwaters current-view inquiry evidence, and retains pending application and duplicate gates.
+
 Latest continuation: [identity and program-scope report](ACTIVE-FUNDERS-SCOPE3000-2026-10-18.md). It separates completed source waves, targeted acquisitions, actual source interpretation and duplicate observations; all application remains pending.
 
 The October 18 scope correction replaces the original foundation-first ranking.

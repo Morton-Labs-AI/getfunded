@@ -1,5 +1,42 @@
 # Research restart handoff and SQL approval correction
 
+## Latest large-batch / current-inquiry continuation
+
+Read [the latest report](ACTIVE-FUNDERS-LARGE10000-2026-10-19.md) first. Existing
+followers completed 12,151 audits between the prior handoff and this request: 11,469 newly
+audited organizations and 682 rechecks. Cumulative 66,752 audits/57,257 distinct
+organizations / 9,495 rechecks. Post-request audits:0; preserve that timing boundary.
+
+The next minimum is10,000, maximum 10,000 per frozen wave; CLI default remains 3,000, so
+retain the explicit --minimum-wave-size 10000 option. New selected 10,000 acquisition
+states:{"blocked": 2, "evidence_ready": 762, "pending": 9221, "running": 15}. These are
+queued/acquired research candidates, not 10,000 completed funders; the next wave remains
+pending. Crawler16/max6/all guards and 10 GiBdiskguard stay unchanged.
+
+JFEW’s full named call terms are reviewed, including November 6 short form, invited
+January 2027 full proposal, applicant/payee scope and explicit questions. Headwaters’
+current view says Cycle 2 open and its Step1 inquiry form loads without input/submission.
+The responsive closed notice, unstated timezone and web-tool packet 410 failure remain.
+This is current-view guidance, not a claim all publisher views are fixed.
+
+Actual manual work: 24 steps across 22 organizations, 22 strict proposals / 57 cited records
+and 2 executed recipient queries. Scope gates cover 36 automatic proposals. A recipient’s
+season-funder acknowledgment does not corroborate an exact award or paid date. Duplicate
+input hashes, scoped literal repetitions and semantic facts remain separate.
+
+Private newest handoff:
+active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/large-10000-2026-10-19/HANDOFF.json.
+Root APPLICATION-BACKLOG links new and older pending work, dated before-images and
+mandatory scope/duplicate gates. Supabase zero calls/mutations; fresh exact readback
+belongs only in separately requested application. Raw500–508/ledger562 untouched; no
+cancelledSQL,0758/0744 replay.
+
+Held-lease observations: crawler75359/evidence96864/bulk76382/tracker43128. Inspect
+actual metadata/checkpoints/leases/disk before restart. Old heartbeat stays paused.
+Inventory 2,309,073/hash rechecked unchanged. No human approval, confirmed-profile
+publication, outreach, deletion, subagents, automation, main push or merge. Tests not
+run under weekly policy; no CI polling.
+
 ## Latest identity/program-scope continuation
 
 Read [the new scope report](ACTIVE-FUNDERS-SCOPE3000-2026-10-18.md) first. New completed

@@ -9,7 +9,7 @@ qualified-funder target remains separate from batch membership.
 funderdb research active-funders-sweep \
   --run data/research/active-funders-150k-2026-10-18 \
   --out data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18 \
-  --workers 4 --follow --minimum-wave-size 3000
+  --workers 4 --follow --minimum-wave-size 10000
 ```
 
 Inspect the existing worker PID, lease, checkpoints and disk before resuming.
@@ -17,6 +17,11 @@ One exclusive sweep lease prevents duplicate coordinators. Four local CPU
 processes inspect saved files; they make no network or model calls. The separate
 crawler keeps its 16-worker/six-page cap, pacing, robots, TLS, public-IP, body
 limits and 10 GiB disk guard. No Supabase mutation or scheduler is added.
+
+The current campaign uses a 10,000-case minimum (maximum 10,000 per wave), raised
+from 3,000 for the next large continuation. The CLI default remains 3,000; preserve
+the explicit 10,000 option when restarting this follower. Earlier frozen waves
+keep their original membership and counts. Larger work spans multiple waves.
 
 ## Evidence recorded per case
 
@@ -63,8 +68,8 @@ checkpoint; completed review files and idempotent steps are reused. Original
 source and pending files are preserved.
 
 With `--follow`, newly acquired organizations and changed acquired source results
-accumulate into additional immutable waves with a **3,000-case minimum**, raised
-from 1,000 at the user's request, and a 10,000-case maximum. The command accepts
+accumulate into additional immutable waves. The current campaign uses a
+**10,000-case minimum and maximum**, after earlier 1,000/3,000 minimums. The command accepts
 `--minimum-wave-size` from 1,000 through 10,000; the saved follow policy and tracker
 show the configured minimum. Existing frozen waves are never enlarged or replayed.
 Within each new live-site selection, funding leads precede other cases, followed

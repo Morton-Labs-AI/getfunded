@@ -6,7 +6,7 @@ checked pages, literal candidates, conflicts and fully verified count. It follow
 the local sweep lease/status. Automated audits have their own `evidence_sweep`
 stage and filter; they do not count as manual semantic review. Only aggregate
 fields reach the browser. The panel also shows the configured next-wave minimum
-(now 3,000), distinct proposal-input hashes, identical-input repetitions and
+(current campaign 10,000; CLI default 3,000), distinct proposal-input hashes, identical-input repetitions and
 organization rechecks. New source vintages do not establish new semantic facts.
 Initial and later immutable waves stay distinct from
 qualified admission, application, human review and publication.

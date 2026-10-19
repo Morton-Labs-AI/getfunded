@@ -192,6 +192,13 @@ different routes. Table headers and cycle columns must stay attached to dates;
 do not flatten adjacent cycles into one deadline. These are review requirements,
 not a claim that the current mechanical screen adjudicates every such case.
 
+A rendered inquiry form establishes only the observed view and stage, not
+submission acceptance, eligibility or every responsive viewport. Preserve contrary
+components and state which view was actually inspected. Keep a cycle budget that
+may fund several awards separate from a typical per-award amount. When a web tool
+provides PDF text, hash and label that response envelope; do not call its hash an
+original PDF-byte hash or refresh the reported cache vintage.
+
 Initial research surfaced useful examples: Packard's 2026 announcement and its
 general fellowship page state different amounts; Templeton's process describes
 applying while its portal says the 2026 window is closed; HHMI rejects unsolicited
