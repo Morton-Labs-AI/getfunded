@@ -18,6 +18,58 @@ def _json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def _requested_continuation(run: Path, inventory: str, timestamp: datetime) -> dict:
+    """Keep a requested multi-wave target separate from frozen membership."""
+    start, progress = _json(run / "request-start.json"), _json(run / "progress.json")
+    baseline = start["inherited_request_baseline"]
+    size = start["requested_candidates"]
+    if (type(size) is not int or size != 20000 or progress["requested_candidates"] != size
+            or baseline["prior_sweep_status"]["source_inventory_sha256"] != inventory):
+        raise ValueError("requested continuation does not match this inventory or target")
+    first = Path(start["previous_pending_continuation"]).resolve()
+    if first.parent != run.parent:
+        raise ValueError("component continuation must remain in the same private sweep")
+    audited = cards = 0
+    waves = set(baseline["existing_waves"])
+    for component in (first, run / "second-wave"):
+        proof = component / "selected-completion-verified.json"
+        if not proof.exists():
+            continue
+        detail = _json(proof)
+        wave = Path(detail["completion_wave"]).resolve()
+        if wave.parent != run.parent / "waves" or str(wave) in waves:
+            raise ValueError("requested continuation repeats a prior wave")
+        manifest = _json(wave / "sweep.json")
+        if (manifest["source_inventory_sha256"] != inventory or manifest["members"] != 10000
+                or detail["audits_done"] != 10000 or detail["reviews_hash_checked"] != 10000):
+            raise ValueError("component lacks its completed source-audit proof")
+        waves.add(str(wave))
+        audited += 10000
+        projection = component / "bulk-evidence-cards" / "manifest.json"
+        if projection.exists():
+            projected = _json(projection)
+            if (projected["source_run"] != str(wave)
+                    or projected["source_inventory_sha256"] != inventory
+                    or projected["members_sha256"] != manifest["members_sha256"]
+                    or projected["card_records"] != 10000):
+                raise ValueError("card projection does not match its source wave")
+            cards += 10000
+    summary_path = run / "manual-summary.json"
+    manual = _json(summary_path) if summary_path.exists() else {}
+    return {"requested_candidates": size, "source_audits_verified": audited,
+            "source_audits_remaining": size - audited, "private_card_projections": cards,
+            "unseen_live_pairs_waiting": progress.get("unseen_live_pairs_waiting_for_next_wave"),
+            "bounded_interpretations": manual.get("bounded_interpretations"),
+            "manual_research_steps": manual.get("manual_research_steps"),
+            "manual_strict_preparations": manual.get("strict_preparations"),
+            "stage": progress["stage"], "qualified": 0, "applied": 0, "human_reviewed": 0,
+            "published": 0,
+            "status_age_seconds": round((timestamp - datetime.fromisoformat(progress["at"])).total_seconds()),
+            "completion_note": "Requested target, completed source audits, private card projections and bounded "
+                "interpretations are separate counts. An audit or card does not qualify a funder. "
+                "Organization rechecks and repeated inputs remain in the cumulative source-review panel."}
+
+
 def _selected_batch(run: Path, inventory: str, timestamp: datetime) -> dict:
     """Expose only counts for a fixed acquisition/source-audit completion batch."""
     manifest = _json(run / "selected-cohort.json")
@@ -208,6 +260,12 @@ class Tracker:
                             fcntl.flock(lease, fcntl.LOCK_UN)
                         except BlockingIOError:
                             sweep["lease_held"] = True
+            requested = None
+            if config.get("requested_continuation_run"):
+                requested_run = Path(config["requested_continuation_run"]).resolve()
+                if self.run.parent not in requested_run.parents:
+                    raise ValueError("requested continuation must remain inside private research")
+                requested = _requested_continuation(requested_run, settings["input_sha256"], timestamp)
             selected = None
             if config.get("selected_cohort_run"):
                 selected_run = Path(config["selected_cohort_run"]).resolve()
@@ -234,6 +292,7 @@ class Tracker:
                 "active_funders": active,
                 "bulk_sweep": sweep,
                 "selected_batch": selected,
+                "requested_continuation": requested,
                 "human_reviewed_by_workflow": status.get("human_reviewed"),
                 "published_by_workflow": status.get("published_by_this_workflow"),
                 "worker": {

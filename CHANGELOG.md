@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A requested-20,000 continuation panel separating completion-proof audits from
+  waiting acquisitions, bounded interpretations and qualification, with attributed
+  program research and private conflict/application gates.
+
 - An in-progress next-10,000 evidence-format research report with 128 bounded
   followup dispositions, separate pending-wave and duplicate counts, and a local
   tracker readiness counter. Supabase remains read-only; no completion or human

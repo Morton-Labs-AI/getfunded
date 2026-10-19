@@ -32,6 +32,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;colo
 <div class="card"><label>Fully cross-verified</label><span class="number">Not recorded</span><small>Completion requires corroboration and review</small></div>
 </div>
 <p class="note" id="completion">Acquisition is one stage of research. An unresolved case stays in the inventory.</p>
+<section class="panel" id="requestedPanel" hidden style="margin-top:22px">
+<h2>Requested continuation · 20,000 source candidates</h2>
+<p class="muted" id="requestedHealth"></p><div id="requestedCounts"></div>
+<p class="foot" id="requestedNote" style="margin-top:14px"></p></section>
 <section class="panel" id="selectedPanel" hidden style="margin-top:22px">
 <h2>Latest frozen batch · acquisition and source audit</h2>
 <p class="muted" id="selectedHealth"></p><div id="selectedCounts"></div>
@@ -81,6 +85,7 @@ const w=d.worker,ok=w.fresh&&w.lease_held===true;$('health').textContent=ok?'Wor
 $('worker').replaceChildren();row($('worker'),'Reported state',w.reported_state.replaceAll('_',' '));row($('worker'),'Bounded workers',n(w.workers));row($('worker'),'Worker lease',w.lease_held===true?'Held':w.lease_held===false?'Not held':'Unknown');row($('worker'),'Free disk',n(w.free_gib)+' GiB');row($('worker'),'Status age',n(w.snapshot_age_seconds)+' seconds');
 const end=d.requested_work_window.continue_through;$('window').textContent=end?'Requested continuous work through '+new Date(end).toLocaleString()+'.':'No timed work window recorded.';
 $('queueTime').textContent='Queue snapshot: '+new Date(d.queue_as_of).toLocaleString();$('updated').textContent='Last refreshed '+new Date(d.observed_at).toLocaleString();graph(d.history);activity()}
-async function refresh(){if(busy)return;busy=true;try{const res=await fetch('/api/status',{cache:'no-store'});if(!res.ok)throw new Error('The live snapshot is unavailable. The last display may be stale; retained evidence is unchanged.');render(await res.json());$('error').style.display='none'}catch(e){$('error').textContent=e.message;$('error').style.display='block';$('health').textContent='Tracker disconnected';$('health').className='badge warn'}finally{busy=false}}
+function renderRequested(r){$('requestedPanel').hidden=!r;if(!r)return;$('requestedCounts').replaceChildren();for(const [label,value]of [['Requested source candidates',r.requested_candidates],['Source audits with completion proof',r.source_audits_verified],['Source audits remaining',r.source_audits_remaining],['Private automated card projections',r.private_card_projections],['Unseen live-source pairs waiting',r.unseen_live_pairs_waiting],['Bounded individual interpretations',r.bounded_interpretations],['Actual manual research steps',r.manual_research_steps],['Strict local preparations',r.manual_strict_preparations],['Qualified / applied / human-reviewed / published','0 / 0 / 0 / 0']])row($('requestedCounts'),label,typeof value==='string'?value:n(value));$('requestedHealth').textContent=r.stage.replaceAll('_',' ')+' · snapshot '+n(r.status_age_seconds)+' seconds old';$('requestedNote').textContent=r.completion_note;}
+async function refresh(){if(busy)return;busy=true;try{const res=await fetch('/api/status',{cache:'no-store'});if(!res.ok)throw new Error('The live snapshot is unavailable. The last display may be stale; retained evidence is unchanged.');const data=await res.json();render(data);renderRequested(data.requested_continuation);$('error').style.display='none'}catch(e){$('error').textContent=e.message;$('error').style.display='block';$('health').textContent='Tracker disconnected';$('health').className='badge warn'}finally{busy=false}}
 $('refresh').addEventListener('click',refresh);$('filter').addEventListener('change',()=>latest&&activity());refresh();setInterval(refresh,30000);
 </script></body></html>

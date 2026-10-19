@@ -1,3 +1,5 @@
+Latest continuation: [20,000 requested source candidates in progress](ACTIVE-FUNDERS-NEXT20000-2026-10-19.md). The requested-target panel is separate from frozen membership and requires component audit proofs and matching card manifests.
+
 Latest continuation: [the next 10,000 wave is in progress](ACTIVE-FUNDERS-CHART-NEXT10000-2026-10-19.md). The latest frozen batch is labelled separately; unseen live-source pairs waiting now have their own counter. These are not completed audits or qualified funders.
 
 Latest completed observation: [10,000 evidence-format source cards](ACTIVE-FUNDERS-EVIDENCE-FORMAT10000-2026-10-19.md): 10,000 source audits and private projections, separately from 204 individually interpreted cards, 243 actual manual steps, duplicates and qualification. Projection adds no research steps. Existing tracker remains at http://127.0.0.1:8768/.

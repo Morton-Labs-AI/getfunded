@@ -1,3 +1,15 @@
+## Latest continuation — next 20,000 in progress
+
+Read [the dated report](ACTIVE-FUNDERS-NEXT20000-2026-10-19.md). The outstanding
+10,000 request extends to two actual10,000 source waves, excluding baseline waves
+through0023. Acquisition is still filling; do not claim completion. Private
+checkpoint: `active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-2026-10-19/HANDOFF-IN-PROGRESS.json`.
+Reuse held workers/observers and the finite completion lease, without duplicates.
+Tracker45085 at8768 separates requested-target/frozen-batch counts. Supabase is
+read-only, all preparation local; old heartbeat paused.
+
+---
+
 # Next 10,000 evidence-format wave in progress; Supabase read-only
 
 Read [the dated continuation](ACTIVE-FUNDERS-CHART-NEXT10000-2026-10-19.md). At 20:53 UTC, 2,628 unseen live-source pairs were waiting toward 10,000; 2,503 were already waiting at the request baseline. No new source wave has completed. Do not replay completed wave-0023.
