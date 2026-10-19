@@ -1,0 +1,129 @@
+{
+  "as_of": "2026-10-19T15:07:23.726670+00:00",
+  "source_population": 2309073,
+  "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+  "selected_batch": {
+    "organizations": 10000,
+    "acquisitions_with_evidence": 10000,
+    "source_audits_complete": 10000,
+    "newly_audited_organizations": 9997,
+    "organization_rechecks": 3,
+    "page_checks": 49454,
+    "automatic_proposal_records": 54,
+    "automatic_claim_records": 100,
+    "source_audit_dispositions": {
+      "outgoing_funding_not_established_in_acquired_content": 9865,
+      "literal_funder_candidate; semantic_review_pending": 54,
+      "identity_conflict_requires_review": 65,
+      "outgoing_funding_evidence_identity_pending": 16
+    },
+    "identity_evidence": {
+      "exact_publisher_ein": 867,
+      "filer_domain_ein_and_publisher_name": 6317,
+      "publisher_ein_conflict": 65,
+      "filer_domain_ein_only": 2751
+    },
+    "conflict_flag_cases": 73,
+    "wave": "wave-0022",
+    "wave_members_sha256": "89b473d8133fccfd45db3e305d27be4e95d6b0451fd19303768c835ce55a70c0",
+    "all_source_pairs_unseen_before_freeze": true
+  },
+  "prior_delivery_audits_at_request": 106752,
+  "campaign": {
+    "processed": 116752,
+    "distinct_organizations_audited": 97245,
+    "rechecks_completed": 19507,
+    "pages_checked": 583576,
+    "candidate_proposals": 1046,
+    "candidate_claim_records": 2326,
+    "distinct_proposal_inputs": 957,
+    "repeated_identical_proposal_inputs": 89
+  },
+  "manual": {
+    "actual_steps": 276,
+    "distinct_organizations": 212,
+    "stages": {
+      "claim_review": 149,
+      "news_search": 4,
+      "website_search": 16,
+      "identity_review": 102,
+      "reverse_research": 5
+    },
+    "executed_queries": 58,
+    "requested_semantic_identity_followups_interpreted": 164,
+    "strict_proposal_records": 129,
+    "proposed_organizations": 110,
+    "cited_candidate_observations": 129,
+    "metadata_only_repeated_literal_observation": 1,
+    "new_semantic_facts_certified": 0,
+    "original_public_notes": 276,
+    "public_note_organizations": 212,
+    "new_never_audited_source_leads_reviewed": 32,
+    "missing_site_searches": 16,
+    "missing_site_executed_queries": 20,
+    "website_assignments": 0,
+    "extra_existing_org_acquisition_jobs": 3,
+    "never_attempted_pending_jobs_reordered": 9989,
+    "conditional_priority_guard_skips": 11,
+    "new_jobs_from_reordering": 0,
+    "retries_from_reordering": 0,
+    "rejected_unsubmitted_program_input": 1
+  },
+  "duplicate_index_summary": {
+    "as_of": "2026-10-19T15:06:42.369993+00:00",
+    "scope": "Bulk source runs plus strict single-case workspaces in active campaign; historical legacy raw-file/ledger preparations outside this format are not indexed. Independent SQLite observations, not a transactional census.",
+    "proposal_records": 1392,
+    "distinct_proposal_input_hashes": 1303,
+    "repeated_identical_proposal_inputs": 89,
+    "claim_records_indexed": 3227,
+    "distinct_scoped_literal_assertion_keys": 2487,
+    "repeated_scoped_literal_assertion_records": 740,
+    "duplicate_assertion_groups": 537,
+    "key_fields": [
+      "org_id",
+      "field",
+      "value",
+      "program",
+      "cycle",
+      "currency",
+      "unit",
+      "effective_date",
+      "published_date",
+      "timezone"
+    ],
+    "excluded_from_key": [
+      "citation/source vintage",
+      "author",
+      "conflict notes"
+    ],
+    "not_distinct_semantic_facts": true,
+    "human_reviewed": 0,
+    "remote_mutations": 0,
+    "application_gate": "Matching scoped literal assertions are repeated evidence observations, not automatic new facts. Preserve every source citation/conflict/vintage. Compare program/legal-entity/cycle and semantic overlaps before separately requested application; differing literal keys may still describe one fact."
+  },
+  "scope_and_vintage_summary": {
+    "as_of": "2026-10-19T15:06:52.590408+00:00",
+    "scope_organizations": 212,
+    "requested_followups_interpreted": 164,
+    "strict_proposal_records_compared": 129,
+    "claim_observations_compared": 129,
+    "metadata_only_repeated_observations": 1,
+    "outcomes": {
+      "same_current_result_as_strictly_validated_packet": 124,
+      "literal_program_cycle_reobserved_in_current_cited_page": 5
+    },
+    "affected_automatic_proposal_records": 92,
+    "not_new_case_audits_or_semantic_facts": true
+  },
+  "next_generated_semantic_followups": 125,
+  "fully_verified": 0,
+  "remote_applied": 0,
+  "human_reviewed": 0,
+  "published_confirmed_profiles": 0,
+  "supabase_calls_this_continuation": 0,
+  "remote_mutations": 0,
+  "old_heartbeat_paused": true,
+  "free_gib_at_inventory_check": 124.6,
+  "counters_are_not_distinct_semantic_facts": true,
+  "tests": "not run (weekly review policy)"
+}

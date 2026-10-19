@@ -1,3 +1,13 @@
+# Next 10,000 source audits and 164 followups complete; Supabase read-only
+
+Read [the latest report](ACTIVE-FUNDERS-FOLLOWUPS164-2026-10-19.md). Exact new wave `wave-0022`: 10,000 completed source audits / 9,997 newly audited organizations / 3 rechecks / 49,454 page checks. Cumulative 116,752 audits / 97,245 organizations / 19,507 rechecks. All 164 requested followups were interpreted: 276 actual steps across 212 organizations and 58 queries. There are 129 strict observations across 110 organizations, including one metadata-only repeat. The 125 generated next-wave followups remain unreviewed. Fully verified, applied, human reviewed and confirmed profiles published remain zero; the 150,000 target is incomplete.
+
+Newest private handoff: `active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/followups-164-next10000-2026-10-19/HANDOFF.json`. Root APPLICATION-BACKLOG retains all prior/current preparations, exact expected state, dated complete 19-row before-images, and source, scope, licensing and duplicate checks. Fresh exact remote readback and application belong only in a separately requested session. Supabase received zero calls and zero mutations. Raw 500–508, ledger 562 and 0758/0744 are untouched. Do not replay completed cohorts, rejected inputs or cancelled SQL.
+
+Existing crawler 75359, evidence 96864, bulk 50195 and tracker 29122 continue unchanged. Inspect actual commands, leases, checkpoints and disk before restarting. Retain 16 crawler workers, six pages, all network safeguards, the 10 GiB disk guard and four bulk CPUs with 10,000-wave limits. Tracker: port 8768. Inventory 2,309,073/hash rechecked unchanged. The old heartbeat stays paused. No outreach, deletion, subagents, new automation, main push or merge. Tests not run under the weekly policy; no CI polling.
+
+---
+
 # Next 10,000 source audits complete; Supabase read-only
 
 Read [the latest report](ACTIVE-FUNDERS-NEXT10000-2026-10-19.md). The next exact 10,000 live-source audits are complete: 9,993 newly audited organizations / 7 rechecks / 49,608 page checks. The 20,000 background audits completed between deliveries remain separate. Cumulative: 106,752 audits / 87,248 distinct organizations / 19,504 rechecks. Fully verified, applied, human reviewed and confirmed profiles published remain zero; the 150,000 target is incomplete.

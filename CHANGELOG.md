@@ -10,6 +10,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- Another 10,000 funder-source audit report and 164 semantic/identity followup
+  interpretations, with original attributed notes, source/scope holds and separate
+  recheck, duplicate, qualification and application counts.
+
 - A dated next-10,000 funder-source report, 13 cited-reference refreshes and
   19 semantic followup resolutions, with original attributed notes and separate
   organization-recheck, duplicate, candidate and human-approval counts.
