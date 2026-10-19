@@ -10,6 +10,9 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A selected-batch tracker panel separating terminal acquisition outcomes, access
+  blockers and current-source audits from cumulative campaign counts. Completion
+  remains separate from qualified funders, application and human review.
 - A fixed 150,000-member IRS-subsection03 evidence campaign, deterministic saved-source
   integrity checks, exact-span candidate validation and a local tracker panel.
   Source checks, unresolved cases, staged claims and human approval remain distinct;

@@ -18,6 +18,49 @@ def _json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def _selected_batch(run: Path, inventory: str, timestamp: datetime) -> dict:
+    """Expose only counts for a fixed acquisition/source-audit completion batch."""
+    manifest = _json(run / "selected-cohort.json")
+    size = manifest["members"]
+    if manifest["source_inventory_sha256"] != inventory or not isinstance(size, int) or size < 1:
+        raise ValueError("selected batch does not match this inventory")
+    progress = _json(run / "completion-coordinator-status.json")
+    stage, states = progress["stage"], progress["states"]
+    if stage == "waiting_for_terminal_selected_acquisitions":
+        acquisition, audited = states, 0
+    elif stage == "auditing_frozen_selected10000":
+        acquisition = _json(run / "frozen-completion-wave.json")["states"]
+        if sum(states.values()) != size:
+            raise ValueError("selected source-audit count differs from frozen membership")
+        audited = states.get("done", 0)
+    else:
+        raise ValueError("unknown selected-batch progress stage")
+    if sum(acquisition.values()) != size or any(n < 0 for n in acquisition.values()):
+        raise ValueError("selected acquisition count differs from frozen membership")
+    completed = run / "selected-completion-verified.json"
+    if completed.exists():
+        final = _json(completed)
+        if (final["selected_candidates"] != size or final["audits_done"] != size
+                or final["reviews_hash_checked"] != size
+                or final["selected_members_equal_frozen_members"] is not True
+                or final["cumulative_sweep"]["source_inventory_sha256"] != inventory):
+            raise ValueError("selected completion lacks its membership/integrity checks")
+        stage, audited = "selected_source_audit_complete", size
+        progress = final
+    if not 0 <= audited <= size:
+        raise ValueError("selected audit count exceeds frozen membership")
+    ready, blocked = acquisition.get("evidence_ready", 0), acquisition.get("blocked", 0)
+    return {"as_of": progress["as_of"], "members": size, "stage": stage,
+            "acquisitions_terminal": ready + blocked, "acquisitions_with_evidence": ready,
+            "acquisitions_blocked": blocked, "acquisitions_remaining": size - ready - blocked,
+            "source_audits_done": audited, "source_audits_remaining": size - audited,
+            "fully_verified": 0,
+            "status_age_seconds": round((timestamp - datetime.fromisoformat(
+                progress["as_of"].replace("Z", "+00:00"))).total_seconds()),
+            "completion_note": "Acquisition outcomes and source audits are separate from qualified-funder admission. "
+                "Blocked sources retain their access dependencies; a completed audit does not resolve every identity or program gap."}
+
+
 class Tracker:
     def __init__(self, run: Path):
         self.run = run.resolve()
@@ -164,6 +207,12 @@ class Tracker:
                             fcntl.flock(lease, fcntl.LOCK_UN)
                         except BlockingIOError:
                             sweep["lease_held"] = True
+            selected = None
+            if config.get("selected_cohort_run"):
+                selected_run = Path(config["selected_cohort_run"]).resolve()
+                if self.run.parent not in selected_run.parents:
+                    raise ValueError("selected batch must remain inside private research")
+                selected = _selected_batch(selected_run, settings["input_sha256"], timestamp)
             point = {
                 "as_of": status["as_of"], "attempted": status["crawl_attempted"],
                 "evidence_ready": status["states"].get("evidence_ready", 0),
@@ -183,6 +232,7 @@ class Tracker:
                 "evidence_cohort": evidence,
                 "active_funders": active,
                 "bulk_sweep": sweep,
+                "selected_batch": selected,
                 "human_reviewed_by_workflow": status.get("human_reviewed"),
                 "published_by_workflow": status.get("published_by_this_workflow"),
                 "worker": {

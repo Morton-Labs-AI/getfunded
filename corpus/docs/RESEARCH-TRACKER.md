@@ -1,5 +1,14 @@
 # Research progress tracker
 
+The optional private `selected_cohort_run` configuration adds a selected-batch
+panel. Its immutable `selected-cohort.json` binds the membership count to the
+inventory hash. The panel reads the bounded completion coordinator's acquisition
+and audit checkpoints, and recognizes completion only from its membership and
+review-integrity confirmation. Acquisitions with evidence, access blockers,
+remaining acquisition work and completed current-source audits have separate
+counters. No candidate paths, source excerpts, contact details or before-images
+reach the browser. A completed source batch is not qualified-funder admission.
+
 The private `sweep_run` configuration adds [bulk source review](BULK-FUNDER-REVIEW.md).
 Its panel separates frozen batch size, completed automated audits, remaining cases,
 checked pages, literal candidates, conflicts and fully verified count. It follows

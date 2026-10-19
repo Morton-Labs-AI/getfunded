@@ -1,5 +1,36 @@
 # Active-funder evidence protocol
 
+## Latest completed selected 10,000 batch
+
+Read [the completed-batch report](ACTIVE-FUNDERS-COMPLETE10000-2026-10-19.md) first.
+All exact 10,000 selected acquisition outcomes and current-source audits are done:
+9,981 with evidence, 19 blocked,
+58,025 saved page checks. This is 0 newly audited organizations /
+10,000 rechecks, not 10,000 qualified funders. Cumulative 76,752 audits /
+57,257 distinct organizations / 19,495 rechecks.
+
+Actual manual work: 55 steps across 48 organizations; 49 bounded source passes
+across 45 organizations; 44 strict proposals / 100 cited records across 41 proposed
+organizations; four executed queries. Duplicate inputs, literal observations and
+semantic facts stay separate. Current-vintage checks and semantic field holds are
+linked in the backlog. Supabase received zero calls or mutations. Fresh exact
+readback belongs only in a separately requested application session. The 150,000
+qualified-funder target remains incomplete.
+
+Newest private handoff:
+active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/complete-10000-2026-10-19/HANDOFF.json.
+Root APPLICATION-BACKLOG links all new/old pending work, scope/vintage gates and
+duplicate indexes. Do not replay this completed cohort, 0758/0744 or cancelled SQL.
+Raw 500–508/ledger 562 were untouched. Inventory 2,309,073/hash rechecked unchanged.
+
+Held-lease processes: crawler 75359, evidence 96864, bulk 50195, tracker 29122.
+Inspect current metadata, checkpoints, leases and disk before restart. Keep 16
+crawler workers, six pages, all network safeguards and the 10 GiB disk guard. Bulk
+audits retain four CPUs, minimum 10,000/maximum 10,000; CLI default 3,000 is unchanged.
+Tracker 8768 separates selected-batch acquisition/blocker/audit counts. The old
+heartbeat stays paused; no new automation, outreach, deletion, subagents, main push
+or merge. Routine tests not run under weekly policy; no CI polling.
+
 Latest continuation: [large-batch and current inquiry report](ACTIVE-FUNDERS-LARGE10000-2026-10-19.md). It separates between-chat completed waves from new acquisition work, confirms JFEW call terms and Headwaters current-view inquiry evidence, and retains pending application and duplicate gates.
 
 Latest continuation: [identity and program-scope report](ACTIVE-FUNDERS-SCOPE3000-2026-10-18.md). It separates completed source waves, targeted acquisitions, actual source interpretation and duplicate observations; all application remains pending.

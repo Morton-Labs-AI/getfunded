@@ -51,6 +51,14 @@ The review retains at most 60 matching blocks per page, each no longer than
 private. Missing funding evidence means **not established in acquired content**,
 never “not a funder” or “inactive.” A blocked source is not a dead website.
 
+Selective layout cleanup can hide substantive content when a publisher wraps
+its body inside a header. The full checked visible-text packet remains the
+fallback for a bounded semantic review; do not turn an empty cleaned portion
+into a claim that the acquired body is absent. Likewise, recent sidebar news
+does not refresh an older grant article, and a directory's named third-party
+funder is separate from the directory operator. Keep those scope checks before
+using a literal match as an organization-wide grant or inquiry policy.
+
 Only cases with an exact publisher EIN or a checked filer/EIN/domain plus
 publisher-name bridge, and an outgoing-funding passage, can produce proposals.
 The existing strict `evidence-first/v1` validator rechecks every cited literal
@@ -77,8 +85,34 @@ by inquiry-guidance and recent page-date leads. None is automatic qualification.
 An already audited organization/result-hash pair is excluded. Queue timestamps and assessment
 re-read times alone do not schedule another wave. A changed result is a recheck,
 not a new organization. Distinct organizations and rechecks have separate counters.
+For staged manual claims, compare the final result hash with the cited packet.
+An identical result retains its strict span validation. For a newer result, check
+the exact cited URL, literal value and any named program/cycle labels. Distinguish
+an omitted page under the bounded cap from changed text on a reacquired page.
+Retain these comparisons as application gates without adding new case-audit or
+fact counts. Literal reobservation does not adjudicate semantic scope, effective
+dates, contradictory notices or human approval.
 Fewer than the configured minimum remain pending for another wave, rather than
 being padded with previously audited result pairs.
+
+A directed completion pass can retain an already selected 10,000-member
+acquisition cohort as one exact 10,000-case wave. First quiesce the general
+coordinator at its checkpoint and hold its exclusive lease. Wait for every
+selected acquisition to reach a terminal outcome and for its assessment to match
+the actual result hash. Freeze the exact selected UUIDs and current assessment
+hashes only after proving all 10,000 changed organization/result pairs are unseen.
+Preserve the selection, queue amendments, before-images and older results. Resume
+the existing four-process audit worker through that frozen wave, with the same
+explicit 10,000 minimum and maximum. Do not substitute unrelated cases or replay
+older pairs to reach the count.
+
+This directed cohort includes cases that were live when selected but whose new
+acquisitions are blocked. Their result envelopes and access failures are audited
+as unresolved outcomes; they are not counted as currently live funders. Completion
+requires all 10,000 checkpoint rows done and their review hashes and membership
+checked. Page checks, acquired evidence, blocked outcomes and qualified profiles
+remain distinct. The general follower's live-site selection is unchanged.
+
 This is a local acquisition follower, not a new heartbeat or scheduled automation.
 Completing a pass does not qualify the target or resolve
 every gap. A completed initial pass leaves its completion observation intact.

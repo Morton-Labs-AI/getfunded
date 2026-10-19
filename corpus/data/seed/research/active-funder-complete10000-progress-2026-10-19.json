@@ -1,0 +1,212 @@
+{
+  "as_of": "2026-10-19T03:50:55.317073+00:00",
+  "source_population": 2309073,
+  "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+  "selected_batch": {
+    "selected_organizations": 10000,
+    "acquisition_states": {
+      "evidence_ready": 9981,
+      "blocked": 19
+    },
+    "terminal_acquisitions": 10000,
+    "source_audits_completed": 10000,
+    "newly_audited_organizations": 0,
+    "organization_rechecks": 10000,
+    "pages_checked": 58025,
+    "source_audit_dispositions": {
+      "identity_conflict_requires_review": 3,
+      "literal_funder_candidate; semantic_review_pending": 33,
+      "outgoing_funding_evidence_identity_pending": 2,
+      "outgoing_funding_not_established_in_acquired_content": 9962
+    },
+    "identity_evidence": {
+      "exact_publisher_ein": 1240,
+      "filer_domain_ein_and_publisher_name": 8505,
+      "filer_domain_ein_only": 252,
+      "publisher_ein_conflict": 3
+    },
+    "automatic_proposal_records": 33,
+    "automatic_claim_records": 55,
+    "automatic_conflict_flag_cases": 12,
+    "acquisition_job_attempts_since_original_selection": 10005,
+    "additional_job_attempts_for_existing_members": 5,
+    "amended_original_pending_jobs_for_current_call_links": 1,
+    "acquisition_blocker_category_case_counts_overlap": {
+      "timeout": 5,
+      "content_encoding_dependency": 1,
+      "HTTP_or_retry_after_dependency": 7,
+      "TLS_certificate_dependency": 1,
+      "robots_policy_or_response_dependency": 7
+    },
+    "selected_members_equal_frozen_members": true,
+    "all_changed_source_pairs_unseen_before_freeze": true,
+    "member_ids_sha256": "7c399365166a5d6e1dd4d2874ffd2d5c777e4ca076e1e9fedf38dc3e0e3b9d70",
+    "wave_members_sha256": "ae1f7f42fe4fb8290fbc19e9a117cabb6a006ed52073e9d3fd80b81e967f9c8c",
+    "frozen_wave": "wave-0018",
+    "acquisition_terminal_at_first_request_observation": 5046,
+    "new_terminal_member_outcomes_since_first_request_observation": 4954,
+    "scope": "Completed acquisition-outcome and bounded current-source audit batch, not10000qualifiedfunders or10000neworganizations",
+    "additional_program_source_passes_for_existing_members": 2,
+    "one_time_timeout_recovery_attempts": 3
+  },
+  "request_start_observation": "2026-10-19T02:03:26Z",
+  "source_audit_delta_after_request_start": {
+    "processed": 10000,
+    "distinct_organizations_audited": 0,
+    "rechecks_completed": 10000,
+    "pages_checked": 58025,
+    "candidate_proposals": 33,
+    "distinct_proposal_inputs": 33,
+    "repeated_identical_proposal_inputs": 0,
+    "candidate_claim_records": 55
+  },
+  "cumulative_sweep": {
+    "schema": "bulk-source-review/v1",
+    "as_of": "2026-10-19T03:50:42.709624+00:00",
+    "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "batch_size": 76752,
+    "processed": 76752,
+    "remaining": 0,
+    "states": {
+      "done": 76752
+    },
+    "dispositions": {
+      "identity_conflict_requires_review": 366,
+      "literal_funder_candidate; semantic_review_pending": 823,
+      "outgoing_funding_evidence_identity_pending": 104,
+      "outgoing_funding_not_established_in_acquired_content": 75459
+    },
+    "identity_evidence": {
+      "exact_publisher_ein": 6515,
+      "filer_domain_ein_and_publisher_name": 53245,
+      "filer_domain_ein_only": 16591,
+      "filing_bridge_not_available": 33,
+      "filing_entity_or_domain_conflict": 2,
+      "publisher_ein_conflict": 366
+    },
+    "pages_checked": 385521,
+    "candidate_proposals": 823,
+    "candidate_claim_records": 1907,
+    "cases_with_conflict_flags": 686,
+    "fully_verified": 0,
+    "human_reviewed": 0,
+    "remote_applied": 0,
+    "published": 0,
+    "model_calls_by_worker": 0,
+    "worker_state": "following_acquisition; waiting_for_next_10000_case_wave",
+    "free_gib": 140.5,
+    "completion_note": "Bulk source audits and literal candidates are separate from manual semantic review, qualified-funder admission, recent paid giving and human approval.",
+    "initial_batch_size": 37063,
+    "initial_processed": 37063,
+    "distinct_organizations_audited": 57257,
+    "distinct_organizations_in_batches": 57257,
+    "rechecks_completed": 19495,
+    "distinct_proposal_inputs": 734,
+    "repeated_identical_proposal_inputs": 89,
+    "minimum_wave_size": 10000,
+    "new_live_cases_waiting_for_wave": 1955
+  },
+  "actual_manual_activity": {
+    "as_of": "2026-10-19T02:52:15.115943+00:00",
+    "actual_steps": 55,
+    "distinct_organizations": 48,
+    "stages": {
+      "claim_review": 41,
+      "identity_review": 12,
+      "reverse_research": 2
+    },
+    "bounded_source_interpretation_passes": 49,
+    "source_interpretation_distinct_organizations": 45,
+    "passes_without_new_proposal": 5,
+    "strict_proposal_records": 44,
+    "distinct_organizations_with_new_strict_proposals": 41,
+    "cited_claim_records": 100,
+    "actual_queries": 4,
+    "reverse_research_steps": 2,
+    "access_dependency_steps": 3,
+    "additional_exact_filing_domain_review_steps": 1,
+    "independently_certified_exact_paid_awards": 0,
+    "worker_model_calls": 0,
+    "interactive_tokens_and_cost": "not measured; do not invent savings",
+    "licensing": "Exact source spans/searches/before-images/contact channels private; original paraphrases only in public compilation",
+    "scope": "Bounded portions and cited vintages only; includes sparse/menu-limited attempts and expanded followups, not completed profiles",
+    "human_reviewed": 0,
+    "remote_applied": 0,
+    "published_confirmed_profiles": 0,
+    "supabase_calls": 0,
+    "remote_mutations": 0
+  },
+  "duplicate_index_summary": {
+    "as_of": "2026-10-19T03:50:01.489123+00:00",
+    "scope": "Bulk source runs plus strict single-case workspaces in active campaign; historical legacy raw-file/ledger preparations outside this format are not indexed. Independent SQLite observations, not a transactional census.",
+    "proposal_records": 1019,
+    "distinct_proposal_input_hashes": 930,
+    "repeated_identical_proposal_inputs": 89,
+    "claim_records_indexed": 2630,
+    "distinct_scoped_literal_assertion_keys": 1928,
+    "repeated_scoped_literal_assertion_records": 702,
+    "duplicate_assertion_groups": 505,
+    "key_fields": [
+      "org_id",
+      "field",
+      "value",
+      "program",
+      "cycle",
+      "currency",
+      "unit",
+      "effective_date",
+      "published_date",
+      "timezone"
+    ],
+    "excluded_from_key": [
+      "citation/source vintage",
+      "author",
+      "conflict notes"
+    ],
+    "not_distinct_semantic_facts": true,
+    "human_reviewed": 0,
+    "remote_mutations": 0,
+    "application_gate": "Matching scoped literal assertions are repeated evidence observations, not automatic new facts. Preserve every source citation/conflict/vintage. Compare program/legal-entity/cycle and semantic overlaps before separately requested application; differing literal keys may still describe one fact."
+  },
+  "scope_gate_summary": {
+    "as_of": "2026-10-19T03:50:08.927566+00:00",
+    "scope_cases": 48,
+    "affected_automatic_proposal_records": 49,
+    "manual_source_result_versions": 49,
+    "cases_with_at_least_one_older_manual_result": 8,
+    "claim_vintage_comparison_outcomes": {
+      "same_frozen_result_as_strictly_validated_manual_packet": 81,
+      "literal_scoped_assertion_reobserved_current_source": 6,
+      "cited_source_not_reacquired_in_final_bounded_pass": 13
+    },
+    "claim_vintage_comparison_is_not_extra_audits_or_facts": true,
+    "identity_only_claim_records_held_from_grant_role_application": 2,
+    "exact_literal_timezone_labels": {
+      "ArtsMidwest_GIG": "CT, explicitly in both staged deadline values; not separately normalized",
+      "OVAC_THRIVE_2026": "CST, literal publisher label; do not silently change",
+      "StJohns_AFA_2026": "not stated",
+      "VCF_NewsCommunity_2026": "not stated"
+    },
+    "fully_verified": 0,
+    "human_reviewed": 0,
+    "remote_mutations": 0
+  },
+  "public_original_compilation": {
+    "rows": 52,
+    "distinct_organizations": 45,
+    "sha256": "fdd6d50efebeb8a29f88890612659d0819d3ffc8a5d1fa61399e5fcb2856f9b2"
+  },
+  "minimum_next_wave": 10000,
+  "maximum_wave_size": 10000,
+  "fully_verified": 0,
+  "remote_applied": 0,
+  "human_reviewed": 0,
+  "published_confirmed_profiles": 0,
+  "supabase_calls_this_continuation": 0,
+  "remote_mutations": 0,
+  "worker_model_calls": 0,
+  "interactive_token_savings": "not measured",
+  "status": "selected10000source_batch_complete;150000qualifiedtarget_incomplete",
+  "old_heartbeat": "paused; unchanged",
+  "attempt_count_reconciliation": "One current-call job was amended while still pending; the other was already evidence_ready and required an extra program-source pass. Plus COLTAF and three one-time timeout recoveries: five extra attempts for existing members, not new organizations."
+}
