@@ -28,7 +28,7 @@ AGENT_TOKEN = "FunderResearch"
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ROBOTS_BYTES = 512 * 1024
 LINK_TOPICS = {
-    "application": re.compile(r"apply|application|eligib|guideline|deadline|funding.opportun|request.for|\brfp\b", re.I),
+    "application": re.compile(r"apply|application|applicant|eligib|guideline|deadline|funding.opportun|request.for|\brfp\b", re.I),
     "program": re.compile(r"program|research|science|priorit|strategy", re.I),
     "grants": re.compile(r"\bgrants?\b|grantee|grant.database|award|fellowship|scholarship|funded.project|portfolio", re.I),
     "news": re.compile(r"news|press|announcement|insight", re.I),
@@ -389,7 +389,9 @@ def link_priority(link: dict, seed_url: str) -> tuple:
 
 
 def crawl_org(target: dict, web: PublicWeb, max_pages: int) -> dict:
-    pending = list(dict.fromkeys([target["website"], *target.get("research_urls", [])]))
+    curated_order = {url: rank for rank, url in
+                     enumerate(dict.fromkeys(target.get("research_urls", [])))}
+    pending = list(dict.fromkeys([target["website"], *curated_order]))
     visited, pages, errors, links = set(), [], [], {}
     attempted = 0
     # Curated URLs may be external application portals. Discovered off-site links
@@ -422,10 +424,10 @@ def crawl_org(target: dict, web: PublicWeb, max_pages: int) -> dict:
                 candidate = next((l for l in candidates if topic in l["topics"] and l["url"] not in pending), None)
                 if candidate:
                     pending.append(candidate["url"])
-            # Keep explicit analyst-supplied URLs first, while newly discovered
-            # program details can move ahead of older generic menu links.
-            curated = set(target.get("research_urls", []))
-            pending.sort(key=lambda u: (u in curated, link_priority(links[u], seed_url)
+            # Preserve the analyst's order before ranking discovered links.
+            # An older curated body link must not displace a newly requested gap.
+            pending.sort(key=lambda u: (u in curated_order, -curated_order.get(u, 0),
+                                       link_priority(links[u], seed_url)
                                        if u in links else (0, False)), reverse=True)
         except (Deferred, ValueError, OSError, http.client.HTTPException, etree.ParserError) as exc:
             errors.append({"url": url, "reason": f"{type(exc).__name__}: {exc}"[:600]})

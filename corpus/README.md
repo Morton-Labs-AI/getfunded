@@ -1,5 +1,24 @@
 # Open Funder Database — the `corpus/` pipeline
 
+The [active-funder campaign](docs/ACTIVE-FUNDERS-150K.md) targets 150,000 evidenced
+501(c)(3) funders with recent paid donations or live funder websites, recording
+source-scoped update dates and fit/inquiry gaps. The retained original
+[150,000-member evidence campaign](docs/EVIDENCE-150K.md) freezes an explicit
+IRS-subsection03 cohort, reuses saved sources for deterministic checks, and stages
+structured claims with exact source spans before semantic review. Its counts
+distinguish processed cases, unresolved evidence and approved publication.
+
+[Bulk source review](docs/BULK-FUNDER-REVIEW.md) audits acquired live sites in
+large checkpointed batches, compares EIN/filer-domain evidence and stages literal
+funding/inquiry passages locally. Its automated audit counts remain separate from
+semantic verification and approved publication; Supabase remains read-only.
+
+The [evidence-card format](docs/FUNDER-EVIDENCE-FORMAT.md) carries the approved
+before/after demonstration into private bulk research. Completed source audits
+can be projected with `funderdb research evidence-cards`; unresolved fit and
+inquiry guidance stays explicitly unknown, and projection adds no research or
+qualification count.
+
 For current website, program and news evidence, see the
 [organization research protocol](docs/ORGANIZATION-RESEARCH.md) and
 `funderdb research --help`. It provides an exhaustive inventory option and a

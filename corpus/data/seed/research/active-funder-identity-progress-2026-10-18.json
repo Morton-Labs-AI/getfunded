@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-18T15:30:50.775807+00:00",
+  "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+  "organizations": 2309073,
+  "research_step_records": 988,
+  "organizations_with_recorded_research_steps": 693,
+  "acquisition_states": {
+    "blocked": 31536,
+    "evidence_ready": 63462,
+    "needs_discovery": 1979809,
+    "pending": 234250,
+    "running": 16
+  },
+  "active_status": {
+    "schema": "active-funders/v2",
+    "as_of": "2026-10-18T15:30:28.903571+00:00",
+    "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "target_qualified_funders": 150000,
+    "search_pool_size": 235322,
+    "processed_search_candidates": 235322,
+    "states": {
+      "candidate_url_not_confirmed_or_stale": 1259,
+      "funder_role_not_established": 35239,
+      "live_funding_lead_identity_pending": 1326,
+      "not_observed_or_acquisition_blocked": 197352,
+      "suspected_parking_or_unrelated_content": 77,
+      "website_criteria_candidate_pending_semantic_review": 69
+    },
+    "dimensions": {
+      "liveness": {
+        "candidate_url_not_confirmed_or_stale": 1259,
+        "live_content_observed_within_7_days": 36634,
+        "not_observed_or_acquisition_blocked": 197352,
+        "suspected_parking_or_unrelated_content": 77
+      },
+      "freshness": {
+        "older_page_dates_only; overall_currency_unknown": 1808,
+        "recent_page_date_lead": 10731,
+        "update_month_unknown": 222783
+      },
+      "inquiry_readiness": {
+        "grant_inquiry_route_not_established": 234634,
+        "guidance_lead_requires_route_and_posture_review": 688
+      }
+    },
+    "website_criteria_candidates": 69,
+    "recent_dated_grant_records_pending_payment_review": 0,
+    "semantically_verified_funders": 0,
+    "target_remaining_unverified": 150000,
+    "remote_applied": 0,
+    "human_reviewed": 0,
+    "published": 0,
+    "model_calls": 0,
+    "worker_state": "following_crawler",
+    "free_gib": 177.6,
+    "completion_note": "Search-pool dispositions and date/keyword leads are not verified funders. Unknown dates and inquiry routes remain gaps; no padding to 150,000."
+  },
+  "new_organizations_reviewed": 19,
+  "new_proposals_staged": 22,
+  "new_claim_records": 107,
+  "superseded_new_claim_records": 6,
+  "current_new_claim_records": 101,
+  "new_research_step_records": 41,
+  "actual_queries": 12,
+  "targeted_reacquisitions": 8,
+  "remote_mutations": 0,
+  "applied": 0,
+  "human_reviewed": 0,
+  "published": 0
+}

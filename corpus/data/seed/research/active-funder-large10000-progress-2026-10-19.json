@@ -1,0 +1,355 @@
+{
+  "as_of": "2026-10-19T00:46:58.664450+00:00",
+  "scope": "Completed background source waves since prior handoff, separated from work after this request; no qualified admission",
+  "source_population": 2309073,
+  "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+  "previous_handoff_as_of": "2026-10-18T20:49:40.046498+00:00",
+  "request_start_as_of": "2026-10-19T00:30:07.905339+00:00",
+  "completed_between_handoff_and_request": {
+    "processed": 12151,
+    "distinct_organizations_audited": 11469,
+    "rechecks_completed": 682,
+    "pages_checked": 60273,
+    "candidate_proposals": 54,
+    "candidate_claim_records": 91,
+    "distinct_proposal_inputs": 54,
+    "repeated_identical_proposal_inputs": 0
+  },
+  "completed_after_request_start": {
+    "processed": 0,
+    "distinct_organizations_audited": 0,
+    "rechecks_completed": 0,
+    "pages_checked": 0,
+    "candidate_proposals": 0,
+    "candidate_claim_records": 0,
+    "distinct_proposal_inputs": 0,
+    "repeated_identical_proposal_inputs": 0
+  },
+  "completed_since_prior_handoff": {
+    "processed": 12151,
+    "distinct_organizations_audited": 11469,
+    "rechecks_completed": 682,
+    "pages_checked": 60273,
+    "candidate_proposals": 54,
+    "candidate_claim_records": 91,
+    "distinct_proposal_inputs": 54,
+    "repeated_identical_proposal_inputs": 0
+  },
+  "completed_background_waves": [
+    {
+      "directory": "wave-0014",
+      "members": 3019,
+      "members_sha256": "637e3fd559e867b6e04305a08b0dfc3b50ecb05052c6f4f5e5dcac569ba96d62",
+      "created_at": "2026-10-18T21:39:46.570525+00:00",
+      "status": {
+        "schema": "bulk-source-review/v1",
+        "as_of": "2026-10-18T21:41:26.112614+00:00",
+        "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+        "batch_size": 3019,
+        "processed": 3019,
+        "remaining": 0,
+        "states": {
+          "done": 3019
+        },
+        "dispositions": {
+          "identity_conflict_requires_review": 22,
+          "literal_funder_candidate; semantic_review_pending": 13,
+          "outgoing_funding_evidence_identity_pending": 1,
+          "outgoing_funding_not_established_in_acquired_content": 2983
+        },
+        "identity_evidence": {
+          "exact_publisher_ein": 295,
+          "filer_domain_ein_and_publisher_name": 2023,
+          "filer_domain_ein_only": 679,
+          "publisher_ein_conflict": 22
+        },
+        "pages_checked": 15544,
+        "candidate_proposals": 13,
+        "candidate_claim_records": 19,
+        "cases_with_conflict_flags": 29,
+        "fully_verified": 0,
+        "human_reviewed": 0,
+        "remote_applied": 0,
+        "published": 0,
+        "model_calls_by_worker": 0,
+        "worker_state": "initial_bulk_pass_complete; unresolved_dependencies_retained",
+        "free_gib": 152.9,
+        "completion_note": "Bulk source audits and literal candidates are separate from manual semantic review, qualified-funder admission, recent paid giving and human approval.",
+        "initial_batch_size": 3019,
+        "initial_processed": 3019,
+        "distinct_organizations_audited": 3019,
+        "distinct_organizations_in_batches": 3019,
+        "rechecks_completed": 0,
+        "distinct_proposal_inputs": 13,
+        "repeated_identical_proposal_inputs": 0
+      }
+    },
+    {
+      "directory": "wave-0015",
+      "members": 3056,
+      "members_sha256": "d5fad15f5923b3af01044cd616346a1c503b2a7dc09017d188b493f510c8f547",
+      "created_at": "2026-10-18T22:28:03.606495+00:00",
+      "status": {
+        "schema": "bulk-source-review/v1",
+        "as_of": "2026-10-18T22:29:30.437166+00:00",
+        "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+        "batch_size": 3056,
+        "processed": 3056,
+        "remaining": 0,
+        "states": {
+          "done": 3056
+        },
+        "dispositions": {
+          "identity_conflict_requires_review": 14,
+          "literal_funder_candidate; semantic_review_pending": 16,
+          "outgoing_funding_evidence_identity_pending": 3,
+          "outgoing_funding_not_established_in_acquired_content": 3023
+        },
+        "identity_evidence": {
+          "exact_publisher_ein": 259,
+          "filer_domain_ein_and_publisher_name": 1906,
+          "filer_domain_ein_only": 877,
+          "publisher_ein_conflict": 14
+        },
+        "pages_checked": 14945,
+        "candidate_proposals": 16,
+        "candidate_claim_records": 35,
+        "cases_with_conflict_flags": 17,
+        "fully_verified": 0,
+        "human_reviewed": 0,
+        "remote_applied": 0,
+        "published": 0,
+        "model_calls_by_worker": 0,
+        "worker_state": "initial_bulk_pass_complete; unresolved_dependencies_retained",
+        "free_gib": 151.3,
+        "completion_note": "Bulk source audits and literal candidates are separate from manual semantic review, qualified-funder admission, recent paid giving and human approval.",
+        "initial_batch_size": 3056,
+        "initial_processed": 3056,
+        "distinct_organizations_audited": 3056,
+        "distinct_organizations_in_batches": 3056,
+        "rechecks_completed": 0,
+        "distinct_proposal_inputs": 16,
+        "repeated_identical_proposal_inputs": 0
+      }
+    },
+    {
+      "directory": "wave-0016",
+      "members": 3055,
+      "members_sha256": "ef3719c780e1839ff4a590c8bfabbcb480c71cb4230be92530684ad6f193684e",
+      "created_at": "2026-10-18T23:20:22.049123+00:00",
+      "status": {
+        "schema": "bulk-source-review/v1",
+        "as_of": "2026-10-18T23:21:53.509372+00:00",
+        "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+        "batch_size": 3055,
+        "processed": 3055,
+        "remaining": 0,
+        "states": {
+          "done": 3055
+        },
+        "dispositions": {
+          "identity_conflict_requires_review": 22,
+          "literal_funder_candidate; semantic_review_pending": 11,
+          "outgoing_funding_evidence_identity_pending": 3,
+          "outgoing_funding_not_established_in_acquired_content": 3019
+        },
+        "identity_evidence": {
+          "exact_publisher_ein": 228,
+          "filer_domain_ein_and_publisher_name": 1921,
+          "filer_domain_ein_only": 884,
+          "publisher_ein_conflict": 22
+        },
+        "pages_checked": 14965,
+        "candidate_proposals": 11,
+        "candidate_claim_records": 19,
+        "cases_with_conflict_flags": 23,
+        "fully_verified": 0,
+        "human_reviewed": 0,
+        "remote_applied": 0,
+        "published": 0,
+        "model_calls_by_worker": 0,
+        "worker_state": "initial_bulk_pass_complete; unresolved_dependencies_retained",
+        "free_gib": 149.0,
+        "completion_note": "Bulk source audits and literal candidates are separate from manual semantic review, qualified-funder admission, recent paid giving and human approval.",
+        "initial_batch_size": 3055,
+        "initial_processed": 3055,
+        "distinct_organizations_audited": 3055,
+        "distinct_organizations_in_batches": 3055,
+        "rechecks_completed": 0,
+        "distinct_proposal_inputs": 11,
+        "repeated_identical_proposal_inputs": 0
+      }
+    },
+    {
+      "directory": "wave-0017",
+      "members": 3021,
+      "members_sha256": "f84b55a031a785f44be788288283eea48d8eddf1f89bdfc84a8654010cd440f1",
+      "created_at": "2026-10-19T00:10:54.608354+00:00",
+      "status": {
+        "schema": "bulk-source-review/v1",
+        "as_of": "2026-10-19T00:12:29.584059+00:00",
+        "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+        "batch_size": 3021,
+        "processed": 3021,
+        "remaining": 0,
+        "states": {
+          "done": 3021
+        },
+        "dispositions": {
+          "identity_conflict_requires_review": 18,
+          "literal_funder_candidate; semantic_review_pending": 14,
+          "outgoing_funding_evidence_identity_pending": 3,
+          "outgoing_funding_not_established_in_acquired_content": 2986
+        },
+        "identity_evidence": {
+          "exact_publisher_ein": 253,
+          "filer_domain_ein_and_publisher_name": 1917,
+          "filer_domain_ein_only": 833,
+          "publisher_ein_conflict": 18
+        },
+        "pages_checked": 14819,
+        "candidate_proposals": 14,
+        "candidate_claim_records": 18,
+        "cases_with_conflict_flags": 19,
+        "fully_verified": 0,
+        "human_reviewed": 0,
+        "remote_applied": 0,
+        "published": 0,
+        "model_calls_by_worker": 0,
+        "worker_state": "initial_bulk_pass_complete; unresolved_dependencies_retained",
+        "free_gib": 148.4,
+        "completion_note": "Bulk source audits and literal candidates are separate from manual semantic review, qualified-funder admission, recent paid giving and human approval.",
+        "initial_batch_size": 3021,
+        "initial_processed": 3021,
+        "distinct_organizations_audited": 3021,
+        "distinct_organizations_in_batches": 3021,
+        "rechecks_completed": 0,
+        "distinct_proposal_inputs": 14,
+        "repeated_identical_proposal_inputs": 0
+      }
+    }
+  ],
+  "cumulative_sweep": {
+    "schema": "bulk-source-review/v1",
+    "as_of": "2026-10-19T00:46:47.757230+00:00",
+    "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "batch_size": 66752,
+    "processed": 66752,
+    "remaining": 0,
+    "states": {
+      "done": 66752
+    },
+    "dispositions": {
+      "identity_conflict_requires_review": 363,
+      "literal_funder_candidate; semantic_review_pending": 790,
+      "outgoing_funding_evidence_identity_pending": 102,
+      "outgoing_funding_not_established_in_acquired_content": 65497
+    },
+    "identity_evidence": {
+      "exact_publisher_ein": 5275,
+      "filer_domain_ein_and_publisher_name": 44740,
+      "filer_domain_ein_only": 16339,
+      "filing_bridge_not_available": 33,
+      "filing_entity_or_domain_conflict": 2,
+      "publisher_ein_conflict": 363
+    },
+    "pages_checked": 327496,
+    "candidate_proposals": 790,
+    "candidate_claim_records": 1852,
+    "cases_with_conflict_flags": 674,
+    "fully_verified": 0,
+    "human_reviewed": 0,
+    "remote_applied": 0,
+    "published": 0,
+    "model_calls_by_worker": 0,
+    "worker_state": "following_acquisition; waiting_for_next_10000_case_wave",
+    "free_gib": 147.6,
+    "completion_note": "Bulk source audits and literal candidates are separate from manual semantic review, qualified-funder admission, recent paid giving and human approval.",
+    "initial_batch_size": 37063,
+    "initial_processed": 37063,
+    "distinct_organizations_audited": 57257,
+    "distinct_organizations_in_batches": 57257,
+    "rechecks_completed": 9495,
+    "distinct_proposal_inputs": 701,
+    "repeated_identical_proposal_inputs": 89,
+    "minimum_wave_size": 10000,
+    "new_live_cases_waiting_for_wave": 1856
+  },
+  "targeted_acquisition": {
+    "distinct_organizations_queued": 10000,
+    "conditional_skips": 0,
+    "states": {
+      "evidence_ready": 762,
+      "blocked": 2,
+      "pending": 9221,
+      "running": 15
+    },
+    "literal_funding_leads": 32,
+    "inquiry_guidance_leads": 43,
+    "recent_page_date_leads": 2924,
+    "lead_counts_overlap": true,
+    "queued_is_not_completed_research": true,
+    "cohort_differs_from_source_waves": true,
+    "previously_audited_source_gap_followups": true,
+    "changed_result_audits_count_as_rechecks": true
+  },
+  "minimum_next_wave": 10000,
+  "maximum_wave_size": 10000,
+  "actual_manual_activity": {
+    "as_of": "2026-10-19T00:43:16.771480+00:00",
+    "actual_steps": 24,
+    "distinct_organizations": 22,
+    "stages": {
+      "claim_review": 22,
+      "reverse_research": 2
+    },
+    "actual_queries": 2,
+    "strict_proposals": 22,
+    "claim_records": 57,
+    "claim_records_not_distinct_facts": true,
+    "human_reviewed": 0,
+    "remote_mutations": 0
+  },
+  "duplicate_index_summary": {
+    "as_of": "2026-10-19T00:44:05.113644+00:00",
+    "scope": "Bulk source runs plus strict single-case workspaces in active campaign; historical legacy raw-file/ledger preparations outside this format are not indexed. Independent SQLite observations, not a transactional census.",
+    "proposal_records": 942,
+    "distinct_proposal_input_hashes": 853,
+    "repeated_identical_proposal_inputs": 89,
+    "claim_records_indexed": 2475,
+    "distinct_scoped_literal_assertion_keys": 1799,
+    "repeated_scoped_literal_assertion_records": 676,
+    "duplicate_assertion_groups": 480,
+    "key_fields": [
+      "org_id",
+      "field",
+      "value",
+      "program",
+      "cycle",
+      "currency",
+      "unit",
+      "effective_date",
+      "published_date",
+      "timezone"
+    ],
+    "excluded_from_key": [
+      "citation/source vintage",
+      "author",
+      "conflict notes"
+    ],
+    "not_distinct_semantic_facts": true,
+    "human_reviewed": 0,
+    "remote_mutations": 0,
+    "application_gate": "Matching scoped literal assertions are repeated evidence observations, not automatic new facts. Preserve every source citation/conflict/vintage. Compare program/legal-entity/cycle and semantic overlaps before separately requested application; differing literal keys may still describe one fact."
+  },
+  "fully_verified": 0,
+  "remote_applied": 0,
+  "human_reviewed": 0,
+  "published": 0,
+  "supabase_calls_this_continuation": 0,
+  "remote_mutations": 0,
+  "worker_model_calls": 0,
+  "interactive_token_savings": "not measured",
+  "heartbeat": "paused; unchanged",
+  "status": "research_continues; new10000acquisition_and_next_wave_pending;150000qualifiedtarget_incomplete"
+}

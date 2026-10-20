@@ -1,6 +1,69 @@
 # Full-population research — 2026-10-17
 
-## Latest continuation — 2026-10-18, 07:37 UTC
+## Latest resume — 2026-10-18, 09:17 UTC
+
+The local crawler and tracker resumed with explicit authorization and existing
+safeguards. Supabase remained untouched; the heartbeat remains paused. The latest
+snapshot preserves all 2,309,073 organizations, with 74,230 crawl attempts and
+914 actual research steps across 661 organizations. Added 129 records, executed
+104 new queries and reconciled eight saved queries without replay. Eight saved
+candidate updates and one new structured candidate await separate application;
+zero applied, human-reviewed or published this session.
+
+See [the dated resumed report](RESEARCH-2026-10-18-RESUMED.md) for original
+compilations, conflicts, pending backlog and exact next steps. All older counts
+and active-automation statements below are historical.
+
+## Latest continuation — 2026-10-18, 07:56 UTC
+
+PR #18 was merged at the user's explicit request (merge `38e2a4c`). Further
+research continues through a follow-up draft PR. The recoverable-removal policy
+is now on main; no files or database rows were deleted.
+
+The denominator remains **2,309,073 organizations**. At 07:56 UTC, the queue
+contained **43,356 evidence-ready, 25,762 blocked, 16 running, 260,128 pending
+and 1,979,811 missing-site organizations**. There were **69,134 crawl attempts**.
+The earlier acquisition-resource scan below retains its original timestamp;
+it was not rerun or relabeled as current.
+
+This continuation executed **86 actual query strings**, recorded
+[64 missing-site searches](../data/seed/research/dawn-searches-2026-10-18.jsonl),
+queued [five attributed candidates](../data/seed/research/dawn-websites-2026-10-18.jsonl)
+and prepared [77 notes across 39 organizations](../data/seed/research/dawn-notes-2026-10-18.jsonl).
+Candidates include Tanaq, the archived West Broward booster page, One Well World,
+Monkton Institute and Chartis Foundation. Hosted-page roles, archived status and
+unresolved EIN bridges remain explicit. Thirty-two identity notes compare
+on-page EINs with registry/filing evidence; none constitutes human approval.
+
+There are now **785 durable research steps across 579 organizations**:
+413 website searches, 118 identity reviews, 17 news searches, 49 recipient/reverse
+reviews and 188 claim reviews. Counts are workflow records, not completed profiles.
+No signals were published. The last Supabase verification remains the 07:36
+observation below; this continuation made no Supabase mutations.
+
+Useful distinctions include:
+
+- Best Friends independently confirms its 2026 Binky successor award: rolling
+  applications, quarterly review and $1,000–$10,000 for qualifying newer network
+  partners with learning-course and action-plan requirements. Binky First Steps
+  remains discontinued; invitation-only Forward Steps is separate.
+- Outride's cash research round is closed; its school equipment program runs
+  October 5, 2026–January 29, 2027. Bag's Buddies opens January 15, 2027, and
+  Chartis says its next applications become available after June 1, 2027.
+- Berkeley confirms six 2026 Turner doctoral research awards without amounts.
+  The CSF Dynamics Society independently identifies Monkton as a brain-research
+  sponsor and links its website.
+- Chad A. Jacobs confirms its administration of United in Hope and JPFF support.
+  Different cumulative totals remain attributed to their respective sources.
+  Kids to Love confirms Hill-family support, without establishing an award amount.
+- MSU acquisition hit a response-size limit. Historical indexed fellowship
+  evidence does not establish current terms. GHD's shared international website
+  does not permit Australian awards to be assigned to its US legal entity.
+
+Verified by: direct compilation counts, record/source hashes, executed-query
+counts, denominator and human-publication gates. Tests: not run (weekly review policy).
+
+## Previous continuation — 2026-10-18, 07:37 UTC
 
 The campaign remains active across **all 2,309,073 organizations**. The
 [live local tracker](RESEARCH-TRACKER.md) continues at http://127.0.0.1:8768.

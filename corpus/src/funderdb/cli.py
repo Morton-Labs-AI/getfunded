@@ -164,6 +164,147 @@ def research_carry_forward(run: Path, previous: Path) -> None:
     click.echo(json.dumps(carry_forward(run, previous), indent=2))
 
 
+@research.command("evidence-init")
+@click.option("--source-run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--run", type=click.Path(path_type=Path), required=True)
+@click.option("--access", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--size", type=click.IntRange(1, 150000), default=150000, show_default=True)
+def research_evidence_init(source_run: Path, run: Path, access: Path, size: int) -> None:
+    """Freeze an explicit IRS-subsection03 cohort; public API GETs and local writes only."""
+    import json
+    from .research.cohort import initialize_cohort
+    click.echo(json.dumps(initialize_cohort(source_run, run, access, size, click.echo), indent=2))
+
+
+@research.command("active-funders-init")
+@click.option("--source-run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--previous", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--run", type=click.Path(path_type=Path), required=True)
+def research_active_init(source_run: Path, previous: Path, run: Path) -> None:
+    """Build/extend a private URL-bearing c3 search pool, without padding the 150k target."""
+    import json
+    from .research.active_funders import initialize
+    click.echo(json.dumps(initialize(source_run, previous, run), indent=2))
+
+
+@research.command("active-funders-work")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--follow", is_flag=True)
+@click.option("--limit", type=click.IntRange(min=1), default=None)
+def research_active_work(run: Path, follow: bool, limit: int | None) -> None:
+    """Check saved URL liveness, scoped update dates and grant-inquiry leads locally."""
+    import json
+    from .research.active_funders import work
+    click.echo(json.dumps(work(run, follow, limit, click.echo), indent=2))
+
+
+@research.command("active-funders-sweep")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--out", type=click.Path(path_type=Path), required=True)
+@click.option("--limit", type=click.IntRange(min=1), default=None)
+@click.option("--workers", type=click.IntRange(1, 8), default=4, show_default=True)
+@click.option("--follow", is_flag=True, help="After the frozen pass, follow new acquisitions and changed source results in bulk waves.")
+@click.option("--minimum-wave-size", type=click.IntRange(1000, 10000), default=3000, show_default=True)
+def research_active_sweep(run: Path, out: Path, limit: int | None, workers: int, follow: bool, minimum_wave_size: int) -> None:
+    """Audit a frozen bulk of live saved sites and stage literal candidates locally."""
+    import json
+    from .research.sweep import work
+    click.echo(json.dumps(work(run, out, limit, workers, follow, minimum_wave_size=minimum_wave_size), indent=2))
+
+
+@research.command("evidence-cards")
+@click.option("--run", type=click.Path(exists=True, file_okay=False, path_type=Path), required=True)
+@click.option("--out", type=click.Path(file_okay=False, path_type=Path), required=True)
+def research_evidence_cards(run: Path, out: Path) -> None:
+    """Project a completed private sweep into before/after cards, without approvals."""
+    import json
+    from .research.experience import project_cards
+    click.echo(json.dumps(project_cards(run, out), indent=2))
+
+
+@research.command("active-funders-recent-giving")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--access", type=click.Path(exists=True, path_type=Path), required=True)
+def research_active_giving(run: Path, access: Path) -> None:
+    """GET dated paid-grant candidates; source payment/date precision still needs review."""
+    import json
+    from datetime import datetime, timezone
+    from .research.active_funders import recent_giving
+    click.echo(json.dumps(recent_giving(access, run, datetime.now(timezone.utc).date()), indent=2))
+
+
+@research.command("active-funders-prepare")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--org-id", required=True)
+def research_active_prepare(run: Path, org_id: str) -> None:
+    """Prepare one private bounded review item using the existing proposal format."""
+    import json
+    from .research.active_funders import prepare_review
+    click.echo(json.dumps(prepare_review(run, org_id), indent=2))
+
+
+@research.command("evidence-work")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--follow", is_flag=True, help="Follow new saved crawler results, without network/model calls.")
+@click.option("--batch-size", type=click.IntRange(1, 1000), default=250, show_default=True)
+@click.option("--limit", type=click.IntRange(min=1), default=None)
+def research_evidence_work(run: Path, follow: bool, batch_size: int, limit: int | None) -> None:
+    """Check saved hashes, EIN observations and evidence gaps; never approve claims."""
+    import json
+    from .research.evidence_worker import work
+    click.echo(json.dumps(work(run, follow, batch_size, limit, click.echo), indent=2))
+
+
+@research.command("evidence-report")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+def research_evidence_report(run: Path) -> None:
+    """Separate processed, blocked, source-checked, staged and approved counts."""
+    import json
+    from .research.evidence_worker import status
+    click.echo(json.dumps(status(run), indent=2))
+
+
+@research.command("evidence-prioritize")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+def research_evidence_prioritize(run: Path) -> None:
+    """Prioritize cohort acquisition in the local crawler, preserving before-images."""
+    import json
+    from .research.evidence_worker import prioritize
+    click.echo(json.dumps(prioritize(run), indent=2))
+
+
+@research.command("evidence-submit")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--proposal", type=click.Path(exists=True, path_type=Path), required=True)
+def research_evidence_submit(run: Path, proposal: Path) -> None:
+    """Validate a strict candidate against exact saved source spans; stage privately."""
+    import json
+    from .research.evidence import submit_proposal
+    click.echo(json.dumps(submit_proposal(run, proposal), indent=2))
+
+
+@research.command("evidence-attach")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--sources", type=click.Path(exists=True, path_type=Path), required=True)
+def research_evidence_attach(run: Path, sources: Path) -> None:
+    """Attach saved source references to a member; no requests or identity approval."""
+    import json
+    from .research.evidence import attach_sources
+    click.echo(json.dumps(attach_sources(run, sources), indent=2))
+
+
+@research.command("evidence-prepare")
+@click.option("--run", type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--org-id", required=True)
+@click.option("--out", type=click.Path(path_type=Path), required=True)
+@click.option("--max-characters", type=click.IntRange(2000, 24000), default=12000, show_default=True)
+def research_evidence_prepare(run: Path, org_id: str, out: Path, max_characters: int) -> None:
+    """Prepare bounded private source windows for a future model; no model request."""
+    import json
+    from .research.evidence import prepare_work_item
+    click.echo(json.dumps(prepare_work_item(run, org_id, out, max_characters), indent=2))
+
+
 @main.command()
 def doctor() -> None:
     """Check Python, uv, extensions, DATABASE_URL reachability and disk space."""

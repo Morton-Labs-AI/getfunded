@@ -1,0 +1,82 @@
+{
+  "recorded_at": "2026-10-18T11:34:15.249791+00:00",
+  "scope": "active-funder evidence revision; incomplete research",
+  "active_funders": {
+    "schema": "active-funders/v2",
+    "as_of": "2026-10-18T11:33:39.160119+00:00",
+    "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "target_qualified_funders": 150000,
+    "search_pool_size": 59414,
+    "processed_search_candidates": 8150,
+    "states": {
+      "candidate_url_not_confirmed_or_stale": 393,
+      "funder_role_not_established": 6751,
+      "live_funding_lead_identity_pending": 639,
+      "not_observed_or_acquisition_blocked": 331,
+      "pending": 51264,
+      "suspected_parking_or_unrelated_content": 14,
+      "website_criteria_candidate_pending_semantic_review": 22
+    },
+    "dimensions": {
+      "liveness": {
+        "candidate_url_not_confirmed_or_stale": 393,
+        "live_content_observed_within_7_days": 7412,
+        "not_observed_or_acquisition_blocked": 331,
+        "suspected_parking_or_unrelated_content": 14
+      },
+      "freshness": {
+        "older_page_dates_only; overall_currency_unknown": 494,
+        "recent_page_date_lead": 1549,
+        "update_month_unknown": 6107
+      },
+      "inquiry_readiness": {
+        "grant_inquiry_route_not_established": 7814,
+        "guidance_lead_requires_route_and_posture_review": 336
+      }
+    },
+    "website_criteria_candidates": 22,
+    "recent_dated_grant_records_pending_payment_review": 0,
+    "semantically_verified_funders": 0,
+    "target_remaining_unverified": 150000,
+    "remote_applied": 0,
+    "human_reviewed": 0,
+    "published": 0,
+    "model_calls": 0,
+    "worker_state": "checking_saved_website_evidence",
+    "free_gib": 187.5,
+    "completion_note": "Search-pool dispositions and date/keyword leads are not verified funders. Unknown dates and inquiry routes remain gaps; no padding to 150,000."
+  },
+  "search_pool_vintage": {
+    "as_of": "2026-10-18T11:32:57.133428+00:00",
+    "search_pool_size": 59414,
+    "source_inventory_sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7",
+    "last_additions_sha256": "2eeb218e660e38b1df244ea6b61e1536c468835e3001871c8235c3826b81262b"
+  },
+  "eligibility_export": {
+    "public_charity_rows_observed": 294000,
+    "public_charity_export_complete": false,
+    "private_foundation_rows_previously_observed": 135060
+  },
+  "new_staged_proposals": 2,
+  "new_staged_claims": 5,
+  "source_review_steps_added": 2,
+  "actual_new_search_queries": 0,
+  "full_campaign": {
+    "as_of": "2026-10-18T11:33:46.202481+00:00",
+    "population": 2309073,
+    "crawl_attempted": 79622,
+    "states": {
+      "blocked": 28320,
+      "evidence_ready": 51284,
+      "needs_discovery": 1979809,
+      "pending": 249645,
+      "running": 15
+    },
+    "research_steps": 924,
+    "organizations_with_steps": 670
+  },
+  "remote_mutations": 0,
+  "human_reviewed": 0,
+  "published": 0,
+  "attribution": "Original implementation and research by agent:codex; pending human review"
+}

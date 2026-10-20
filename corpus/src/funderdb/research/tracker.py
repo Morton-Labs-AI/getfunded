@@ -18,6 +18,132 @@ def _json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def _batch_capacity(active: dict | None, sweep: dict | None) -> dict:
+    """Explain the next-wave dependency using dated aggregate snapshots only."""
+    unknown = {"state": "unavailable", "note": "Next-wave capacity is unavailable."}
+    if not active or not sweep:
+        return unknown
+    pool, screened = active.get("search_pool_size"), active.get("processed_search_candidates")
+    waiting, minimum = sweep.get("new_live_cases_waiting_for_wave"), sweep.get("minimum_wave_size")
+    remaining = sweep.get("remaining")
+    ages = (active.get("status_age_seconds"), sweep.get("status_age_seconds"))
+    if (any(type(n) is not int or n < 0 for n in (pool, screened, waiting, minimum, remaining))
+            or pool == 0 or screened > pool or minimum == 0
+            or any(type(age) is not int or not -60 <= age < 180 for age in ages)):
+        return {**unknown, "note": "Next-wave capacity needs fresh, complete pool and audit snapshots."}
+    result = {"pool_candidates_remaining": pool - screened,
+              "unseen_live_pairs": waiting, "minimum_wave_size": minimum,
+              "shortfall": max(0, minimum - waiting),
+              "pool_as_of": active["as_of"], "sweep_as_of": sweep["as_of"]}
+    if remaining:
+        state, note = "auditing_frozen_sources", "A frozen source wave still has audits remaining."
+    elif waiting >= minimum:
+        state, note = "enough_sources_for_next_wave", "Enough unseen live-source pairs are available for the next wave."
+    elif screened < pool:
+        state, note = "screening_current_pool", "Current pool candidates remain to be screened; the next wave is not yet full."
+    else:
+        state, note = "more_eligible_sources_needed", (
+            "The current eligible pool is fully screened and cannot fill the next wave from its available live sources. "
+            "Discover and attribute new eligible websites or acquire genuinely new source evidence. "
+            "This is a pool snapshot, not proof that every organization has been researched.")
+    return {**result, "state": state, "note": note}
+
+
+def _requested_continuation(run: Path, inventory: str, timestamp: datetime) -> dict:
+    """Keep a requested multi-wave target separate from frozen membership."""
+    start, progress = _json(run / "request-start.json"), _json(run / "progress.json")
+    baseline = start["inherited_request_baseline"]
+    size = start["requested_candidates"]
+    if (type(size) is not int or size != 20000 or progress["requested_candidates"] != size
+            or baseline["prior_sweep_status"]["source_inventory_sha256"] != inventory):
+        raise ValueError("requested continuation does not match this inventory or target")
+    first = Path(start["previous_pending_continuation"]).resolve()
+    if first.parent != run.parent:
+        raise ValueError("component continuation must remain in the same private sweep")
+    audited = cards = 0
+    waves = set(baseline["existing_waves"])
+    for component in (first, run / "second-wave"):
+        proof = component / "selected-completion-verified.json"
+        if not proof.exists():
+            continue
+        detail = _json(proof)
+        wave = Path(detail["completion_wave"]).resolve()
+        if wave.parent != run.parent / "waves" or str(wave) in waves:
+            raise ValueError("requested continuation repeats a prior wave")
+        manifest = _json(wave / "sweep.json")
+        if (manifest["source_inventory_sha256"] != inventory or manifest["members"] != 10000
+                or detail["audits_done"] != 10000 or detail["reviews_hash_checked"] != 10000):
+            raise ValueError("component lacks its completed source-audit proof")
+        waves.add(str(wave))
+        audited += 10000
+        projection = component / "bulk-evidence-cards" / "manifest.json"
+        if projection.exists():
+            projected = _json(projection)
+            if (projected["source_run"] != str(wave)
+                    or projected["source_inventory_sha256"] != inventory
+                    or projected["members_sha256"] != manifest["members_sha256"]
+                    or projected["card_records"] != 10000):
+                raise ValueError("card projection does not match its source wave")
+            cards += 10000
+    summary_path = run / "manual-summary.json"
+    manual = _json(summary_path) if summary_path.exists() else {}
+    return {"requested_candidates": size, "source_audits_verified": audited,
+            "source_audits_remaining": size - audited, "private_card_projections": cards,
+            "unseen_live_pairs_waiting": progress.get("unseen_live_pairs_waiting_for_next_wave"),
+            "bounded_interpretations": manual.get("bounded_interpretations"),
+            "manual_research_steps": manual.get("manual_research_steps"),
+            "manual_strict_preparations": manual.get("strict_preparations"),
+            "stage": progress["stage"], "qualified": 0, "applied": 0, "human_reviewed": 0,
+            "published": 0,
+            "status_age_seconds": round((timestamp - datetime.fromisoformat(progress["at"])).total_seconds()),
+            "completion_note": "Requested target, completed source audits, private card projections and bounded "
+                "interpretations are separate counts. An audit or card does not qualify a funder. "
+                "Organization rechecks and repeated inputs remain in the cumulative source-review panel."}
+
+
+def _selected_batch(run: Path, inventory: str, timestamp: datetime) -> dict:
+    """Expose only counts for a fixed acquisition/source-audit completion batch."""
+    manifest = _json(run / "selected-cohort.json")
+    size = manifest["members"]
+    if manifest["source_inventory_sha256"] != inventory or not isinstance(size, int) or size < 1:
+        raise ValueError("selected batch does not match this inventory")
+    progress = _json(run / "completion-coordinator-status.json")
+    stage, states = progress["stage"], progress["states"]
+    if stage == "waiting_for_terminal_selected_acquisitions":
+        acquisition, audited = states, 0
+    elif stage == "auditing_frozen_selected10000":
+        acquisition = _json(run / "frozen-completion-wave.json")["states"]
+        if sum(states.values()) != size:
+            raise ValueError("selected source-audit count differs from frozen membership")
+        audited = states.get("done", 0)
+    else:
+        raise ValueError("unknown selected-batch progress stage")
+    if sum(acquisition.values()) != size or any(n < 0 for n in acquisition.values()):
+        raise ValueError("selected acquisition count differs from frozen membership")
+    completed = run / "selected-completion-verified.json"
+    if completed.exists():
+        final = _json(completed)
+        if (final["selected_candidates"] != size or final["audits_done"] != size
+                or final["reviews_hash_checked"] != size
+                or final["selected_members_equal_frozen_members"] is not True
+                or final["cumulative_sweep"]["source_inventory_sha256"] != inventory):
+            raise ValueError("selected completion lacks its membership/integrity checks")
+        stage, audited = "selected_source_audit_complete", size
+        progress = final
+    if not 0 <= audited <= size:
+        raise ValueError("selected audit count exceeds frozen membership")
+    ready, blocked = acquisition.get("evidence_ready", 0), acquisition.get("blocked", 0)
+    return {"as_of": progress["as_of"], "members": size, "stage": stage,
+            "acquisitions_terminal": ready + blocked, "acquisitions_with_evidence": ready,
+            "acquisitions_blocked": blocked, "acquisitions_remaining": size - ready - blocked,
+            "source_audits_done": audited, "source_audits_remaining": size - audited,
+            "fully_verified": 0,
+            "status_age_seconds": round((timestamp - datetime.fromisoformat(
+                progress["as_of"].replace("Z", "+00:00"))).total_seconds()),
+            "completion_note": "Acquisition outcomes and source audits are separate from qualified-funder admission. "
+                "Blocked sources retain their access dependencies; a completed audit does not resolve every identity or program gap."}
+
+
 class Tracker:
     def __init__(self, run: Path):
         self.run = run.resolve()
@@ -85,6 +211,100 @@ class Tracker:
                 pass
             config_path = self.run / "tracker-config.json"
             config = _json(config_path) if config_path.exists() else {}
+            evidence = None
+            if config.get("evidence_run"):
+                evidence_run = Path(config["evidence_run"]).resolve()
+                manifest_path = evidence_run / "cohort.json"
+                evidence_path = evidence_run / "evidence-status.json"
+                if manifest_path.exists() and evidence_path.exists():
+                    manifest, detail = _json(manifest_path), _json(evidence_path)
+                    if (manifest.get("source_inventory_sha256") != settings["input_sha256"]
+                            or manifest.get("members_sha256") != detail.get("cohort_sha256")):
+                        raise ValueError("evidence cohort does not match this inventory")
+                    # Aggregate allowlist only: no private paths, excerpts or proposals.
+                    evidence = {k: detail[k] for k in (
+                        "as_of", "cohort_size", "processed_members", "remaining_initial_pass",
+                        "states", "identity_evidence", "page_checks", "candidate_submissions",
+                        "remote_applied", "human_reviewed", "published", "fully_verified_organizations",
+                        "model_calls_by_evidence_worker", "model_tokens_by_evidence_worker",
+                        "rules_phase", "completion_note", "worker_state") if k in detail}
+                    evidence["status_age_seconds"] = round((timestamp - datetime.fromisoformat(
+                        detail["as_of"].replace("Z", "+00:00"))).total_seconds())
+                    try:
+                        with (evidence_run / "evidence-worker.lock").open("r") as lease:
+                            try:
+                                fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                                evidence["lease_held"] = False
+                                fcntl.flock(lease, fcntl.LOCK_UN)
+                            except BlockingIOError:
+                                evidence["lease_held"] = True
+                    except OSError:
+                        evidence["lease_held"] = None
+            active = None
+            if config.get("active_funders_run"):
+                active_run = Path(config["active_funders_run"]).resolve()
+                active_path = active_run / "active-status.json"
+                if active_path.exists():
+                    detail = _json(active_path)
+                    if detail.get("source_inventory_sha256") != settings["input_sha256"]:
+                        raise ValueError("active-funder pool does not match this inventory")
+                    active = {k: detail[k] for k in (
+                        "as_of", "target_qualified_funders", "search_pool_size", "processed_search_candidates",
+                        "states", "dimensions", "website_criteria_candidates", "semantically_verified_funders",
+                        "target_remaining_unverified", "remote_applied", "human_reviewed", "published",
+                        "model_calls", "worker_state", "completion_note") if k in detail}
+                    active["status_age_seconds"] = round((timestamp - datetime.fromisoformat(
+                        detail["as_of"].replace("Z", "+00:00"))).total_seconds())
+                    try:
+                        with (active_run / "active-worker.lock").open("r") as lease:
+                            try:
+                                fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                                active["lease_held"] = False
+                                fcntl.flock(lease, fcntl.LOCK_UN)
+                            except BlockingIOError:
+                                active["lease_held"] = True
+                    except OSError:
+                        active["lease_held"] = None
+            sweep = None
+            if config.get("sweep_run"):
+                sweep_run = Path(config["sweep_run"]).resolve()
+                sweep_path = sweep_run / "sweep-status.json"
+                if sweep_path.exists():
+                    detail = _json(sweep_path)
+                    if detail.get("source_inventory_sha256") != settings["input_sha256"]:
+                        raise ValueError("bulk sweep does not match this inventory")
+                    sweep = {k: detail[k] for k in (
+                        "as_of", "batch_size", "processed", "remaining", "states", "dispositions",
+                        "initial_batch_size", "initial_processed", "distinct_organizations_audited", "rechecks_completed",
+                        "identity_evidence", "pages_checked", "candidate_proposals", "candidate_claim_records",
+                        "distinct_proposal_inputs", "repeated_identical_proposal_inputs",
+                        "minimum_wave_size",
+                        "new_live_cases_waiting_for_wave",
+                        "cases_with_conflict_flags", "fully_verified", "human_reviewed", "remote_applied",
+                        "published", "worker_state", "completion_note") if k in detail}
+                    sweep["status_age_seconds"] = round((timestamp - datetime.fromisoformat(
+                        detail["as_of"].replace("Z", "+00:00"))).total_seconds())
+                    with (sweep_run / "sweep-worker.lock").open("a") as lease:
+                        try:
+                            fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                            sweep["lease_held"] = False
+                            fcntl.flock(lease, fcntl.LOCK_UN)
+                        except BlockingIOError:
+                            sweep["lease_held"] = True
+            requested = None
+            if config.get("requested_continuation_run"):
+                requested_run = Path(config["requested_continuation_run"]).resolve()
+                if self.run.parent not in requested_run.parents:
+                    raise ValueError("requested continuation must remain inside private research")
+                requested = _requested_continuation(requested_run, settings["input_sha256"], timestamp)
+                if requested["source_audits_remaining"]:
+                    requested["capacity"] = _batch_capacity(active, sweep)
+            selected = None
+            if config.get("selected_cohort_run"):
+                selected_run = Path(config["selected_cohort_run"]).resolve()
+                if self.run.parent not in selected_run.parents:
+                    raise ValueError("selected batch must remain inside private research")
+                selected = _selected_batch(selected_run, settings["input_sha256"], timestamp)
             point = {
                 "as_of": status["as_of"], "attempted": status["crawl_attempted"],
                 "evidence_ready": status["states"].get("evidence_ready", 0),
@@ -101,6 +321,11 @@ class Tracker:
                 "states": status["states"], "attempted": status["crawl_attempted"],
                 "research_organizations": touched, "research_stages": stages,
                 "fully_cross_verified": None,
+                "evidence_cohort": evidence,
+                "active_funders": active,
+                "bulk_sweep": sweep,
+                "selected_batch": selected,
+                "requested_continuation": requested,
                 "human_reviewed_by_workflow": status.get("human_reviewed"),
                 "published_by_workflow": status.get("published_by_this_workflow"),
                 "worker": {

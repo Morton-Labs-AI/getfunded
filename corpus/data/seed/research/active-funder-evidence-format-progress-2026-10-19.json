@@ -1,0 +1,71 @@
+{
+  "schema": "active-funder-evidence-format-progress/v1",
+  "as_of": "2026-10-19T18:58:18.757223+00:00",
+  "author": "agent:codex",
+  "selected_wave": "wave-0023",
+  "selected_source_audits": 10000,
+  "newly_audited_organizations": 10000,
+  "organization_rechecks": 0,
+  "page_checks": 49458,
+  "automatic_proposals": 51,
+  "automatic_claim_observations": 89,
+  "private_bulk_card_projections": 10000,
+  "projection_additional_research_steps": 0,
+  "manual": {
+    "as_of": "2026-10-19T18:08:50.545759+00:00",
+    "manual_steps": 243,
+    "organizations": 216,
+    "stages": {
+      "reverse_research": 9,
+      "website_search": 20,
+      "claim_review": 136,
+      "identity_review": 78
+    },
+    "actual_queries": 39,
+    "first_bounded_cards": 204,
+    "presentation_revisions": 4,
+    "strict_proposal_records": 124,
+    "strict_candidate_observations": 124,
+    "proposal_organizations": 124,
+    "card_holds": 89,
+    "typed_or_context_field_holds": 7,
+    "human_reviewed": 0,
+    "remote_applied": 0,
+    "published": 0,
+    "supabase_calls": 0,
+    "remote_mutations": 0
+  },
+  "duplicate_snapshot": {
+    "as_of": "2026-10-19T18:58:13.346658+00:00",
+    "proposal_records": 1567,
+    "distinct_proposal_input_hashes": 1478,
+    "repeated_identical_proposal_inputs": 89,
+    "claim_records_indexed": 3440,
+    "distinct_scoped_literal_assertion_keys": 2692,
+    "repeated_scoped_literal_assertion_records": 748,
+    "not_distinct_semantic_facts": true
+  },
+  "next_generated_followups": 128,
+  "generated_is_not_completed_research": true,
+  "cumulative": {
+    "processed": 126752,
+    "distinct_organizations_audited": 107245,
+    "rechecks_completed": 19507,
+    "pages_checked": 633034,
+    "candidate_proposals": 1097,
+    "candidate_claim_records": 2415,
+    "distinct_proposal_inputs": 1008,
+    "repeated_identical_proposal_inputs": 89
+  },
+  "inventory": {
+    "organizations": 2309073,
+    "sha256": "f88461d994b2cc8110c6e1a2c1401b5b325d55fc31db14342ea60755f05627e7"
+  },
+  "remote_mutations": 0,
+  "supabase_calls": 0,
+  "fully_verified": 0,
+  "human_reviewed": 0,
+  "remote_applied": 0,
+  "confirmed_profiles_published": 0,
+  "status": "source_batch_complete; awaiting_separate_application"
+}
