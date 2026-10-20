@@ -8,7 +8,8 @@ Supabase remains read-only. Fix a saved-source extraction gap where malformed
 navigation could hide explicit main content; new reviews identify the extraction
 policy, and prior audits are preserved. One reproducing regression failed before
 and passed after the fix under the escaped-bug exception; routine suites and CI
-polling were not run. The 20,000-source batch remains in progress.
+polling were not run. That resume checkpoint preceded the completed source batch
+recorded below.
 
 All notable changes to this project are documented in this file.
 
@@ -20,9 +21,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
-- A halfway checkpoint for the requested 20,000-source continuation: one actual
-  10,000-source wave and private card projection completed, with attributed
-  program, inquiry and identity findings. The second wave remains in progress.
+- The requested 20,000-source continuation completed with 98,664 page checks,
+  private evidence cards, 274 bounded followup dispositions and separate duplicate
+  counts. Original fit/inquiry findings retain unresolved identity and cycle holds;
+  Supabase remains read-only and qualification/application remain pending.
 
 - A requested-20,000 continuation panel separating completion-proof audits from
   waiting acquisitions, bounded interpretations and qualification, with attributed

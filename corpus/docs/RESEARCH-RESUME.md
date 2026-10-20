@@ -1,4 +1,33 @@
-## Latest state — resumed by explicit user request, October 19, 2026
+# Research resume and handoff
+
+## Latest: requested 20,000 source batch complete; application deferred
+
+Read [the completed batch report](ACTIVE-FUNDERS-NEXT20000-2026-10-19.md) first.
+Waves 0024 and 0025 contain 20,000 newly audited organizations, zero organization
+rechecks, 98,664 page checks and 20,000 private card projections. All 274 followups
+have bounded passage or tax-ID dispositions; 18 also have deeper selected-body
+review. Manual work totals 440 steps across 390 organizations, 128 body cards,
+25 revisions, 117 strict preparations and 27 actual queries. No qualified,
+applied, human-reviewed or confirmed-profile publication count was added.
+
+Private current handoff:
+`data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-2026-10-19/HANDOFF-COMPLETE.json`.
+Root APPLICATION-BACKLOG links dated before-images, proposals and all scope/identity/
+duplicate gates. Supabase stays read-only; fresh exact application readback belongs
+only in a separately requested session. Pending application never blocks research.
+
+The duplicate snapshot contains 1,816 proposal records, 1,727 input hashes and
+89 identical-input repetitions; 3,735 claim observations, 2,980 scoped literal
+keys and 755 repeated observations. These differ from organization rechecks and
+semantic facts. Keep old snapshots. Preserve the full
+2,309,073 inventory/hash. Existing guarded acquisition/audit followers continue;
+finite 20,000 coordinator exited after receipt. Inspect actual leases/checkpoints/disk
+before any restart. Old heartbeat stays paused; no new automation, outreach,
+subagents, deletion, main push, merge or CI polling. Next primary gaps include
+Haymarket's mixed years/inaccessible packet and unresolved exact legal payers and
+current standing. The 150,000 qualification and later rules/model phase are incomplete.
+
+## Historical resume checkpoint — October 19, 2026
 
 The user explicitly resumed the saved 20,000 batch after the pause below. The
 complete inventory was rehashed: 2,309,073 organizations, unchanged SHA-256
