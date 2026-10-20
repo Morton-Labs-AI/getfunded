@@ -4,7 +4,21 @@ October 20, 2026, 17:27 UTC. The next requested batch is assigned to **waves0030
 
 One finite local coordinator waits for the two component proofs, checks membership/source hashes and projects private evidence cards. It is not a recurring automation. All five crawler, evidence-follower, source-follower, tracker and coordinator leases were held at this checkpoint; free disk remained above the10GiB guard. The16-worker/six-page cap, shared host pacing, robots/TLS/public-IP/body-size safeguards remain unchanged. The old heartbeat remains paused.
 
-## Independent evidence work while acquisition proceeds
+## Capacity diagnosis and missing-site discovery · October 20, 18:20 UTC
+
+The known-URL eligible pool is exhausted: all **235,324 pool members have assessments**, and the local read-only diagnostic found **zero eligible organizations outside that pool with a known URL**. Only **1,703 unseen live-source pairs** were waiting at the dated observation, below the next 10,000-member wave threshold by **8,297**. Waves0030/0031 have no component proof or followup index to review. Waiting for the existing crawler alone cannot complete the requested batch. These are separate local observations, not a transactional census or a continuously live queue count.
+
+The next dependency is attributable website discovery for missing-site eligible organizations. Acquired pages outside the eligibility pool, historical awards, blocked fetches and repeated source pairs cannot fill that gap. Pool expansion must use the existing append-only admission path after genuine website discovery; the immutable inventory remains unchanged. The coordinator remains a waiter for real completion proofs, not evidence that completion is imminent.
+
+Twelve additional executed queries across eight missing-site organizations produced eight registered website-search steps and **zero attributable official domains assigned**. Total independent work is now **42 steps across32 organizations and24 executed queries**;20 cards,14 revisions and18 strict preparations remain unchanged. Search representations were reviewed; two subsequent native opens failed. No successful native-body review is claimed for those opens. No new proposal input or claim observation was added, so the prior dated duplicate snapshot is unchanged.
+
+The search results preserve several holds: secondary current-standing warnings for an older filing-only entity; state corporate status versus IRS status; inconsistent filing/grant-year summaries; and an announcement naming a similarly styled grant recipient without an exact EIN bridge. Incoming funding does not establish outgoing grantmaking. No current payment date, whole-site update month, open call or inquiry guidance was inferred.
+
+Private diagnosis: `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-batch3-2026-10-20/capacity-diagnosis-20261020.json`. Search responses, original before-images and registration receipts remain private. Next: discover and attribute new eligible domains; retain queue before-images; admit them through the existing local pool path; let guarded workers assess them; reconcile actual0030/0031 proofs and then review their evidence gaps. **0/20,000 completed source audits remains the honest requested-batch count.** Supabase received zero calls or mutations.
+
+Verified by: eight new canonical research-step registrations and exact source-record hashes checked against the local queue. Tests: not run (weekly review policy).
+
+## Earlier independent evidence work while acquisition proceeded
 
 This continuation records **34 actual research steps across24 organizations**,20 individual before/after cards,14 later revisions,12 executed queries and18 strict local preparations/18 cited observations. Twenty selected current leads had no prior individual research step when selected. Their30 normalized page bodies were read; some contain only shells/navigation, which is explicitly insufficient evidence. Four inherited organizations also received targeted gap review.
 
@@ -38,7 +52,7 @@ The18 new individual proposal inputs have18 distinct hashes. The dated campaign 
 Exact private checkpoint: `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-batch3-2026-10-20/HANDOFF-IN-PROGRESS.json`.
 Pending application: `data/research/active-funders-150k-2026-10-18/APPLICATION-BACKLOG.json`, linked to the mandatory application gates and interim duplicate index.
 
-Next: let the existing followers finish0030 and0031; the finite coordinator reconciles actual proofs/cards. Review their new followup indexes and reconcile overlapping priority IDs without replaying34steps,12queries or18preparations. Update the final duplicate snapshot and report only after actual completion. The150,000 verified-funder target and later detailed rules/cheaper-model phase remain incomplete. No outreach, subagents, deletion, new automation, merge, main push or CI polling occurred.
+Earlier continuation assumption, superseded by the capacity diagnosis above: let the existing followers finish0030 and0031; the finite coordinator reconciles actual proofs/cards. Review their new followup indexes and reconcile overlapping priority IDs without replaying34steps,12queries or18preparations. Update the final duplicate snapshot and report only after actual completion. The150,000 verified-funder target and later detailed rules/cheaper-model phase remain incomplete. No outreach, subagents, deletion, new automation, merge, main push or CI polling occurred.
 
 Original research and implementation: Codex. Human review and DCO acceptance remain pending.
 

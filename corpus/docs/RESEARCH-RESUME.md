@@ -1,5 +1,13 @@
 # Research resume and handoff
 
+## Latest: waves0030/0031 capacity dependency — October 20, 18:20 UTC
+
+The requested batch remains **0/20,000 complete**. The [capacity diagnosis](ACTIVE-FUNDERS-NEXT20000-BATCH3-2026-10-20.md) supersedes the earlier assumption that waiting for acquisitions alone would fill it. All235,324 known-URL eligible pool members are assessed; zero eligible outside-pool known URLs were found. At the dated observation only1,703 unseen live pairs remained,8,297 short of the next10k freeze. Neither new wave has a proof or followup index. Do not pad with blocked sources, non-c3 entities or repeats.
+
+Next exact work: execute missing-site discovery with exact name/EIN/locality and a source-backed legal-entity/domain bridge; preserve local queue before-images; assign candidates and append eligible members through existing admission; let existing guarded workers assess real new URLs, then reconcile actual component proofs/cards and review their gaps. Verify process identities/leases/disk before process action. No duplicate coordinator or automation.
+
+Independent totals:42 registered steps32 organizations/24 executed queries/20 cards14 revisions18 strict preparations. This followup adds8 website-search steps12 actual queries,zero official domains,zero source audits or new proposal/claim observations; duplicate snapshot unchanged. Search summaries, failed native opens and current-standing/role/namesake conflicts remain distinct. Qualified/applied/human/published additions0; Supabase0calls0mutations. Private `HANDOFF-IN-PROGRESS.json` links `capacity-diagnosis-20261020.json`; pending application remains `data/research/active-funders-150k-2026-10-18/APPLICATION-BACKLOG.json`. Earlier34steps/12queries/18preps and new8steps must not replay. Old heartbeat paused; no outreach/subagents/deletion/merge/main push/CI polling.
+
 ## Latest: next20k waves0030/0031 in progress — October20,17:27UTC
 
 Read [the new checkpoint](ACTIVE-FUNDERS-NEXT20000-BATCH3-2026-10-20.md). Newcomponentaudit0/20000remaining; existingboundedfollowersawaitnewusableacquisitions. Finitecoordinator69794 holdslease; verifyactualprocess/leases/diskbeforeanyaction. Onecoordinatoronly/noautomation. Prior0028/0029complete remainsimmutable.
