@@ -1,5 +1,11 @@
 # Research resume and handoff
 
+## Latest: EIN/text-boundary fix validated on separate sources — October 20
+
+Read [the extractor evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md). New v2 packets recover22/22 labelled EINs versus17/22 on40 frozen non-pilot source pages;18 negatives have0 false positives. Known pilot development recovery1/4→4/4 is separate. Labels were fixed before code/predictions by the implementer, not independent human review. Discovery yield stays4/1000; no new domains/audits/steps/proposals/qualifications. Two repeated mentions per version remain separate from22 unique page/EINs.
+
+New invocations use shared v2 structural text/EIN extraction; existing citations select their saved version (missing version means v1). Ten old page hashes/four old claim citations remain valid; no resubmission. Existing workers were not restarted/requeued. Supabase0calls0mutations. One reproducing escaped-bug regression red→green; no routine suite/CI polling. Private exact handoff `data/research/ein-boundary-validation-2026-10-20/HANDOFF-COMPLETE.json`; pending rootAPPLICATION-BACKLOG unchanged location. Next fresh funder-focused validation including wrong/multiple-EIN/directory cases, then bounded discovery yield/cost measurement; do not mass-scale or replay the pilot. Old heartbeat paused/no automation/outreach/subagents/deletion.
+
 ## Latest: 1,000-member discovery pilot complete; do not scale — October 20
 
 Read [the pilot report](MISSING-WEBSITE-PILOT-1000-2026-10-20.md). Actual1,000 initial queries plus92followups produced4 current source-supported live EIN/domain bridges (0.4%),4 local admissions,10 native pages and4 strict claims. There are1,100 canonical research records across1,000 organizations.996 remain unresolved by this bounded method; no claim they lack websites. Recency priority used520FY2025/2026 and480FY2024 outgoing-record leads; none has an exact paid date. Zero qualified/applied/human/published-profile additions. Supabase31successful GET query responses/zero mutations.

@@ -310,3 +310,7 @@ specific blocker recorded, claims reviewed, and approved updates applied through
 provenance-preserving paths. Report remaining counts honestly. Estimate large-run
 costs from measured throughput, page sizes and actual model usage. A million
 inventory rows are not a million researched funders.
+
+## Versioned HTML and EIN extraction
+
+New evidence packets/crawler summaries use `lxml-visible-text/v2`: structural HTML boundaries are separated while inline fragments remain joined. Inert content is excluded from identity leads. EIN recognition requires a bounded label and complete nine-digit identifier; it does not approve an entity or fill missing digits. Saved packets/citations select their recorded version, with absent metadata meaning historical v1. Unknown versions are rejected. Re-extraction is a new text vintage, never a new website observation or completed semantic review. The [dated evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md) reports recovery, limits and cost separately from discovery yield.

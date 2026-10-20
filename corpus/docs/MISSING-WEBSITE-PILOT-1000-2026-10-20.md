@@ -2,6 +2,8 @@
 
 October 20, 2026. Original research and implementation: Codex. Human data review and publication approval remain pending.
 
+**Later extractor followup:** [the separate 40-page evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md) fixes the three known misses while preserving legacy citations. The pilot counts below remain the original dated discovery result; no additional websites were discovered.
+
 The bounded discovery pass is complete. It produced **four source-supported website identity bridges with fresh, hash-checked HTTP 200 evidence: a 0.4% yield**. The other 996 organizations remain unresolved by this method; this does not establish that they lack websites. **Do not scale this approach yet.** The pilot found specific extraction failures and an unproductive followup-search pattern that should be corrected first.
 
 ## Cohort and recency

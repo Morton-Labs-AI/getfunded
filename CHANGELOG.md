@@ -19,6 +19,13 @@ Releases are tagged `vX.Y.Z`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Version EIN labels and structural HTML text boundaries for new research packets,
+  retaining legacy citation hashes and source-version-aware proposal validation.
+  A separate 40-page evaluation recovers22/22 labelled identifiers versus17/22;
+  discovery, duplicate and human-review counts remain separate.
+
 ### Added
 
 - The requested 20,000-source continuation completed with 98,664 page checks,

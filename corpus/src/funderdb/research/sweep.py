@@ -24,6 +24,7 @@ from .cohort import evidence_db
 from .crawl import now, site
 from .discovery import record_step
 from .evidence import build_packet, submit_proposal
+from .web_text import LEGACY_EXTRACTOR, visible_text
 from .evidence_worker import eligibility_check
 from .pipeline import sha256, write_json
 
@@ -199,7 +200,7 @@ def substantive_passages(page: dict) -> tuple[list[dict], int]:
     for node in doc.xpath("//h1|//h2|//h3|//h4|//p|//li|//td|//div[not(*)]"):
         if _excluded_block(node):
             continue
-        text = " ".join(node.text_content().split())
+        text = visible_text(node, page.get("extractor", LEGACY_EXTRACTOR))
         if node.tag in {"h1", "h2", "h3", "h4"}:
             heading = text[:200]
         if not 25 <= len(text) <= 1000 or text in seen or BOILERPLATE.search(text):

@@ -1,5 +1,7 @@
 # Open Funder Database — the `corpus/` pipeline
 
+The [versioned EIN/text-boundary fix](docs/EIN-EXTRACTOR-VALIDATION-2026-10-20.md) improves a separate source sample while retaining old citation hashes and keeping discovery yield separate.
+
 The [1,000-organization missing-website pilot](docs/MISSING-WEBSITE-PILOT-1000-2026-10-20.md) reports source-supported identity yield, extraction failures, cost and duplicate counts before further scale.
 
 The [active-funder campaign](docs/ACTIVE-FUNDERS-150K.md) targets 150,000 evidenced

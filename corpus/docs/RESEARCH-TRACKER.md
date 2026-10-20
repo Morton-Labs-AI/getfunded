@@ -1,3 +1,7 @@
+# Extractor validation · October 20, 2026
+
+The [40-page separate-source evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md) improves labelled EIN recovery17/22→22/22. It adds **zero** audited organizations, discoveries, qualified funders or research steps to tracker coverage. Both versions repeat two within-page mentions, excluded from unique yield. Existing pilot yield stays4/1000; existing worker processes were not reloaded.
+
 Latest independent work: [the1,000-member missing-site pilot](MISSING-WEBSITE-PILOT-1000-2026-10-20.md) completed its bounded discovery pass with4 current source-supported live identity bridges. Its1,100research records and4candidate admissions are not20k source-audit completion or150k qualification. The pilot is held from scaling pending extractor/accuracy/cost work. The requested0030/0031 audit panel retains its own denominator and actual proof counts.
 
 The requested-batch panel now explains next-wave capacity from fresh pool and

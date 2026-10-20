@@ -22,14 +22,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .cohort import PROTOCOL, evidence_db
 from .crawl import canonical, now, site
 from .pipeline import sha256, write_json
+from .web_text import CURRENT_EXTRACTOR, LEGACY_EXTRACTOR, ein_mentions, visible_text
 
 FIELDS = Literal["program_name", "application_status", "application_deadline",
                  "award_amount", "round_budget", "partnership_budget", "eligibility",
                  "geography", "duration", "recipient_award", "grantmaking_role",
                  "funding_focus", "geographic_focus", "inquiry_policy", "inquiry_route"]
-EIN_PATTERN = re.compile(
-    r"\b(?:EIN|Employer Identification Number|Tax\s*(?:ID|Identification)(?:\s*Number)?)"
-    r"\s*[:#]?\s*(\d{2}[-\s]?\d{7})\b", re.I)
 
 
 class StrictModel(BaseModel):
@@ -91,7 +89,7 @@ def text_digest(text: str) -> str:
 
 @lru_cache(maxsize=32)
 def source_text(path: str, stored_hash: str, content_hash: str | None,
-                encoding: str | None) -> dict:
+                encoding: str | None, extractor: str = LEGACY_EXTRACTOR) -> dict:
     source = Path(path)
     if source.stat().st_size > 8 * 1024**2:
         raise ValueError("source envelope exceeds the evidence-reader size guard")
@@ -116,13 +114,11 @@ def source_text(path: str, stored_hash: str, content_hash: str | None,
     doc = html.fromstring(raw["text"])
     for element in doc.xpath("//script|//style|//noscript|//svg"):
         element.drop_tree()
-    visible = " ".join(doc.text_content().split())
-    mentions = [{"ein": re.sub(r"\D", "", match[1]), "start": match.start(),
-                 "end": match.end(), "excerpt": match[0]}
-                for match in EIN_PATTERN.finditer(visible)]
+    visible = visible_text(doc, extractor)
+    mentions = ein_mentions(visible, extractor)
     return {"url": raw["url"], "observed_at": raw["fetched_at"],
             "text": visible, "text_sha256": text_digest(visible),
-            "extractor": "lxml-visible-text/v1", "ein_mentions": mentions}
+            "extractor": extractor, "ein_mentions": mentions}
 
 
 def checked_page(page: dict, allowed_root: Path) -> dict:
@@ -133,7 +129,8 @@ def checked_page(page: dict, allowed_root: Path) -> dict:
     # Cached references are content addressed. Detect local changes before cache reuse.
     if sha256(path) != ref["sha256"]:
         raise ValueError("snapshot changed since acquisition")
-    text = source_text(str(path), ref["sha256"], ref.get("content_sha256"), ref.get("encoding"))
+    text = source_text(str(path), ref["sha256"], ref.get("content_sha256"), ref.get("encoding"),
+                       page.get("extractor", LEGACY_EXTRACTOR))
     if canonical(text["url"]) != canonical(page["url"]):
         raise ValueError("snapshot URL differs from result reference")
     return {**text, "snapshot": ref, "source_license": ref.get("license_code", "publisher_website"),
@@ -146,7 +143,8 @@ def build_packet(target: dict, result: dict, source_run: Path) -> dict:
     pages, failures = [], []
     for page in result.get("pages", []):
         try:
-            pages.append(checked_page(page, source_run.parent))
+            # New packets get v2; validating saved packets uses their own version.
+            pages.append(checked_page({**page, "extractor": CURRENT_EXTRACTOR}, source_run.parent))
         except (OSError, ValueError, KeyError, etree.ParserError) as exc:
             failures.append({"source_url": page.get("url"), "reason": str(exc)[:300]})
     own_pages = [p for p in pages if target.get("website")
@@ -198,8 +196,7 @@ def submit_proposal(run: Path, source: Path) -> dict:
                 page = pages.get(citation.snapshot_sha256)
                 if not page:
                     raise ValueError("citation is not an acquired source in this member packet")
-                fresh = checked_page({"url": page["url"], "snapshot": page["snapshot"]},
-                                     Path(cohort["source_run"]).parent)
+                fresh = checked_page(page, Path(cohort["source_run"]).parent)
                 if (citation.text_sha256 != fresh["text_sha256"]
                         or citation.end <= citation.start
                         or citation.end > len(fresh["text"])
