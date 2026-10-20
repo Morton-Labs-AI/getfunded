@@ -1,3 +1,7 @@
+# Alias/scope validation · October 20, 2026
+
+The [32-case fresh comparison](ALIAS-SCOPE-VALIDATION-2026-10-20.md) adds32 bounded identity-review records and zero coverage, discovery or verified-funder additions. Recall did not improve; one unsafe match keeps the new gate experimental. Defaultv3/gatev1 remains. Two fresh EIN tables recovered28/28rows; they do not advance organization progress. Organization, URL, text and mention repeats remain separate.
+
 # Identity gates · October 20, 2026
 
 The [implemented v3 gates and fresh validation](IDENTITY-GATES-VALIDATION-2026-10-20.md) add40 bounded identity-review records on existing organizations and0 new coverage, acquisition audits, discoveries or qualifications. Eight gate-passing hints remain pending semantic review; they are not eight new verified funders. New code is available to new invocations; existing workers were not reloaded. Table repair has development/regression coverage but no independent real-table holdout yet. Duplicates and extraction observations retain separate denominators.

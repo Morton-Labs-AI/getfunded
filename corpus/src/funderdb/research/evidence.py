@@ -22,8 +22,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .cohort import PROTOCOL, evidence_db
 from .crawl import canonical, now, site
 from .pipeline import sha256, write_json
-from .web_text import CURRENT_EXTRACTOR, LEGACY_EXTRACTOR, ein_mentions, visible_text
+from .web_text import ALIAS_EXTRACTOR, CURRENT_EXTRACTOR, LEGACY_EXTRACTOR, ein_mentions, visible_text
 from .identity import identity_gate
+from .source_names import publisher_names
 
 FIELDS = Literal["program_name", "application_status", "application_deadline",
                  "award_amount", "round_budget", "partnership_budget", "eligibility",
@@ -117,7 +118,8 @@ def source_text(path: str, stored_hash: str, content_hash: str | None,
         element.drop_tree()
     visible = visible_text(doc, extractor)
     mentions = ein_mentions(visible, extractor, doc=doc)
-    return {"url": raw["url"], "observed_at": raw["fetched_at"],
+    return {**({"publisher_names": publisher_names(doc)} if extractor == ALIAS_EXTRACTOR else {}),
+            "url": raw["url"], "observed_at": raw["fetched_at"],
             "text": visible, "text_sha256": text_digest(visible),
             "extractor": extractor, "ein_mentions": mentions}
 
@@ -138,14 +140,16 @@ def checked_page(page: dict, allowed_root: Path) -> dict:
             "republishable": False}
 
 
-def build_packet(target: dict, result: dict, source_run: Path) -> dict:
+def build_packet(target: dict, result: dict, source_run: Path, *, experimental_alias_scope: bool = False) -> dict:
+    """Alias/scope v4 is explicit evaluation-only until a fresh holdout passes."""
+    extractor = ALIAS_EXTRACTOR if experimental_alias_scope else CURRENT_EXTRACTOR
     if result.get("org_id") != target["org_id"] or result.get("ein") != target.get("ein"):
         raise ValueError("result organization or EIN differs from fixed cohort member")
     pages, failures = [], []
     for page in result.get("pages", []):
         try:
-            # New packets get v2; validating saved packets uses their own version.
-            pages.append(checked_page({**page, "extractor": CURRENT_EXTRACTOR}, source_run.parent))
+            # Default packets retain validated v3; saved packets use their own version.
+            pages.append(checked_page({**page, "extractor": extractor}, source_run.parent))
         except (OSError, ValueError, KeyError, etree.ParserError) as exc:
             failures.append({"source_url": page.get("url"), "reason": str(exc)[:300]})
     own_pages = [p for p in pages if target.get("website")
@@ -157,7 +161,8 @@ def build_packet(target: dict, result: dict, source_run: Path) -> dict:
         identity = "conflicting_or_multiple_eins; identity_review_required"
     else:
         identity = "ein_bridge_not_established"
-    gate = identity_gate(target, own_pages)
+    gate = identity_gate(target, own_pages, version=(
+        "source-identity-gates/v2" if experimental_alias_scope else "source-identity-gates/v1"))
     literal_identity = identity
     if gate["candidate_supported"]:
         identity = ("exact_ein_observed; semantic_identity_review_pending" if own_eins == {target.get("ein")}

@@ -28,13 +28,29 @@ def _named(name: str, text: str) -> bool:
     return len(name) >= 8 and (' ' + name + ' ') in (' ' + _name(text) + ' ')
 
 
-def identity_gate(target: dict, pages: list[dict]) -> dict:
+def _source_alias(name: str, context: str, names: list[dict]) -> list[dict]:
+    generic = {'foundation', 'fund', 'trust', 'charitable', 'charity', 'nonprofit',
+               'organization', 'for', 'of', 'and', 'the', 'usa'}
+    target = set(name.split()) - generic
+    aliases = []
+    for source in names:
+        current = _name(source['value'])
+        common = target & (set(current.split()) - generic)
+        if (len(common) >= 2 or any(len(w) >= 6 for w in common)) and _named(current, context):
+            if re.search(r'501\s*\(?\s*c', context, re.I):
+                aliases.append(source)
+    return aliases
+
+
+def identity_gate(target: dict, pages: list[dict], version: str = 'source-identity-gates/v1') -> dict:
     """Gate only already checked same-host pages; retain each entity assertion.
 
     Exact legal-name locality is deliberately conservative. Unresolved multi-EIN
     context is held rather than forced into a shared domain identity. The filing
     fallback cannot override a role, placeholder, mismatch or temporal hold.
     """
+    if version not in {'source-identity-gates/v1', 'source-identity-gates/v2'}:
+        raise ValueError('unsupported identity gate version')
     blockers, scopes = set(), []
     urls = [target.get('website') or ''] + [p['url'] for p in pages]
     for url in urls:
@@ -54,6 +70,11 @@ def identity_gate(target: dict, pages: list[dict]) -> dict:
             context = mention.get('entity_context') or ''
             local = page['text'][max(0, mention['start'] - 220):mention['end'] + 220]
             context_named = _named(name, context)
+            if version == 'source-identity-gates/v2':
+                context_named = context_named or _named(name, mention.get('entity_label') or '')
+            aliases = (_source_alias(name, context, page.get('publisher_names', []))
+                       if version == 'source-identity-gates/v2' and observed == ein else [])
+            context_named = context_named or bool(aliases)
             association = context
             # For a single page EIN, adjacent name markup can still supply a
             # bounded literal association. Never use a name elsewhere on a site.
@@ -74,6 +95,11 @@ def identity_gate(target: dict, pages: list[dict]) -> dict:
                            'text_sha256': page['text_sha256'],
                            'start': mention['start'], 'end': mention['end'],
                            'target_name_locally_present': context_named,
+                           **({'source_backed_aliases': aliases,
+                               'context_start': mention.get('context_start'),
+                               'context_end': mention.get('context_end'),
+                               'context_xpath': mention.get('context_xpath')}
+                              if version == 'source-identity-gates/v2' else {}),
                            'other_role_language': role_hold, 'table_row': is_table,
                            'interpretation': 'source assertion; entity role and current standing unapproved'})
     if own_eins and ein not in own_eins:
@@ -90,7 +116,7 @@ def identity_gate(target: dict, pages: list[dict]) -> dict:
         if not named_target or not separate:
             blockers.add('multiple_entities_require_scoped_review')
     supported = bool(pages and ein in own_eins and named_target and not blockers)
-    return {'schema': 'source-identity-gates/v1', 'candidate_supported': supported,
+    return {'schema': version, 'candidate_supported': supported,
             'blockers': sorted(blockers), 'entity_assertions': scopes,
             'filing_fallback_allowed': bool(pages and not own_eins and not blockers),
             'semantic_review': 'pending', 'current_standing': 'not_checked',

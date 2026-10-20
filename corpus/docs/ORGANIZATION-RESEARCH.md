@@ -316,3 +316,16 @@ inventory rows are not a million researched funders.
 New evidence packets/crawler summaries use `lxml-visible-text/v3` (v1/v2 remain available for saved citations): structural HTML boundaries are separated while inline fragments remain joined. Inert content is excluded from identity leads. EIN recognition requires a bounded label and complete nine-digit identifier; it does not approve an entity or fill missing digits. Saved packets/citations select their recorded version, with absent metadata meaning historical v1. Unknown versions are rejected. Re-extraction is a new text vintage, never a new website observation or completed semantic review. The [dated evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md) reports recovery, limits and cost separately from discovery yield.
 
 V3 adds explicit EIN-column table recovery and scoped assertion metadata, while preserving non-EIN numeric columns. Active triage and automatic sweep staging apply source-identity-gates/v1: directory/shared-platform, placeholder, EIN mismatch, local publisher-name, multi-entity and historical/succession holds. A blocked gate cannot be overridden by the filing-domain fallback. Gate-passing hints remain unapproved and never establish standing, current funding interest or inquiry permission. See [the fresh validation and coverage limits](IDENTITY-GATES-VALIDATION-2026-10-20.md). New rule versions do not authorize restarting workers or rewriting old audits.
+
+
+### Experimental alias and entity-scope recall
+
+V4 display-name/context extraction and identity gate v2 are evaluation-only via
+`build_packet(..., experimental_alias_scope=True)`. Fresh validation did not
+improve recall and introduced one unsafe match; the defaults remain v3/gate v1.
+Literal display names are source assertions, not legal aliases. A separately
+named entity does not establish a shared-domain relationship. Explicit DBA,
+acronym and relationship evidence and unexplained publisher changes need further
+development and a new disjoint holdout before promotion. Do not tune a completed
+holdout then report it as fresh. Two independent real-table pages validate28
+row/EIN pairs, but share one publisher. See the [dated results and costs](ALIAS-SCOPE-VALIDATION-2026-10-20.md).

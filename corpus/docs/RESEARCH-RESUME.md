@@ -1,5 +1,11 @@
 # Research resume and handoff
 
+## Latest: alias/scope validation complete; experimental promotion held — October 20
+
+Read [the fresh alias/scope report](ALIAS-SCOPE-VALIDATION-2026-10-20.md). On32 fresh candidates, recall stayed9/17; experimental precision fell9/9→9/10 because one conflicting same-domain publisher passed. Defaultv3/gatev1 retained; v4/gatev2 only through explicit `experimental_alias_scope=True`. Fresh table recovery28/28EINs and row names across2pages from1publisher, bothversions. No holdout tuning.32bounded local identity reviews, zero new coverage/discoveries/qualification/application/human/publication. Supabase0calls0mutations. Duplicates:0org,1URLrepeat,3textrepeats,18repeatedEINmentions; denominators separate. Extraction+61.9%wall, invoice unknown.
+
+Exact private `data/research/alias-scope-validation-2026-10-20/HANDOFF-COMPLETE.json`; rootAPPLICATION-BACKLOG has analysis-only pointer and retained before-image. Next use completed sample as development: explicit DBA/acronym/relationship evidence and conflicting publisher holds; then a fresh disjoint holdout with a different table publisher, followed by bounded discovery cost/yield measurement before scaling. Do not replay32records or count table rows as discoveries. Existing workers/tracker unchanged; paused heartbeat untouched. Inventory/hash preserved.
+
 ## Latest: identity gates and v3 table repair implemented; fresh validation complete — October 20
 
 Read [the v3 identity-gate report](IDENTITY-GATES-VALIDATION-2026-10-20.md). Fresh40cases/175snapshots exclude prior1080orgs and previousvalidationURLs/hashes. Gateprecision10/16(62.5%)→8/8(100%observed),recall10/16→8/16(50%);6directoryfalsehintsremoved,8validsourceassociationsheld. Same-agentlabels/notpopulationaccuracy. EIN161/161unique-textpairs correctbothversions;175rawhashes173URLs172texts/2URL+3textrepeats;26within-source repeats/version. New48.1%wall/+45.9%CPU; no web/Supabase/extractormodelcalls/invoiceunknown.

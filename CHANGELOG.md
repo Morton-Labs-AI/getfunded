@@ -19,6 +19,15 @@ Releases are tagged `vX.Y.Z`.
 
 ## [Unreleased]
 
+### Research
+
+- Add opt-in alias and entity-scope extraction with frozen fresh validation.
+  Recall stayed9/17 and one unsafe match reduced precision; existing defaults
+  remain unchanged and scaling is held. Two fresh real EIN tables recovered
+  all28 rows with correct entity names. Report cost, duplicate denominators
+  and unresolved scope gaps separately; Supabase remained read-only.
+
+
 ### Fixed
 
 - Add versioned identity gates before active-funder/sweep candidate staging and

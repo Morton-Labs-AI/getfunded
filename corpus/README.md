@@ -1,5 +1,7 @@
 # Open Funder Database — the `corpus/` pipeline
 
+[Alias and entity-scope validation](docs/ALIAS-SCOPE-VALIDATION-2026-10-20.md) found no recall gain and one unsafe experimental match. The existing identity gate remains the default; fresh real-table recovery was28/28. Scaling remains held.
+
 [Identity gates and v3 table extraction](docs/IDENTITY-GATES-VALIDATION-2026-10-20.md) are implemented with a fresh source validation, conservative holds and separate cost/duplicate counts; broad scaling remains held.
 
 The [funder-focused challenge validation](docs/FUNDER-IDENTITY-VALIDATION-2026-10-20.md) measures identity, fit/inquiry scope and cost before scaling; directory and entity-role gates remain necessary.
