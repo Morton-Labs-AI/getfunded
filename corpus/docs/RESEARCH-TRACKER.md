@@ -1,3 +1,7 @@
+# Funder identity validation · October 20, 2026
+
+The [40-case funder-focused challenge set](FUNDER-IDENTITY-VALIDATION-2026-10-20.md) adds40 actual bounded identity-review records on existing organizations, with0 new acquisition audits, coverage, domains or qualifications. Its15 source-scoped bridges are validation outcomes, not new funders. Directory/temporal/entity-role gaps keep scaling held; duplicate sample members0, repeated URL1, repeated v2mentions16 are separate. Existing workers were not restarted.
+
 # Extractor validation · October 20, 2026
 
 The [40-page separate-source evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md) improves labelled EIN recovery17/22→22/22. It adds **zero** audited organizations, discoveries, qualified funders or research steps to tracker coverage. Both versions repeat two within-page mentions, excluded from unique yield. Existing pilot yield stays4/1000; existing worker processes were not reloaded.

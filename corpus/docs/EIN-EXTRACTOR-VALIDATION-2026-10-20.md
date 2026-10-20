@@ -2,6 +2,8 @@
 
 October 20, 2026. Original implementation, source annotation and analysis: Codex.
 
+**Later funder-focused validation:** [the40-case challenge report](FUNDER-IDENTITY-VALIDATION-2026-10-20.md) finds95.5% usable-EIN recall and remaining table/placeholder/identity-scope gaps. Its cost per correct result increases9.4%; the easier sample below does not predict production performance. Broad scaling remains held.
+
 The versioned fix recovers the pilot's three missed EIN bridges. On a separate,
 pre-labelled 40-page source sample, recovery improves from **17/22 to 22/22**,
 with **zero observed false positives** in either version. This supports a larger

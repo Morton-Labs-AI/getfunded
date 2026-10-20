@@ -1,5 +1,11 @@
 # Research resume and handoff
 
+## Latest: funder-focused challenge validation complete; scaling held — October 20
+
+Read [the40-case funder identity report](FUNDER-IDENTITY-VALIDATION-2026-10-20.md). Frozen10namesake/misassigned+10multi-entity/conflict+10single-EIN+10directory cases exclude prior1040.180native snapshots/179URLs. V2usableEIN recall171/179(95.5%)vs167/179,precision171/172(99.4%);8tableEINsmissed/1placeholderemitted. Existing exact-EIN identity hint11/18precision61.1%,11/15recall73.3%;7directoryfalseleads. These are pending-review hints, not approvals. Manualsource-scope15bridges/40; only2primarysitesexplicitlyinviteorganizationrequests. Same-agentlabels/noindependenthumanreview; challenge sample/notpopulationyield.
+
+40boundedidentity reviews recorded once/40hashes/40orgs,0newcoverage/audits/domains/proposals/claims/qualification.11v1/16v2within-snapshotrepeatsseparate;0duplicate members/snapshots/inputs;1URLrepeatdifferenthash. Supabase0calls0mutations/web0; timingsv2+12.1%overall,+9.4%percorrectEIN; actualusageprivate/invoiceunknown. Private exact `data/research/funder-focused-validation-2026-10-20/HANDOFF-COMPLETE.json`; pendingrootAPPLICATION-BACKLOGlinksanalysis-onlyproposedgates. Nextimplementdirectory/placeholder/per-entity/temporalidentitygate and explicit-column table extraction, validatefreshholdout, then boundednewdiscoveryyield/cost. Rules notdeployed/no scaling/workerreload/requeue. Donotreplay40steps/priorpilot. Inventory/hashuntouched;oldheartbeatpaused/noautomation/outreach/subagents/deletion/merge/mainpush. Verifiedpaired40/180and40canonicalhashes;testsnotrunweeklypolicy/nopollCI.
+
 ## Latest: EIN/text-boundary fix validated on separate sources — October 20
 
 Read [the extractor evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md). New v2 packets recover22/22 labelled EINs versus17/22 on40 frozen non-pilot source pages;18 negatives have0 false positives. Known pilot development recovery1/4→4/4 is separate. Labels were fixed before code/predictions by the implementer, not independent human review. Discovery yield stays4/1000; no new domains/audits/steps/proposals/qualifications. Two repeated mentions per version remain separate from22 unique page/EINs.

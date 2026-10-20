@@ -28,6 +28,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A frozen funder-focused40-case identity validation report separating EIN token
+  recovery, directory/namesake/entity-scope errors, fit/inquiry guidance and cost.
+  Scaling remains held; Supabase stays read-only and duplicate counts stay separate.
+
 - The requested 20,000-source continuation completed with 98,664 page checks,
   private evidence cards, 274 bounded followup dispositions and separate duplicate
   counts. Original fit/inquiry findings retain unresolved identity and cycle holds;

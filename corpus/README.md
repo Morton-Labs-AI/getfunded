@@ -1,5 +1,7 @@
 # Open Funder Database — the `corpus/` pipeline
 
+The [funder-focused challenge validation](docs/FUNDER-IDENTITY-VALIDATION-2026-10-20.md) measures identity, fit/inquiry scope and cost before scaling; directory and entity-role gates remain necessary.
+
 The [versioned EIN/text-boundary fix](docs/EIN-EXTRACTOR-VALIDATION-2026-10-20.md) improves a separate source sample while retaining old citation hashes and keeping discovery yield separate.
 
 The [1,000-organization missing-website pilot](docs/MISSING-WEBSITE-PILOT-1000-2026-10-20.md) reports source-supported identity yield, extraction failures, cost and duplicate counts before further scale.
