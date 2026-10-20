@@ -1,6 +1,6 @@
-Latest requested continuation: [new20,000 batch,10,000 source audits complete](ACTIVE-FUNDERS-NEXT20000-BATCH2-2026-10-20.md). The requested-target panel now points to this batch, separately from the previously completed20k. Its135manual steps and14strict preparations do not change verified-funder counts. Existing followers continue toward wave0029; no second-component completion is claimed.
+Latest requested batch: [waves0028/0029 complete:20,000 source audits/cards,zero remaining](ACTIVE-FUNDERS-NEXT20000-BATCH2-2026-10-20.md). The tracker separates256manual steps and27strict preparations from qualification. All234 flags have bounded dispositions; unresolved verification holds remain. Earlier interim50% checkpoint is superseded; finite coordinator has exited.
 
-Latest completed source batch: [October 20 next 20,000](ACTIVE-FUNDERS-NEXT20000-2026-10-20.md). Tracker uses its new receipt:20,000 audits/cards,250 actual manual steps and19 strict preparations, with qualification separate. Older dated observations below remain historical.
+Prior completed source batch: [waves0026/0027](ACTIVE-FUNDERS-NEXT20000-2026-10-20.md):20,000 audits/cards,250 actual manual steps and19 strict preparations. Its dated counts remain historical; the requested-target panel now uses0028/0029.
 
 # Progress overview refresh · October 20, 2026
 

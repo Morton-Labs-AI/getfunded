@@ -1,12 +1,14 @@
 # Research resume and handoff
 
-## Latest: new 20,000 batch in progress — October20
+## Latest: waves0028/0029 requested20k complete — October20
 
-Read [the new interim report](ACTIVE-FUNDERS-NEXT20000-BATCH2-2026-10-20.md). Wave0028 is complete:10,000 audits/cards,49,557 page checks,zero organization rechecks/repeated source pairs. Wave0029 remains pending; the finite local coordinator83820 and existing guarded followers continue. Recheck actual identities/leases/disk before any process action. Do not start duplicate workers. This is10,000/20,000, not batch completion or qualification.
+Read [the completed batch report](ACTIVE-FUNDERS-NEXT20000-BATCH2-2026-10-20.md). 20,000 new source audits/cards,99,062 page checks,zero organization rechecks/repeated source pairs. All234 flags have bounded dispositions, not full verification.256 actual steps/239 organizations,29 individual cards/22 revisions,16 executed queries and27 strict preparations. Qualified/applied/human/published additions zero. Supabase0calls/0mutations.
 
-135 actual steps/128 organizations;123 first-wave bounded dispositions;15 individual cards/12 revisions;8 actual queries;14 strict local preparations await separate application. All qualification/application/human/publication additions zero. Supabase0calls/0mutations. Interim campaign duplicates1981records/1892hashes/89identical repeats;3972observations/3206literal keys/766repeats/560groups, scope through0028.
+Batch duplicates94records94hashes0identical repeats/150observations143keys7repetitions. Campaign through0029:2028records1939hashes89repeats/4049observations3281keys768repetitions562groups. Later waves excluded. Preserve all source vintages/conflicts and immutable2309073 inventory/hash.
 
-Exact private handoff: `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-batch2-2026-10-20/HANDOFF-IN-PROGRESS.json`. RootAPPLICATION-BACKLOG links mandatory gates and dated before-images. Next: actual0029 completion, reconcile remaining10k, review its new followups, update duplicate snapshot and final receipt. Never replay first135steps/8queries/14preparations or prior batches. Preserve identity/cycle/amount conflicts and AARP403/OneOmaha integrity holds; do not invent2027 dates. Oldheartbeatpaused/noautomation/outreach/subagents/deletion/mainpush/merge/CIpoll.
+Private exact handoff: `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-batch2-2026-10-20/HANDOFF-COMPLETE.json`. RootAPPLICATION-BACKLOG links complete mandatory gates,dated before-images and duplicates. Finite coordinator exited normally; existing bounded followers continue. Recheck identities/leases/disk before any process action; no restart needed.
+
+Next exact work: native Lightcone/FLI payer/current-standing bridge; Tenure US-vs-Swedish payer scope; EveryCat FCoV88418 versus general50000cap; AAPI eligibility/retreat ambiguities; independent HealthPath/KBF recipient evidence and failed ProLiteracy recipient opens. Preserve HealthPath noactiveRFP/unavailablemeetings, DIFFA invitations, elapsed calls and inherited AARP403/OneOmaha/Haymarket holds. Do not replay256steps/16queries/27preparations/index. Separate application session only; oldheartbeatpaused/noautomation/outreach/subagents/deletion/mainpush/merge/CIpoll.150000 qualification/later structured-rules/model phase incomplete.
 
 
 ## Latest: October 20 next 20,000 source batch complete
