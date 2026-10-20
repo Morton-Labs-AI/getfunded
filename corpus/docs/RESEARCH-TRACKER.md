@@ -1,3 +1,22 @@
+# Progress overview refresh · October 20, 2026
+
+The opening summary shows **distinct organizations source-audited**, the percentage
+of the full immutable inventory, and the remaining unaudited population. Three
+separate bars use that same inventory denominator: acquisition attempted, HTML
+acquired, and distinct source-audited organizations. They overlap and must not be
+added together. Total audit passes and organization rechecks are shown alongside
+the distinct count; rechecks never increase coverage. Audit counts describe the
+local bulk workflow, not completed semantic or human review.
+
+The **150,000 verified-funder goal** has a separate bar and denominator, with
+website-criteria leads, application, human review and publication reported
+separately. Missing counts remain unavailable rather than becoming zero. Each
+source has its own dated snapshot. The requested 20,000 batch has its own
+completion bar; its finite receipt no longer presents an old waiting-queue count
+as live. The configured frozen component is not labelled the latest batch.
+Detailed screening, duplicates and historical baseline remain in expandable
+panels below the overview. No research state or database approval is changed.
+
 Latest continuation: [20,000 requested source candidates in progress](ACTIVE-FUNDERS-NEXT20000-2026-10-19.md). The requested-target panel is separate from frozen membership and requires component audit proofs and matching card manifests.
 
 Latest continuation: [the next 10,000 wave is in progress](ACTIVE-FUNDERS-CHART-NEXT10000-2026-10-19.md). The latest frozen batch is labelled separately; unseen live-source pairs waiting now have their own counter. These are not completed audits or qualified funders.
