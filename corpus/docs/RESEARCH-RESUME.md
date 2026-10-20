@@ -1,5 +1,14 @@
 # Research resume and handoff
 
+## Latest: next20k waves0030/0031 in progress — October20,17:27UTC
+
+Read [the new checkpoint](ACTIVE-FUNDERS-NEXT20000-BATCH3-2026-10-20.md). Newcomponentaudit0/20000remaining; existingboundedfollowersawaitnewusableacquisitions. Finitecoordinator69794 holdslease; verifyactualprocess/leases/diskbeforeanyaction. Onecoordinatoronly/noautomation. Prior0028/0029complete remainsimmutable.
+
+Independentprioritywork:34steps24organizations/20cards14revisions/12actualqueries18strict. These20prioritycasesareNOTassertednewfrozencohortmembers. Supabase0calls0mutations/qualifiedappliedhumanpublished0. Interimcampaignthrough0029plusindividualworkspaces2046records1957hash89repeats/4067observations3299keys768repeats562groups; no0030/31componentproofyet.
+
+Exactprivatehandoff `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-batch3-2026-10-20/HANDOFF-IN-PROGRESS.json`. RootAPPLICATION-BACKLOG links18preparations/datedbeforeimages/mandatorygates. Nextactual0030/0031proof/cards/newfollowupreview; reconcileoverlapwith20priorityIDswithoutreplay34steps12queries18preps/interimindex. CurrentMorgan2023nativefilebridgefound/footerconflictretained; LightconeXML403/ScheduleRfailedandnamesakeheld; Rye/SIRdatesconflict, Prideclosed, MGFAelapsed, individualvsoutsideNPscopeheld. Oldheartbeatpaused/noautomation/outreach/subagents/deletion/mainpush/merge/CIpoll.
+
+
 ## Latest: waves0028/0029 requested20k complete — October20
 
 Read [the completed batch report](ACTIVE-FUNDERS-NEXT20000-BATCH2-2026-10-20.md). 20,000 new source audits/cards,99,062 page checks,zero organization rechecks/repeated source pairs. All234 flags have bounded dispositions, not full verification.256 actual steps/239 organizations,29 individual cards/22 revisions,16 executed queries and27 strict preparations. Qualified/applied/human/published additions zero. Supabase0calls/0mutations.

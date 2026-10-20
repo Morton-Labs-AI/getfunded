@@ -1,3 +1,5 @@
+Latest requested batch: [waves0030/0031 in progress](ACTIVE-FUNDERS-NEXT20000-BATCH3-2026-10-20.md). The requested-target panel counts only actual new component proofs:0/20,000 at this dated checkpoint. Independent34manual steps/18strict preparations are separate from frozen cohort membership and verified-funder qualification. Previous0028/0029completion remains historical.
+
 Latest requested batch: [waves0028/0029 complete:20,000 source audits/cards,zero remaining](ACTIVE-FUNDERS-NEXT20000-BATCH2-2026-10-20.md). The tracker separates256manual steps and27strict preparations from qualification. All234 flags have bounded dispositions; unresolved verification holds remain. Earlier interim50% checkpoint is superseded; finite coordinator has exited.
 
 Prior completed source batch: [waves0026/0027](ACTIVE-FUNDERS-NEXT20000-2026-10-20.md):20,000 audits/cards,250 actual manual steps and19 strict preparations. Its dated counts remain historical; the requested-target panel now uses0028/0029.
