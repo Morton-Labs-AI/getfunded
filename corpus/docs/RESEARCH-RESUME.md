@@ -1,5 +1,14 @@
 # Research resume and handoff
 
+## Latest: new 20,000 batch in progress — October20
+
+Read [the new interim report](ACTIVE-FUNDERS-NEXT20000-BATCH2-2026-10-20.md). Wave0028 is complete:10,000 audits/cards,49,557 page checks,zero organization rechecks/repeated source pairs. Wave0029 remains pending; the finite local coordinator83820 and existing guarded followers continue. Recheck actual identities/leases/disk before any process action. Do not start duplicate workers. This is10,000/20,000, not batch completion or qualification.
+
+135 actual steps/128 organizations;123 first-wave bounded dispositions;15 individual cards/12 revisions;8 actual queries;14 strict local preparations await separate application. All qualification/application/human/publication additions zero. Supabase0calls/0mutations. Interim campaign duplicates1981records/1892hashes/89identical repeats;3972observations/3206literal keys/766repeats/560groups, scope through0028.
+
+Exact private handoff: `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-batch2-2026-10-20/HANDOFF-IN-PROGRESS.json`. RootAPPLICATION-BACKLOG links mandatory gates and dated before-images. Next: actual0029 completion, reconcile remaining10k, review its new followups, update duplicate snapshot and final receipt. Never replay first135steps/8queries/14preparations or prior batches. Preserve identity/cycle/amount conflicts and AARP403/OneOmaha integrity holds; do not invent2027 dates. Oldheartbeatpaused/noautomation/outreach/subagents/deletion/mainpush/merge/CIpoll.
+
+
 ## Latest: October 20 next 20,000 source batch complete
 
 Read [the October 20 report](ACTIVE-FUNDERS-NEXT20000-2026-10-20.md).
