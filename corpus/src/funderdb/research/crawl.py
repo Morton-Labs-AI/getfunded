@@ -323,7 +323,7 @@ def extract(page: dict, ref: dict) -> dict:
     # Footer EINs are useful identity evidence, so inspect before dropping navigation.
     identifier_text = visible_text(doc)
     ein_mentions = []
-    for mention in labelled_eins(identifier_text):
+    for mention in labelled_eins(identifier_text, doc=doc):
         ein_mentions.append({"value": mention["ein"],
                              "excerpt": identifier_text[max(0, mention["start"]-40):mention["end"]+40],
                              "source_url": page["url"]})

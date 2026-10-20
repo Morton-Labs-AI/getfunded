@@ -2,6 +2,8 @@
 
 October 20, 2026. Original source annotation and analysis: Codex.
 
+**Later implementation:** [v3 identity gates and table repair](IDENTITY-GATES-VALIDATION-2026-10-20.md) are now implemented. Fresh holdout precision improves while recall falls; independent real-table coverage remains missing. The dated results below are preserved.
+
 The requested challenge-set validation is complete. **Keep broad scaling on
 hold.** Better EIN recovery does not resolve publisher identity: seven of the
 18 existing exact-EIN hints identify directory pages. Source-scope review supports

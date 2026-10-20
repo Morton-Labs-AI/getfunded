@@ -23,6 +23,7 @@ from .cohort import PROTOCOL, evidence_db
 from .crawl import canonical, now, site
 from .pipeline import sha256, write_json
 from .web_text import CURRENT_EXTRACTOR, LEGACY_EXTRACTOR, ein_mentions, visible_text
+from .identity import identity_gate
 
 FIELDS = Literal["program_name", "application_status", "application_deadline",
                  "award_amount", "round_budget", "partnership_budget", "eligibility",
@@ -115,7 +116,7 @@ def source_text(path: str, stored_hash: str, content_hash: str | None,
     for element in doc.xpath("//script|//style|//noscript|//svg"):
         element.drop_tree()
     visible = visible_text(doc, extractor)
-    mentions = ein_mentions(visible, extractor)
+    mentions = ein_mentions(visible, extractor, doc=doc)
     return {"url": raw["url"], "observed_at": raw["fetched_at"],
             "text": visible, "text_sha256": text_digest(visible),
             "extractor": extractor, "ein_mentions": mentions}
@@ -156,12 +157,21 @@ def build_packet(target: dict, result: dict, source_run: Path) -> dict:
         identity = "conflicting_or_multiple_eins; identity_review_required"
     else:
         identity = "ein_bridge_not_established"
+    gate = identity_gate(target, own_pages)
+    literal_identity = identity
+    if gate["candidate_supported"]:
+        identity = ("exact_ein_observed; semantic_identity_review_pending" if own_eins == {target.get("ein")}
+                    else "scoped_ein_observed; semantic_identity_review_pending")
+    elif gate["blockers"]:
+        identity = ("conflicting_or_multiple_eins; identity_review_required" if len(own_eins) > 1
+                    else "identity_gate_blocked; semantic_identity_review_required")
     state = ("source_integrity_blocked" if failures else
              "awaiting_claim_review" if any(len(p["text"]) >= 100 for p in pages) else
              "unusable_text" if pages else "acquisition_blocked")
     return {"schema": PROTOCOL, "org_id": target["org_id"], "org_name": target["org_name"],
             "ein": target.get("ein"), "checked_at": now(), "state": state,
-            "identity_evidence": identity, "c3_evidence": target["c3_evidence"],
+            "identity_evidence": identity, "literal_identity_evidence": literal_identity,
+            "identity_gate": gate, "c3_evidence": target["c3_evidence"],
             "pages": pages, "integrity_failures": failures,
             "acquisition_errors": result.get("errors", []),
             "unvisited_urls": result.get("unvisited_urls", []),

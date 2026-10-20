@@ -1,3 +1,7 @@
+# Identity gates · October 20, 2026
+
+The [implemented v3 gates and fresh validation](IDENTITY-GATES-VALIDATION-2026-10-20.md) add40 bounded identity-review records on existing organizations and0 new coverage, acquisition audits, discoveries or qualifications. Eight gate-passing hints remain pending semantic review; they are not eight new verified funders. New code is available to new invocations; existing workers were not reloaded. Table repair has development/regression coverage but no independent real-table holdout yet. Duplicates and extraction observations retain separate denominators.
+
 # Funder identity validation · October 20, 2026
 
 The [40-case funder-focused challenge set](FUNDER-IDENTITY-VALIDATION-2026-10-20.md) adds40 actual bounded identity-review records on existing organizations, with0 new acquisition audits, coverage, domains or qualifications. Its15 source-scoped bridges are validation outcomes, not new funders. Directory/temporal/entity-role gaps keep scaling held; duplicate sample members0, repeated URL1, repeated v2mentions16 are separate. Existing workers were not restarted.

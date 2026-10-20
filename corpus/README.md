@@ -1,5 +1,7 @@
 # Open Funder Database — the `corpus/` pipeline
 
+[Identity gates and v3 table extraction](docs/IDENTITY-GATES-VALIDATION-2026-10-20.md) are implemented with a fresh source validation, conservative holds and separate cost/duplicate counts; broad scaling remains held.
+
 The [funder-focused challenge validation](docs/FUNDER-IDENTITY-VALIDATION-2026-10-20.md) measures identity, fit/inquiry scope and cost before scaling; directory and entity-role gates remain necessary.
 
 The [versioned EIN/text-boundary fix](docs/EIN-EXTRACTOR-VALIDATION-2026-10-20.md) improves a separate source sample while retaining old citation hashes and keeping discovery yield separate.

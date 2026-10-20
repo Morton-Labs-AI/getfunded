@@ -21,6 +21,11 @@ Releases are tagged `vX.Y.Z`.
 
 ### Fixed
 
+- Add versioned identity gates before active-funder/sweep candidate staging and
+  explicit EIN-column table extraction, preserving legacy citations. Fresh
+  validation reports directory false hints removed, conservative recall losses
+  and extra extraction cost; broad scaling remains held.
+
 - Version EIN labels and structural HTML text boundaries for new research packets,
   retaining legacy citation hashes and source-version-aware proposal validation.
   A separate 40-page evaluation recovers22/22 labelled identifiers versus17/22;

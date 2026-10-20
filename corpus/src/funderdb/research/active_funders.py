@@ -27,7 +27,7 @@ from .evidence import build_packet, prepare_work_item
 from .evidence_worker import eligibility_check, next_batch
 from .pipeline import sha256, write_json
 
-RULESET = "active-funders/v2"
+RULESET = "active-funders/v3"
 LEADS = {
     "outgoing_funding": re.compile(r"\b(?:we (?:award|provide|make|distribute) grants|our grantmaking|our grant-making|grants we (?:award|make)|apply for (?:a |our )?grant|grant application guidelines)\b", re.I),
     "focus": re.compile(r"\b(?:funding priorities|areas we fund|what we fund|grantmaking priorities|funding focus)\b", re.I),
@@ -179,7 +179,7 @@ def assess(packet: dict, as_of: date) -> dict:
     if packet.get("integrity_failures") or packet["state"] == "source_integrity_blocked":
         live = "source_integrity_blocked"
     role = bool(leads["outgoing_funding"])
-    bridge = identity == "exact_ein_observed; semantic_identity_review_pending"
+    bridge = packet.get("identity_gate", {}).get("candidate_supported", False)
     state = ("website_criteria_candidate_pending_semantic_review" if live == "live_content_observed_within_7_days" and role and bridge else
              "live_funding_lead_identity_pending" if live == "live_content_observed_within_7_days" and role else
              "funder_role_not_established" if live == "live_content_observed_within_7_days" else live)
@@ -190,7 +190,8 @@ def assess(packet: dict, as_of: date) -> dict:
             "liveness": live, "live_observed_at": max(observed) if observed else None,
             "url_checks": url_checks, "contact_page_candidates": routes[:30],
             "invalid_contact_links": invalid_links,
-            "identity_evidence": identity, "site_last_updated_month": None,
+            "identity_evidence": identity, "identity_gate": packet.get("identity_gate"),
+            "site_last_updated_month": None,
             "site_update_scope": "unknown; page dates do not establish site-wide updates",
             "latest_page_modified_month": max(modified) if modified else None,
             "latest_content_published_month": max(published) if published else None,

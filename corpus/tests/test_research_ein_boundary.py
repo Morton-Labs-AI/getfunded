@@ -7,6 +7,7 @@ from pathlib import Path
 
 from funderdb.research.crawl import extract
 from funderdb.research.evidence import build_packet, checked_page
+from funderdb.research.web_text import CURRENT_EXTRACTOR
 
 
 class EINBoundaryRegression(unittest.TestCase):
@@ -33,7 +34,7 @@ class EINBoundaryRegression(unittest.TestCase):
         packet = build_packet(target, {**target, 'pages': [page]}, root / 'run')
         current = packet['pages'][0]
         self.assertEqual({m['ein'] for m in current['ein_mentions']}, expected)
-        self.assertEqual(current['extractor'], 'lxml-visible-text/v2')
+        self.assertEqual(current['extractor'], CURRENT_EXTRACTOR)
         self.assertIn('34-5678901 bottom', current['text'])
         self.assertIn('45-6789012', current['text'])
         self.assertEqual(packet['identity_evidence'],

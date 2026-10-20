@@ -1,5 +1,13 @@
 # Research resume and handoff
 
+## Latest: identity gates and v3 table repair implemented; fresh validation complete — October 20
+
+Read [the v3 identity-gate report](IDENTITY-GATES-VALIDATION-2026-10-20.md). Fresh40cases/175snapshots exclude prior1080orgs and previousvalidationURLs/hashes. Gateprecision10/16(62.5%)→8/8(100%observed),recall10/16→8/16(50%);6directoryfalsehintsremoved,8validsourceassociationsheld. Same-agentlabels/notpopulationaccuracy. EIN161/161unique-textpairs correctbothversions;175rawhashes173URLs172texts/2URL+3textrepeats;26within-source repeats/version. New48.1%wall/+45.9%CPU; no web/Supabase/extractormodelcalls/invoiceunknown.
+
+V3placeholder/table/context+source-role/name/temporal gates wiredactive-funders/v3 andbulk-source-review/v2; filingfallbackcannotbypasshold. V1/v2citationversionsretained/10legacyhasheschecked. Existingworkersnotreloaded/requeued; newinvocationsonly. Known8tableIDsrecovered/placeholderremoved outsidefreshmetrics; fresh175contains0EIN-column tables, local6candidate-sourcesetsyield0unusedtables. DoNOTclaimindependenttableaccuracy.40boundedidentityreviewsrecordedonce/40hashes/0newcoverageauditsdomainsproposalsqualificationappliedhumanpublished. Oneescaped-bugregressionred→green; nofullsuite/CIpoll.
+
+Exact `data/research/identity-gates-validation-2026-10-20/HANDOFF-COMPLETE.json`; rootAPPLICATION-BACKLOGlinksvalidationonly/noexecutablepatch. Nextsource-backedalias/per-entityrecall improvementondevelopmentcases, untouchedidentityholdout, guardedindependentreal-tableacquisition, thenboundeddiscoveryyield/cost. No broadscale. Donotreplay40steps/priorpilot; inventory/hashuntouched/Supabaseread-only/oldheartbeatpaused/noautomation/outreach/subagents/deletion/mainpush/merge.
+
 ## Latest: funder-focused challenge validation complete; scaling held — October 20
 
 Read [the40-case funder identity report](FUNDER-IDENTITY-VALIDATION-2026-10-20.md). Frozen10namesake/misassigned+10multi-entity/conflict+10single-EIN+10directory cases exclude prior1040.180native snapshots/179URLs. V2usableEIN recall171/179(95.5%)vs167/179,precision171/172(99.4%);8tableEINsmissed/1placeholderemitted. Existing exact-EIN identity hint11/18precision61.1%,11/15recall73.3%;7directoryfalseleads. These are pending-review hints, not approvals. Manualsource-scope15bridges/40; only2primarysitesexplicitlyinviteorganizationrequests. Same-agentlabels/noindependenthumanreview; challenge sample/notpopulationyield.
