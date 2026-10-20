@@ -1,5 +1,7 @@
 # Open Funder Database — the `corpus/` pipeline
 
+The [1,000-organization missing-website pilot](docs/MISSING-WEBSITE-PILOT-1000-2026-10-20.md) reports source-supported identity yield, extraction failures, cost and duplicate counts before further scale.
+
 The [active-funder campaign](docs/ACTIVE-FUNDERS-150K.md) targets 150,000 evidenced
 501(c)(3) funders with recent paid donations or live funder websites, recording
 source-scoped update dates and fit/inquiry gaps. The retained original

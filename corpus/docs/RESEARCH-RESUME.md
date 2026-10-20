@@ -1,5 +1,15 @@
 # Research resume and handoff
 
+## Latest: 1,000-member discovery pilot complete; do not scale — October 20
+
+Read [the pilot report](MISSING-WEBSITE-PILOT-1000-2026-10-20.md). Actual1,000 initial queries plus92followups produced4 current source-supported live EIN/domain bridges (0.4%),4 local admissions,10 native pages and4 strict claims. There are1,100 canonical research records across1,000 organizations.996 remain unresolved by this bounded method; no claim they lack websites. Recency priority used520FY2025/2026 and480FY2024 outgoing-record leads; none has an exact paid date. Zero qualified/applied/human/published-profile additions. Supabase31successful GET query responses/zero mutations.
+
+Do not scale the pilot automatically. The EIN detector found1/4 manually supported native bridges; preserve the3 label/DOM-boundary misses for a versioned fix and independent labelled evaluation. Three wrong-EIN namesake matches and two directory-only EIN hits were held/rejected. A2017 official Ellison domain bridge stays held because current original-document access redirects to a404 route. No bypass. Detailed token counters/cost and duplicate scopes are in private receipts; billed dollars unavailable.
+
+Exact private handoff: `data/research/missing-website-pilot-1000-2026-10-20/HANDOFF-COMPLETE.json`. Root `data/research/active-funders-150k-2026-10-18/APPLICATION-BACKLOG.json` links4 strict preparations,4 proposed domains,exact organization before-images and mandatory gates; fresh program/signal-table before-images still required before separate application. Do not replay1,000queries/92followups/1,100steps/4assignments/4admissions/4preparations. Proposal duplicates4records4hash0repetitions/4claims4scopedkeys0repetitions; URL repetitions/followup records remain separate. Whole-site update month/currentstanding/currentcycles remain unknown. Existing bounded workers remain; oldheartbeat paused/no newautomation/outreach/subagents/deletion. New20k0030/31stillincomplete;4 pilotpairs are not completed wave audits. PR19 remains merged; this pilot is a new branch with no new merge authorization.
+
+Verified by: frozen cohort hash,1,100canonical record hashes,10native pages,4strict preparations and before-images. Tests: not run (weekly review policy).
+
 ## Latest: PR19 capacity reporting fix — October 20, 19:33 UTC
 
 The user explicitly authorized fixing and merging PR19 in this session. This supersedes earlier no-merge instructions for PR19 only; Supabase remains read-only and data candidates are not approved. The tracker now explains current-pool capacity from fresh aggregate snapshots, showing available live pairs, wave minimum, shortfall and screening remaining. Stale/missing snapshots do not assert exhaustion. Verified live:1,703 pairs,8,297 shortfall,0/20,000 requested audits. Tracker alone restarted to load the fix (new PID21562 at checkpoint); crawler/followers/coordinator remain unchanged. Always verify actual identities/leases before process action.

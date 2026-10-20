@@ -1,3 +1,5 @@
+Latest independent work: [the1,000-member missing-site pilot](MISSING-WEBSITE-PILOT-1000-2026-10-20.md) completed its bounded discovery pass with4 current source-supported live identity bridges. Its1,100research records and4candidate admissions are not20k source-audit completion or150k qualification. The pilot is held from scaling pending extractor/accuracy/cost work. The requested0030/0031 audit panel retains its own denominator and actual proof counts.
+
 The requested-batch panel now explains next-wave capacity from fresh pool and
 audit snapshots: unseen live-source pairs, the wave minimum, the shortfall and
 pool candidates still awaiting screening. When the pool is fully screened and
