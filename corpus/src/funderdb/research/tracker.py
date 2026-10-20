@@ -18,6 +18,37 @@ def _json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def _batch_capacity(active: dict | None, sweep: dict | None) -> dict:
+    """Explain the next-wave dependency using dated aggregate snapshots only."""
+    unknown = {"state": "unavailable", "note": "Next-wave capacity is unavailable."}
+    if not active or not sweep:
+        return unknown
+    pool, screened = active.get("search_pool_size"), active.get("processed_search_candidates")
+    waiting, minimum = sweep.get("new_live_cases_waiting_for_wave"), sweep.get("minimum_wave_size")
+    remaining = sweep.get("remaining")
+    ages = (active.get("status_age_seconds"), sweep.get("status_age_seconds"))
+    if (any(type(n) is not int or n < 0 for n in (pool, screened, waiting, minimum, remaining))
+            or pool == 0 or screened > pool or minimum == 0
+            or any(type(age) is not int or not -60 <= age < 180 for age in ages)):
+        return {**unknown, "note": "Next-wave capacity needs fresh, complete pool and audit snapshots."}
+    result = {"pool_candidates_remaining": pool - screened,
+              "unseen_live_pairs": waiting, "minimum_wave_size": minimum,
+              "shortfall": max(0, minimum - waiting),
+              "pool_as_of": active["as_of"], "sweep_as_of": sweep["as_of"]}
+    if remaining:
+        state, note = "auditing_frozen_sources", "A frozen source wave still has audits remaining."
+    elif waiting >= minimum:
+        state, note = "enough_sources_for_next_wave", "Enough unseen live-source pairs are available for the next wave."
+    elif screened < pool:
+        state, note = "screening_current_pool", "Current pool candidates remain to be screened; the next wave is not yet full."
+    else:
+        state, note = "more_eligible_sources_needed", (
+            "The current eligible pool is fully screened and cannot fill the next wave from its available live sources. "
+            "Discover and attribute new eligible websites or acquire genuinely new source evidence. "
+            "This is a pool snapshot, not proof that every organization has been researched.")
+    return {**result, "state": state, "note": note}
+
+
 def _requested_continuation(run: Path, inventory: str, timestamp: datetime) -> dict:
     """Keep a requested multi-wave target separate from frozen membership."""
     start, progress = _json(run / "request-start.json"), _json(run / "progress.json")
@@ -266,6 +297,8 @@ class Tracker:
                 if self.run.parent not in requested_run.parents:
                     raise ValueError("requested continuation must remain inside private research")
                 requested = _requested_continuation(requested_run, settings["input_sha256"], timestamp)
+                if requested["source_audits_remaining"]:
+                    requested["capacity"] = _batch_capacity(active, sweep)
             selected = None
             if config.get("selected_cohort_run"):
                 selected_run = Path(config["selected_cohort_run"]).resolve()

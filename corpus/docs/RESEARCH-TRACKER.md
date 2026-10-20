@@ -1,3 +1,13 @@
+The requested-batch panel now explains next-wave capacity from fresh pool and
+audit snapshots: unseen live-source pairs, the wave minimum, the shortfall and
+pool candidates still awaiting screening. When the pool is fully screened and
+too few live pairs remain, it explicitly says **New eligible sources needed**.
+Missing or stale snapshots show capacity unavailable. Separate timestamps remain
+visible; neither available pairs nor searches increase the completed-audit bar.
+This reports the current pool's dependency, not a claim that global website
+discovery or research is exhausted. No worker, membership or database state is
+changed by this calculation.
+
 Current capacity dependency (October20,18:20UTC): requested0030/0031 remains0/20,000, with no component proofs or new followup indexes. All235,324 known-URL eligible pool members have assessments; only1,703 unseen live pairs were waiting. Missing-site discovery and genuine eligible pool expansion are required; waiting alone is insufficient. Independent42steps/18strict preparations do not advance source-audit qualification. See [capacity diagnosis and next steps](ACTIVE-FUNDERS-NEXT20000-BATCH3-2026-10-20.md). Counts are dated observations; rechecks and duplicate inputs remain separate.
 
 Latest requested batch: [waves0030/0031 in progress](ACTIVE-FUNDERS-NEXT20000-BATCH3-2026-10-20.md). The requested-target panel counts only actual new component proofs:0/20,000 at this dated checkpoint. Independent34manual steps/18strict preparations are separate from frozen cohort membership and verified-funder qualification. Previous0028/0029completion remains historical.

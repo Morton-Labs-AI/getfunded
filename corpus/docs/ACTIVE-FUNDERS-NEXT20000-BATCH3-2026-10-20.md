@@ -4,6 +4,14 @@ October 20, 2026, 17:27 UTC. The next requested batch is assigned to **waves0030
 
 One finite local coordinator waits for the two component proofs, checks membership/source hashes and projects private evidence cards. It is not a recurring automation. All five crawler, evidence-follower, source-follower, tracker and coordinator leases were held at this checkpoint; free disk remained above the10GiB guard. The16-worker/six-page cap, shared host pacing, robots/TLS/public-IP/body-size safeguards remain unchanged. The old heartbeat remains paused.
 
+## PR19 reporting fix · October 20, 19:33 UTC
+
+The requested-batch tracker now derives a capacity explanation from fresh, inventory-bound pool and sweep snapshots. It separates source screening, available live pairs, the next-wave minimum and the additional pairs needed. The live page showed **New eligible sources needed**,1,703 available pairs and8,297 additional pairs needed, while keeping0/20,000 completed audits and all duplicate/qualification counts unchanged. Missing/stale inputs show capacity unavailable; a drained pool is not called global research completion. Only the tracker was restarted; research workers and leases were not replaced.
+
+The user authorized fixing and merging PR19. That software merge does not approve candidate data or complete this batch. Recommended next: a bounded1,000-organization website-discovery pilot prioritized by independent recent outgoing-giving evidence. Measure exact-domain yield, unresolved identity rate and research cost before scaling. No pilot execution or new source discovery is claimed in this fix.
+
+Verified by: tracker.py compilation, direct live/stale/threshold/screening checks and one browser page load. Tests: not run (weekly review policy). No Supabase calls or CI polling.
+
 ## Capacity diagnosis and missing-site discovery · October 20, 18:20 UTC
 
 The known-URL eligible pool is exhausted: all **235,324 pool members have assessments**, and the local read-only diagnostic found **zero eligible organizations outside that pool with a known URL**. Only **1,703 unseen live-source pairs** were waiting at the dated observation, below the next 10,000-member wave threshold by **8,297**. Waves0030/0031 have no component proof or followup index to review. Waiting for the existing crawler alone cannot complete the requested batch. These are separate local observations, not a transactional census or a continuously live queue count.

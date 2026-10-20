@@ -1,5 +1,13 @@
 # Research resume and handoff
 
+## Latest: PR19 capacity reporting fix — October 20, 19:33 UTC
+
+The user explicitly authorized fixing and merging PR19 in this session. This supersedes earlier no-merge instructions for PR19 only; Supabase remains read-only and data candidates are not approved. The tracker now explains current-pool capacity from fresh aggregate snapshots, showing available live pairs, wave minimum, shortfall and screening remaining. Stale/missing snapshots do not assert exhaustion. Verified live:1,703 pairs,8,297 shortfall,0/20,000 requested audits. Tracker alone restarted to load the fix (new PID21562 at checkpoint); crawler/followers/coordinator remain unchanged. Always verify actual identities/leases before process action.
+
+Recommended next research step: a bounded1,000-organization missing-site discovery pilot, prioritizing independently supported recent outgoing funders. Record exact queries, attributed entity/domain bridges, unknowns, cost and yield. Measure usable verified-domain yield before scaling the remaining20k. Use existing local admission/checkpoint paths; do not pad with old awards, namesakes, recipients or repeat pairs. The proposed pilot has not run. Pending application remains `data/research/active-funders-150k-2026-10-18/APPLICATION-BACKLOG.json`; current private handoff is `bulk-sweep-2026-10-18/evidence-format-next20000-batch3-2026-10-20/HANDOFF-IN-PROGRESS.json`.
+
+Verified by: tracker.py compilation, direct live-snapshot/stale/threshold/screening checks and one updated tracker page load. Tests: not run (weekly review policy). No Supabase calls, research replay, new automation or CI polling.
+
 ## Latest: waves0030/0031 capacity dependency — October 20, 18:20 UTC
 
 The requested batch remains **0/20,000 complete**. The [capacity diagnosis](ACTIVE-FUNDERS-NEXT20000-BATCH3-2026-10-20.md) supersedes the earlier assumption that waiting for acquisitions alone would fill it. All235,324 known-URL eligible pool members are assessed; zero eligible outside-pool known URLs were found. At the dated observation only1,703 unseen live pairs remained,8,297 short of the next10k freeze. Neither new wave has a proof or followup index. Do not pad with blocked sources, non-c3 entities or repeats.
