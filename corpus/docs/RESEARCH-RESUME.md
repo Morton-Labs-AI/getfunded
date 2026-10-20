@@ -1,5 +1,35 @@
 # Research resume and handoff
 
+## Latest: October 20 next 20,000 source batch complete
+
+Read [the October 20 report](ACTIVE-FUNDERS-NEXT20000-2026-10-20.md).
+Existing background waves0026/0027 were reconciled, not replayed:20,000 distinct
+newly audited organizations,99,165 page checks,20,000 private card projections,
+zero batch organization rechecks or repeated source pairs. All238 followups have
+bounded dispositions:20 deeper cases,93 additional funding-passage reviews and
+125 tax-ID context reviews. There are250 actual steps/238 organizations,20 cards,
+six revisions,16 executed queries and19 strict preparations. Qualification,
+application,human review and publication added zero; semantic gaps remain.
+
+Exact private handoff: `data/research/active-funders-150k-2026-10-18/bulk-sweep-2026-10-18/evidence-format-next20000-2026-10-20/HANDOFF-COMPLETE.json`.
+Root APPLICATION-BACKLOG links mandatory identity/scope/integrity/cycle/licensing
+and duplicate gates. Batch duplicates:118 inputs/118 hashes/0 identical repeats;
+164 observations/158 literal keys/6 repetitions. Dated campaign snapshot through
+wave0027:1934 proposals/1845 hashes/89 repeats;3899 observations/3138 keys/761
+repetitions/556 groups. Later follower waves are excluded from this receipt.
+
+Do not replay250steps/16queries/19preparations or earlier waves. Next:source
+integrity at OneOmaha, exact payers/dual identifiers, YouthBridge linked grant
+paths, Bunnelle spring terms and next-cycle TroutSalmon/Hospice guidance; no
+invented2027 dates. Independent recipient gaps remain for PFund/WillCounty;
+RuralTechnologyFund recipient says received in2026 but exact paid date/EIN is not
+fully verified. Preserve inherited Haymarket holds. Supabase0calls/0mutations;
+separate application session only. Inventory2309073/hash unchanged. Existing
+bounded followers continue; old heartbeat remains paused. No automation,outreach,
+subagents,deletion,main push,merge or CI polling. Tracker PID60100 was identified
+in this turn; always recheck actual identity/lease before touching any process.
+
+
 ## Latest: requested 20,000 source batch complete; application deferred
 
 Read [the completed batch report](ACTIVE-FUNDERS-NEXT20000-2026-10-19.md) first.

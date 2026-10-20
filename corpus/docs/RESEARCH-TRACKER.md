@@ -1,3 +1,5 @@
+Latest completed source batch: [October 20 next 20,000](ACTIVE-FUNDERS-NEXT20000-2026-10-20.md). Tracker uses its new receipt:20,000 audits/cards,250 actual manual steps and19 strict preparations, with qualification separate. Older dated observations below remain historical.
+
 # Progress overview refresh · October 20, 2026
 
 The opening summary shows **distinct organizations source-audited**, the percentage
