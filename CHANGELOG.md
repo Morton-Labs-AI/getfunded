@@ -20,6 +20,10 @@ Releases are tagged `vX.Y.Z`.
 
 ### Added
 
+- A halfway checkpoint for the requested 20,000-source continuation: one actual
+  10,000-source wave and private card projection completed, with attributed
+  program, inquiry and identity findings. The second wave remains in progress.
+
 - A requested-20,000 continuation panel separating completion-proof audits from
   waiting acquisitions, bounded interpretations and qualification, with attributed
   program research and private conflict/application gates.

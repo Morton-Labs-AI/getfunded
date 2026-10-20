@@ -15,6 +15,81 @@ passing after the fix. Actual saved-page readback recovered ten Kresge policy
 passages and zero outgoing-role passages. This is implementation verification,
 not an additional audit, strict claim or verified-funder count.
 
+## First 10,000 complete — 2026-10-20T01:36:10.158728+00:00
+
+Wave 0024 has **10,000 completed source audits, 10,000 private evidence-card
+projections and 49,064 page checks**. All 10,000 are newly audited organizations;
+there are zero organization rechecks in this wave. Frozen membership and review
+hashes were checked by the saved completion process. The second distinct 10,000
+wave is still acquiring sources; **the requested 20,000 remains incomplete**.
+
+The first wave contains 39 literal candidate preparations, 19 funding leads with
+identity pending and 86 identity-conflict cases. The other 9,856 source cases do
+not establish outgoing funding in the acquired content. Those dispositions are
+bounded source observations, not permanent exclusions or verified funders.
+
+All 58 funding leads received an actual bounded interpretation of the displayed
+extracted passages. Ten received deeper review of selected complete normalized
+page bodies; unreviewed links remain explicit. These are separate scopes.
+The continuation now records **213 manual steps across 174 organizations**,
+120 body-based cards, 24 presentation revisions, 58 additional passage annotations,
+110 strict local preparations and 22 actual queries with responses. The 61
+original card holds remain separate from passage-level and revised holds.
+
+Useful findings include an explicitly open [Arts Foundation of Cape Cod
+organization cycle](https://www.artsfoundation.org/grants-for-organizations)
+ending November 6, 2026 at 11:59 p.m. (zone unstated), an
+[invitation-only Western Conservation route](https://www.wcfnd.org/about), and a
+[closed Children's Dream 2026 submission window](https://thecdf.org/grants/how-to-apply/)
+with a planned June 2027 update. [Zallie's financial grants](https://zalliecommunityfoundation.org/apply-for-support/)
+have narrower scope and a different threshold than its gift-card route.
+[PEC's cooperative grant program](https://mypec.com/pec-gives/) remains separate
+from its employee-funded charity EIN. [NCRP's third-party grantmaking paragraph](https://ncrp.org/2019/11/marguerite-casey-foundation-honored-with-2019-ncrp-smashing-silos-impact-award-for-employing-holistic-approach-to-meet-families-needs/)
+must not become NCRP policy.
+
+Supabase calls and mutations remain zero. Qualified/applied/human-reviewed/
+confirmed-profile published counts remain zero. Duplicate input repetitions,
+scoped literal repeats and organization rechecks are distinct; the final duplicate
+snapshot awaits both completed waves. All proposals await separate application.
+
+Verified by: saved first-wave membership/review proof and matching 10,000-card
+manifest; strict source-span validation and canonical readback for the actual
+manual records. Tests: not run (weekly review policy). No CI polling.
+
+## Completion-turn checkpoint — 2026-10-20T00:44:28.492482+00:00
+
+The requested source batch remains in progress: 0
+completed source audits, 20,000 remaining, and
+7,969 unseen live-source pairs waiting
+for the first frozen wave. Acquisitions are not completed audits.
+
+Actual individual work now totals **110 bounded organization interpretations,
+24 later presentation revisions, and 145 recorded steps across 116 organizations**.
+The steps comprise 124 claim reviews, 13 identity reviews, six website searches
+and two recipient reverse reviews. There are 22 actual queries with responses,
+103 strict local preparations and 54 original cards retaining explicit holds.
+These overlap older source cases and add zero to this next-wave counter.
+
+The additional reviews distinguish closed 2026 calls from current inquiry routes,
+and restricted prior-grantee routes from open intake. RRF's November timing is
+consistent with its weekend adjustment, while the year remains context-derived.
+Valentine's Philadelphia website is held apart from the Virginia legal entity;
+shared directory descriptions do not bridge the two. LIFE's linked research
+PDF narrows its program scope and preserves differing biosketch instructions.
+Cullen's rolling Action Grants are restricted to prior arts grantees. Thoma's
+linked application dates remain 2023/24, not a demonstrated current call.
+Conflicting indirect-cost bases, cycle notices and legal-payer bridges remain
+explicit dependencies rather than silently selected facts.
+
+Twelve [additional attributed original notes](../data/seed/research/active-funder-next20000-additional-notes-2026-10-19.jsonl) summarize selected findings. They add no source audits, manual steps or confirmed-profile publications.
+
+Supabase calls/mutations, qualified funders, applied profiles, human reviews and
+confirmed-profile publications remain **zero**. All raw sources, exact claims,
+before-images and detailed cards remain private and await separate application.
+Duplicate counts below remain their dated pre-wave snapshot and will be refreshed
+from actual records after the two waves complete. The guarded source workers and
+finite completion coordinator continue; the old heartbeat remains paused.
+
 The pause checkpoint below and its dated counts are preserved as history.
 
 Paused at the user's explicit request on October 19, 2026. All acquisition,
