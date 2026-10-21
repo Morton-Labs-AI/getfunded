@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-21
+
+- Add private checkpointed full-inventory classification ledger and tracker counters, separating recorded observations from vetting; execute 1,000-case source-field reconciliation and 308 bounded candidate reviews. Preserve unknowns, identity holds and duplicate denominators; no remote writes or semantic accuracy claim.
+
+
 ## 2026-10-19 — Resume the checkpointed 20,000-source continuation
 
 Resume the existing guarded research processes after the requested pause,

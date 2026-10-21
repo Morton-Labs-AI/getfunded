@@ -1,5 +1,8 @@
 # Open Funder Database — the `corpus/` pipeline
 
+[Classification ledger and pilot](docs/CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.
+
+
 [The DBA and relationship correction](docs/DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
 
 [Alias and entity-scope validation](docs/ALIAS-SCOPE-VALIDATION-2026-10-20.md) found no recall gain and one unsafe experimental match. The existing identity gate remains the default; fresh real-table recovery was28/28. Scaling remains held.

@@ -84,6 +84,17 @@ def research_export_api(access: Path, run: Path, workers: int) -> None:
     click.echo(json.dumps(bulk.export_api(access, run, workers), indent=2))
 
 
+@research.command("classification-ledger")
+@click.option("--source", type=click.Path(exists=True, file_okay=False, path_type=Path), required=True)
+@click.option("--active", type=click.Path(exists=True, file_okay=False, path_type=Path), required=True)
+@click.option("--out", type=click.Path(file_okay=False, path_type=Path), required=True)
+def research_classification_ledger(source: Path, active: Path, out: Path) -> None:
+    """Build/resume a private classification ledger; no remote calls or approvals."""
+    import json
+    from .research.classification import build
+    click.echo(json.dumps(build(source, active, out, click.echo), indent=2))
+
+
 @research.command("tracker")
 @click.option("--run", type=click.Path(exists=True, file_okay=False, path_type=Path),
               required=True)

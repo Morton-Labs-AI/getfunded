@@ -1,5 +1,12 @@
 # DBA/relationship validation · October 20, 2026
 
+## Latest: classification ledger and 308 reviews — October 21
+
+[Classification ledger and pilot](CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.
+
+Exact private handoff: `data/research/classification-ledger-2026-10-21/HANDOFF-COMPLETE.json`. Do not replay 308 claim-review steps. Next independent 100-case semantic adjudication and targeted identity/current-cycle gaps before scale. Pending application remains in the active-funder APPLICATION-BACKLOG; no remote patch or fresh remote before-image was constructed.
+
+
 [The DBA and relationship correction](DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
 
 # Alias/scope validation · October 20, 2026

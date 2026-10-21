@@ -1,5 +1,12 @@
 # Organization research protocol
 
+## Latest: classification ledger and 308 reviews — October 21
+
+[Classification ledger and pilot](CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.
+
+Exact private handoff: `data/research/classification-ledger-2026-10-21/HANDOFF-COMPLETE.json`. Do not replay 308 claim-review steps. Next independent 100-case semantic adjudication and targeted identity/current-cycle gaps before scale. Pending application remains in the active-funder APPLICATION-BACKLOG; no remote patch or fresh remote before-image was constructed.
+
+
 Extend the filing spine with current, attributable web evidence. Include every
 organization: no website, no recorded grants, unknown posture, a confirmed web
 profile, or a canonical redirect are all valid inventory entries. A download is
