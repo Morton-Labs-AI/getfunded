@@ -329,3 +329,20 @@ acronym and relationship evidence and unexplained publisher changes need further
 development and a new disjoint holdout before promotion. Do not tune a completed
 holdout then report it as fresh. Two independent real-table pages validate28
 row/EIN pairs, but share one publisher. See the [dated results and costs](ALIAS-SCOPE-VALIDATION-2026-10-20.md).
+
+
+### Corrected experimental relationship checks
+
+`build_packet(..., experimental_relationships=True)` selects sourcev6/gatev4;
+ordinary callers retainv3/gatev1. The two experiment flags are mutually exclusive.
+V6 retains v3 assertions and existing evidence-supported hints unless a hard hold
+applies; new matches require literal DBA/initialism evidence or a bounded
+relationship statement between named entities. Separate names alone do not prove
+a shared domain. Funding scope, current standing, dates and inquiry permission
+remain unverified. Originalv4/v5 outputs remain reproducible.
+
+The [two-pass validation](DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) records the
+first rule's recall regression, the corrected untouched evaluation, separate
+marker/DBA denominators, cost and unresolved alias-edge coverage. Do not count
+primary-association accuracy as DBA-edge recall, or source reviews as coverage.
+No default promotion or broad scaling follows this small result.

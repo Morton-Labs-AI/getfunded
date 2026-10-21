@@ -7,6 +7,8 @@ LEGACY_EXTRACTOR = "lxml-visible-text/v1"
 BOUNDARY_EXTRACTOR = "lxml-visible-text/v2"
 SCOPED_EXTRACTOR = "lxml-visible-text/v3"
 ALIAS_EXTRACTOR = "lxml-visible-text/v4"
+STRICT_RELATIONSHIP_EXTRACTOR = "lxml-visible-text/v5"
+RELATIONSHIP_EXTRACTOR = "lxml-visible-text/v6"
 # Promotion held: fresh identity validation found a false positive.
 CURRENT_EXTRACTOR = SCOPED_EXTRACTOR
 INERT_TAGS = {"script", "style", "noscript", "svg"}
@@ -35,7 +37,7 @@ def visible_text(doc, version: str = CURRENT_EXTRACTOR) -> str:
     """
     if version == LEGACY_EXTRACTOR:
         return " ".join(doc.text_content().split())
-    if version not in {BOUNDARY_EXTRACTOR, SCOPED_EXTRACTOR, ALIAS_EXTRACTOR}:
+    if version not in {BOUNDARY_EXTRACTOR, SCOPED_EXTRACTOR, ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR}:
         raise ValueError(f"unsupported source extractor: {version}")
     parts = []
 
@@ -59,13 +61,13 @@ def visible_text(doc, version: str = CURRENT_EXTRACTOR) -> str:
 
 
 def ein_mentions(text: str, version: str = CURRENT_EXTRACTOR, doc=None) -> list[dict]:
-    if version not in {LEGACY_EXTRACTOR, BOUNDARY_EXTRACTOR, SCOPED_EXTRACTOR, ALIAS_EXTRACTOR}:
+    if version not in {LEGACY_EXTRACTOR, BOUNDARY_EXTRACTOR, SCOPED_EXTRACTOR, ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR}:
         raise ValueError(f"unsupported source extractor: {version}")
     pattern = LEGACY_EIN_PATTERN if version == LEGACY_EXTRACTOR else EIN_PATTERN
     mentions = [{"ein": re.sub(r"\D", "", match[1]), "start": match.start(),
              "end": match.end(), "excerpt": match[0]}
             for match in pattern.finditer(text)]
-    if version not in {SCOPED_EXTRACTOR, ALIAS_EXTRACTOR}:
+    if version not in {SCOPED_EXTRACTOR, ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR}:
         return mentions
     mentions = [m for m in mentions if m["ein"] != "000000000"]
     if doc is None:
@@ -132,7 +134,14 @@ def ein_mentions(text: str, version: str = CURRENT_EXTRACTOR, doc=None) -> list[
             mention["entity_context"] = contexts.get(mention["ein"], "")
             mention["method"] = "labelled_ein"
     mentions = sorted(mentions, key=lambda m: (m["start"], m["end"]))
-    if version == ALIAS_EXTRACTOR:
+    baseline_mentions = [dict(m) for m in mentions]
+    if version in {ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR}:
         from .source_names import scoped_mentions
         mentions = scoped_mentions(doc, text, mentions, visible_text)
+    if version in {STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR}:
+        from .relationships_v5 import enrich_mentions
+        mentions = enrich_mentions(text, mentions)
+    if version == RELATIONSHIP_EXTRACTOR:
+        for mention, baseline in zip(mentions, baseline_mentions):
+            mention["baseline_assertion"] = baseline
     return mentions

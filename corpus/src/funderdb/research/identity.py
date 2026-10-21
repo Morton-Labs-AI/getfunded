@@ -49,6 +49,12 @@ def identity_gate(target: dict, pages: list[dict], version: str = 'source-identi
     context is held rather than forced into a shared domain identity. The filing
     fallback cannot override a role, placeholder, mismatch or temporal hold.
     """
+    if version == 'source-identity-gates/v4':
+        from .relationships import relationship_identity_gate
+        return relationship_identity_gate(target, pages)
+    if version == 'source-identity-gates/v3':
+        from .relationships_v5 import relationship_identity_gate
+        return relationship_identity_gate(target, pages)
     if version not in {'source-identity-gates/v1', 'source-identity-gates/v2'}:
         raise ValueError('unsupported identity gate version')
     blockers, scopes = set(), []

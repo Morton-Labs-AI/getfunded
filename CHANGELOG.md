@@ -21,6 +21,13 @@ Releases are tagged `vX.Y.Z`.
 
 ### Research
 
+- Add explicit experimental DBA/initialism and inter-entity relationship evidence,
+  retaining existing v3 decisions and all saved source versions. Preserve the
+  first iteration's recall regression; a second untouched32-case comparison
+  improves supported hints8→9 with zero observed false positives and higher
+  processing cost. Keep enriched controls, duplicates and qualification separate;
+  defaults unchanged and scaling held. Supabase remains read-only.
+
 - Add opt-in alias and entity-scope extraction with frozen fresh validation.
   Recall stayed9/17 and one unsafe match reduced precision; existing defaults
   remain unchanged and scaling is held. Two fresh real EIN tables recovered

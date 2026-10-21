@@ -1,5 +1,7 @@
 # Open Funder Database — the `corpus/` pipeline
 
+[The DBA and relationship correction](docs/DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
+
 [Alias and entity-scope validation](docs/ALIAS-SCOPE-VALIDATION-2026-10-20.md) found no recall gain and one unsafe experimental match. The existing identity gate remains the default; fresh real-table recovery was28/28. Scaling remains held.
 
 [Identity gates and v3 table extraction](docs/IDENTITY-GATES-VALIDATION-2026-10-20.md) are implemented with a fresh source validation, conservative holds and separate cost/duplicate counts; broad scaling remains held.

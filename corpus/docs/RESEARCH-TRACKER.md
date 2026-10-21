@@ -1,3 +1,7 @@
+# DBA/relationship validation · October 20, 2026
+
+[The DBA and relationship correction](DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
+
 # Alias/scope validation · October 20, 2026
 
 The [32-case fresh comparison](ALIAS-SCOPE-VALIDATION-2026-10-20.md) adds32 bounded identity-review records and zero coverage, discovery or verified-funder additions. Recall did not improve; one unsafe match keeps the new gate experimental. Defaultv3/gatev1 remains. Two fresh EIN tables recovered28/28rows; they do not advance organization progress. Organization, URL, text and mention repeats remain separate.

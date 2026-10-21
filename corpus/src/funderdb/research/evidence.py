@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .cohort import PROTOCOL, evidence_db
 from .crawl import canonical, now, site
 from .pipeline import sha256, write_json
-from .web_text import ALIAS_EXTRACTOR, CURRENT_EXTRACTOR, LEGACY_EXTRACTOR, ein_mentions, visible_text
+from .web_text import ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR, CURRENT_EXTRACTOR, LEGACY_EXTRACTOR, ein_mentions, visible_text
 from .identity import identity_gate
 from .source_names import publisher_names
 
@@ -118,7 +118,7 @@ def source_text(path: str, stored_hash: str, content_hash: str | None,
         element.drop_tree()
     visible = visible_text(doc, extractor)
     mentions = ein_mentions(visible, extractor, doc=doc)
-    return {**({"publisher_names": publisher_names(doc)} if extractor == ALIAS_EXTRACTOR else {}),
+    return {**({"publisher_names": publisher_names(doc)} if extractor in {ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR} else {}),
             "url": raw["url"], "observed_at": raw["fetched_at"],
             "text": visible, "text_sha256": text_digest(visible),
             "extractor": extractor, "ein_mentions": mentions}
@@ -140,9 +140,13 @@ def checked_page(page: dict, allowed_root: Path) -> dict:
             "republishable": False}
 
 
-def build_packet(target: dict, result: dict, source_run: Path, *, experimental_alias_scope: bool = False) -> dict:
-    """Alias/scope v4 is explicit evaluation-only until a fresh holdout passes."""
-    extractor = ALIAS_EXTRACTOR if experimental_alias_scope else CURRENT_EXTRACTOR
+def build_packet(target: dict, result: dict, source_run: Path, *, experimental_alias_scope: bool = False,
+                 experimental_relationships: bool = False) -> dict:
+    """Experimental alias/relationship versions never replace default v3 implicitly."""
+    if experimental_alias_scope and experimental_relationships:
+        raise ValueError("select only one experimental identity version")
+    extractor = (RELATIONSHIP_EXTRACTOR if experimental_relationships else
+                 ALIAS_EXTRACTOR if experimental_alias_scope else CURRENT_EXTRACTOR)
     if result.get("org_id") != target["org_id"] or result.get("ein") != target.get("ein"):
         raise ValueError("result organization or EIN differs from fixed cohort member")
     pages, failures = [], []
@@ -162,6 +166,7 @@ def build_packet(target: dict, result: dict, source_run: Path, *, experimental_a
     else:
         identity = "ein_bridge_not_established"
     gate = identity_gate(target, own_pages, version=(
+        "source-identity-gates/v4" if experimental_relationships else
         "source-identity-gates/v2" if experimental_alias_scope else "source-identity-gates/v1"))
     literal_identity = identity
     if gate["candidate_supported"]:

@@ -1,5 +1,11 @@
 # Research resume and handoff
 
+## Latest: DBA/relationship correction validated; opt-in only — October 20
+
+[The DBA and relationship correction](DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
+
+Exact private `data/research/relationship-validation-fresh2-2026-10-20/HANDOFF-COMPLETE.json`; first failed44-case iteration remains `data/research/relationship-validation-2026-10-20/`. Do not reuse either as fresh holdout or replay88 records. Next separately frozen bounded operational discovery/cost sample and targeted alias-edge benchmark; preserve unresolved roles, name variants and current-cycle blockers. RootAPPLICATION-BACKLOG is analysis-only for this run. Workers/tracker unchanged; paused heartbeat untouched. Inventory/hash preserved.
+
 ## Latest: alias/scope validation complete; experimental promotion held — October 20
 
 Read [the fresh alias/scope report](ALIAS-SCOPE-VALIDATION-2026-10-20.md). On32 fresh candidates, recall stayed9/17; experimental precision fell9/9→9/10 because one conflicting same-domain publisher passed. Defaultv3/gatev1 retained; v4/gatev2 only through explicit `experimental_alias_scope=True`. Fresh table recovery28/28EINs and row names across2pages from1publisher, bothversions. No holdout tuning.32bounded local identity reviews, zero new coverage/discoveries/qualification/application/human/publication. Supabase0calls0mutations. Duplicates:0org,1URLrepeat,3textrepeats,18repeatedEINmentions; denominators separate. Extraction+61.9%wall, invoice unknown.
