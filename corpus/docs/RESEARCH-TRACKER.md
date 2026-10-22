@@ -1,5 +1,12 @@
 # DBA/relationship validation · October 20, 2026
 
+## Latest: 100-case adjudication complete; scale held — October 21
+
+[100-case source adjudication](ADJUDICATION-100-2026-10-21.md) completed: initial masked-case agreement78%role/52%inquiry, not independent human accuracy. Four role gaps and12 inquiry gaps resolved;44 gate-held publisher EIN associations documented; two entity-scope holds, four role gaps and25 inquiry unknowns remain. Twenty fresh pages yield four current cash-program leads, not qualified funders. Scaling held; Supabase0calls0mutations. Duplicates/rechecks separate.
+
+Exact private `data/research/adjudication-100-2026-10-21/HANDOFF-COMPLETE.json`; sample is now development, do not replay100records or call it independent human validation. Next program-scoped multi-role/policy/date retrieval changes, then untouched external semantic labels and invoiced cost gate. Pending application remains active-funderAPPLICATION-BACKLOG; fresh remote readback required separately.
+
+
 ## Latest: classification ledger and 308 reviews — October 21
 
 [Classification ledger and pilot](CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.

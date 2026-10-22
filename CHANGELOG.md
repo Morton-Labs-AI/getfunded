@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-21 — source adjudication
+
+- Complete100 masked-case source rechecks, preserve initial78%role/52%inquiry agreement limits, resolve bounded identity/program gaps with20 fresh pages and hold scaling. Keep comparison labels, revisions, exact source evidence, cost and duplicate counts separate; no remote writes.
+
+
 ## 2026-10-21
 
 - Add private checkpointed full-inventory classification ledger and tracker counters, separating recorded observations from vetting; execute 1,000-case source-field reconciliation and 308 bounded candidate reviews. Preserve unknowns, identity holds and duplicate denominators; no remote writes or semantic accuracy claim.
