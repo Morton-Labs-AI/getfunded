@@ -14,11 +14,19 @@ the single place to look before cloning, archiving or creating a repository in t
 
 ## Archived repositories (read-only on GitHub)
 
+All four were archived on 2026-10-21, after the last consolidation pull requests merged (morton-fundraising #15 and #16, dnw-funder-intelligence #3, get-funded #3).
+
 | Repository | What replaced it | What was kept |
 |---|---|---|
 | Morton-Labs-AI/open-funder-db | `getfunded/corpus` (imported with `git subtree`, history preserved, 2026-10-07). getfunded's copy was already a strict superset: the migration runner, doctor, bootstrap, backfill, repair, derive, aliases, IRS standing, migrations 0000 and 0025 to 0036. | Nothing to move. Its funder-signals branch was superseded by getfunded PR #10 (migration 0035). |
 | Morton-Labs-AI/open-funder-db-ui (Greenbook) | `getfunded/apps/greenbook` (`git subtree add`, 36 commits, getfunded PR #11). | The work-in-progress community layer (schema `community.*`, live in the database since 2026-09-06) is preserved unmerged as getfunded branch `claude/greenbook-community-layer`. |
 | Morton-Labs-AI/get-funded (the Lovable prototype "Morton Labs CRM") | `morton-fundraising`. The command-center interface and the Gmail/Calendar/LinkedIn capture flows were carried on 2026-10-07; the MCP server (`app/api/mcp`) and the knowledge base (`/knowledge`) were re-homed on 2026-10-09 (morton-fundraising PR #15); the company narrative is Settings, Company profile. | Not carried: the Gemini, Perplexity and Firecrawl edge functions (Claude with web search does research here), the GitHub connector (stored a plaintext token; Claude Code reads the repositories directly), `ask_crm`. Its Supabase project `fiajkyujgnsawrcavigm` is paused once its data is exported. |
+| Zach-Hynek/Nonprofit_grant_db ("Open Funder Graph", April 2026) | `getfunded`. A docs-only plan for the same idea; no code. | Nothing to move. |
+
+## Related but outside this family
+
+- `getfunded-ai/platform` (private, separate GitHub organisation): a SvelteKit and Convex SaaS attempt from autumn 2025, last pushed 2025-11-21. It shares no code, data or database with this repository. Archiving it, or removing the organisation, is the operator's decision.
+- `Zach-Hynek/topfer-family-foundation`: a grantmaker's website and grants manager, with its own database and host. It does not read the corpus.
 
 ## Boundaries that every repository keeps
 
