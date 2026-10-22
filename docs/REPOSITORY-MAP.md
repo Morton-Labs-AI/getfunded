@@ -17,10 +17,15 @@ the single place to look before cloning, archiving or creating a repository in t
 | Old name | Current name |
 |---|---|
 | morton-fundraising | morton-capital |
+| get-funded | archived-morton-crm-lovable |
+| open-funder-db | archived-open-funder-db |
+| open-funder-db-ui | archived-greenbook |
+| Nonprofit_grant_db | archived-open-funder-graph |
+| getfunded-ai/platform | archived-getfunded-saas-2025 |
 | dnw-funder-intelligence | dnw-workspace |
 | topfer-family-foundation | topfer-foundation-site |
 
-GitHub redirects the old names. The archived repositories below keep their original names for now.
+GitHub redirects the old names. The archived repositories below were renamed the same day with an `archived-` prefix.
 
 ## Archived repositories (read-only on GitHub)
 
