@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-23
+
+- Add opt-in v3 date-event and conditional policy extraction, explicit CLI flag and fresh40 paired validation. Date metrics improve; policy recall and retained-unit yield still hold promotion. Preserve original and corrected scoring, source spans, duplicate denominators and local-only backlog.
+
 ## 2026-10-22
 
 - Add explicit private program-evidence retrieval and CLI; retain version1 and corrected version2. Fresh40 plus disjoint20 improve literal/policy retrieval, but low role recall and date-event failures hold default promotion and scale. Preserve source vintages, unknowns, duplicate denominators and local-only approval gates.

@@ -1,5 +1,12 @@
 # Organization research protocol
 
+## Latest: date/event and conditional-policy experiment — October 23
+
+[Date-event and conditional-policy validation](DATE-POLICY-VALIDATION-2026-10-23.md): explicit experimental v3 improves fresh40 date precision73.3%→83.9% and recall71.0%→83.9%; policy precision70.0%→74.5%, recall63.6% unchanged. Condition flags12/13; retained units62/75→60/75. Extraction +9.8% wall time; invoice unavailable. Same-agent references, not population accuracy. Scaling/default promotion held. Supabase0calls0mutations; duplicates0 in each category, paired runs reuse40orgs. Forty partial reviews recorded once, zero full vetting or qualification.
+
+Exact private `data/research/date-policy-fresh-2026-10-23/HANDOFF-COMPLETE.json`. Do not replay40 steps or reuse this sample as fresh. Next LOI-window, table-heading and invitation-prerequisite fixes, then fresh external labels and invoiced cost. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Existing workers/tracker and paused heartbeat unchanged.
+
+
 ## Latest: program extraction implemented; fresh evaluation complete — October 22
 
 [Program-specific extraction validation](PROGRAM-EXTRACTION-VALIDATION-2026-10-22.md): new private opt-in retrieval retains30/40 reviewed units versus6/40 on a fresh20 after an initial40-case development pass. Policy recall46.4%→67.9%, precision65.0%→70.4%; role recall37.5%, precision66.7%; date-event1/4correct, so promotion/scaling held. No independent human accuracy claim;60 actual source reviews,0newcoverage/discovery/qualification/application. Supabase0calls0mutations; duplicates separate.

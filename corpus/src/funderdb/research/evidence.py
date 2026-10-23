@@ -141,10 +141,13 @@ def checked_page(page: dict, allowed_root: Path) -> dict:
 
 
 def build_packet(target: dict, result: dict, source_run: Path, *, experimental_alias_scope: bool = False,
-                 experimental_relationships: bool = False, program_as_of: date | None = None) -> dict:
+                 experimental_relationships: bool = False, program_as_of: date | None = None,
+                 experimental_program_events: bool = False) -> dict:
     """Experimental alias/relationship versions never replace default v3 implicitly."""
     if experimental_alias_scope and experimental_relationships:
         raise ValueError("select only one experimental identity version")
+    if experimental_program_events and program_as_of is None:
+        raise ValueError("program event extraction requires an explicit program_as_of date")
     extractor = (RELATIONSHIP_EXTRACTOR if experimental_relationships else
                  ALIAS_EXTRACTOR if experimental_alias_scope else CURRENT_EXTRACTOR)
     if result.get("org_id") != target["org_id"] or result.get("ein") != target.get("ein"):
@@ -180,7 +183,10 @@ def build_packet(target: dict, result: dict, source_run: Path, *, experimental_a
              "unusable_text" if pages else "acquisition_blocked")
     program_evidence = {}
     if program_as_of is not None:
-        from .programs_v2 import extract_program_context
+        if experimental_program_events:
+            from .programs_v3 import extract_program_context
+        else:
+            from .programs_v2 import extract_program_context
         program_evidence = {"program_evidence": [extract_program_context(p, program_as_of) for p in own_pages]}
     return {**program_evidence, "schema": PROTOCOL, "org_id": target["org_id"], "org_name": target["org_name"],
             "ein": target.get("ein"), "checked_at": now(), "state": state,
