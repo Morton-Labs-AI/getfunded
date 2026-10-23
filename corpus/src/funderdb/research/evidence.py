@@ -141,7 +141,7 @@ def checked_page(page: dict, allowed_root: Path) -> dict:
 
 
 def build_packet(target: dict, result: dict, source_run: Path, *, experimental_alias_scope: bool = False,
-                 experimental_relationships: bool = False) -> dict:
+                 experimental_relationships: bool = False, program_as_of: date | None = None) -> dict:
     """Experimental alias/relationship versions never replace default v3 implicitly."""
     if experimental_alias_scope and experimental_relationships:
         raise ValueError("select only one experimental identity version")
@@ -178,7 +178,11 @@ def build_packet(target: dict, result: dict, source_run: Path, *, experimental_a
     state = ("source_integrity_blocked" if failures else
              "awaiting_claim_review" if any(len(p["text"]) >= 100 for p in pages) else
              "unusable_text" if pages else "acquisition_blocked")
-    return {"schema": PROTOCOL, "org_id": target["org_id"], "org_name": target["org_name"],
+    program_evidence = {}
+    if program_as_of is not None:
+        from .programs_v2 import extract_program_context
+        program_evidence = {"program_evidence": [extract_program_context(p, program_as_of) for p in own_pages]}
+    return {**program_evidence, "schema": PROTOCOL, "org_id": target["org_id"], "org_name": target["org_name"],
             "ein": target.get("ein"), "checked_at": now(), "state": state,
             "identity_evidence": identity, "literal_identity_evidence": literal_identity,
             "identity_gate": gate, "c3_evidence": target["c3_evidence"],

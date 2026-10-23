@@ -95,6 +95,29 @@ def research_classification_ledger(source: Path, active: Path, out: Path) -> Non
     click.echo(json.dumps(build(source, active, out, click.echo), indent=2))
 
 
+@research.command("program-evidence")
+@click.option("--source", type=click.Path(exists=True, file_okay=False, path_type=Path), required=True)
+@click.option("--case", "case_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True,
+              help="Private JSON containing target and saved source result objects.")
+@click.option("--as-of", type=click.DateTime(formats=["%Y-%m-%d"]), required=True)
+@click.option("--out", type=click.Path(path_type=Path), required=True)
+def research_program_evidence(source: Path, case_path: Path, as_of, out: Path) -> None:
+    """Extract private program-scoped leads without changing existing workers."""
+    import json
+    from .research.classification import guard, immutable
+    from .research.evidence import build_packet
+    source = source.resolve()
+    out = out.resolve()
+    if source.parent.name != "research" or source.parent not in out.parents:
+        raise click.ClickException("output must remain inside the private research directory")
+    guard(source)
+    case = json.loads(case_path.read_text())
+    packet = build_packet(case["target"], case["result"], source, program_as_of=as_of.date())
+    digest = immutable(out, packet)
+    click.echo(json.dumps({"path": str(out), "sha256": digest, "state": packet["state"],
+                           "program_pages": len(packet["program_evidence"]), "qualified": False}))
+
+
 @research.command("tracker")
 @click.option("--run", type=click.Path(exists=True, file_okay=False, path_type=Path),
               required=True)

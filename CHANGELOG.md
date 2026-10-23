@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-22
+
+- Add explicit private program-evidence retrieval and CLI; retain version1 and corrected version2. Fresh40 plus disjoint20 improve literal/policy retrieval, but low role recall and date-event failures hold default promotion and scale. Preserve source vintages, unknowns, duplicate denominators and local-only approval gates.
+
+
 ## 2026-10-21 — source adjudication
 
 - Complete100 masked-case source rechecks, preserve initial78%role/52%inquiry agreement limits, resolve bounded identity/program gaps with20 fresh pages and hold scaling. Keep comparison labels, revisions, exact source evidence, cost and duplicate counts separate; no remote writes.

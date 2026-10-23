@@ -1,5 +1,12 @@
 # DBA/relationship validation · October 20, 2026
 
+## Latest: program extraction implemented; fresh evaluation complete — October 22
+
+[Program-specific extraction validation](PROGRAM-EXTRACTION-VALIDATION-2026-10-22.md): new private opt-in retrieval retains30/40 reviewed units versus6/40 on a fresh20 after an initial40-case development pass. Policy recall46.4%→67.9%, precision65.0%→70.4%; role recall37.5%, precision66.7%; date-event1/4correct, so promotion/scaling held. No independent human accuracy claim;60 actual source reviews,0newcoverage/discovery/qualification/application. Supabase0calls0mutations; duplicates separate.
+
+Exact private `data/research/program-extraction-fresh2-2026-10-22/HANDOFF-COMPLETE.json`; initial40 retained separately. Do not replay60steps or reuse these as untouched holdouts. Next actor/negation, conditional policy and range/deadline-event development, then date-focused independent reference and invoice gate. Existing workers/tracker unchanged; paused heartbeat untouched. Pending application remains active-funderAPPLICATION-BACKLOG; no remote patches.
+
+
 ## Latest: 100-case adjudication complete; scale held — October 21
 
 [100-case source adjudication](ADJUDICATION-100-2026-10-21.md) completed: initial masked-case agreement78%role/52%inquiry, not independent human accuracy. Four role gaps and12 inquiry gaps resolved;44 gate-held publisher EIN associations documented; two entity-scope holds, four role gaps and25 inquiry unknowns remain. Twenty fresh pages yield four current cash-program leads, not qualified funders. Scaling held; Supabase0calls0mutations. Duplicates/rechecks separate.
