@@ -144,6 +144,36 @@ def _selected_batch(run: Path, inventory: str, timestamp: datetime) -> dict:
                 "Blocked sources retain their access dependencies; a completed audit does not resolve every identity or program gap."}
 
 
+def _classification_summary(run: Path, inventory: str, population: int) -> dict:
+    """Aggregate allowlist; frozen classifications never become vetted counts."""
+    try:
+        detail = _json(run / "classification-status.json")
+        count = detail["registry_classified"]
+        if (detail["inventory_sha256"] != inventory or detail["population"] != population
+                or detail["inventory_integrity_complete"] is not True
+                or type(count) is not int or count != population
+                or detail["tax_subsection_observed"] + detail["tax_unknown"] != count
+                or not 0 <= detail["bounded_agent_reviews"] <= count):
+            raise ValueError("classification inventory or count mismatch")
+        summary = {k: detail[k] for k in ("schema", "as_of", "population", "registry_classified",
+            "registry_types", "tax_subsection_observed", "subsection03_observed", "tax_unknown",
+            "bounded_agent_reviews", "funding_role_unresolved", "fully_vetted", "human_reviewed",
+            "remote_applied", "published", "repeated_identifier_rows", "repeated_review_records", "completion_note")}
+        for file, key, fields in [
+            ("pilot-results.json", "pilot", ("members", "evaluated", "field_agreement_organizations",
+                "field_agreement_percent", "semantic_accuracy", "completion_note")),
+            ("candidate-review-summary.json", "candidate_review", ("frozen_members", "reviewed",
+                "remaining", "role_dispositions", "inquiry_dispositions", "qualified", "completion_note"))]:
+            if (run / file).exists():
+                data = _json(run / file)
+                if data["inventory_sha256"] != inventory:
+                    raise ValueError("pilot/review inventory mismatch")
+                summary[key] = {k: data[k] for k in fields if k in data}
+        return {"state": "available", **summary}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {"state": "unavailable", "completion_note": "Classification counters unavailable; existing audit and qualification counts remain separate."}
+
+
 class Tracker:
     def __init__(self, run: Path):
         self.run = run.resolve()
@@ -305,6 +335,12 @@ class Tracker:
                 if self.run.parent not in selected_run.parents:
                     raise ValueError("selected batch must remain inside private research")
                 selected = _selected_batch(selected_run, settings["input_sha256"], timestamp)
+            classification = None
+            if config.get("classification_run"):
+                classification_run = Path(config["classification_run"]).resolve()
+                if self.run.parent not in classification_run.parents:
+                    raise ValueError("classification ledger must remain inside private research")
+                classification = _classification_summary(classification_run, settings["input_sha256"], denominator)
             point = {
                 "as_of": status["as_of"], "attempted": status["crawl_attempted"],
                 "evidence_ready": status["states"].get("evidence_ready", 0),
@@ -321,6 +357,7 @@ class Tracker:
                 "states": status["states"], "attempted": status["crawl_attempted"],
                 "research_organizations": touched, "research_stages": stages,
                 "fully_cross_verified": None,
+                "classification": classification,
                 "evidence_cohort": evidence,
                 "active_funders": active,
                 "bulk_sweep": sweep,

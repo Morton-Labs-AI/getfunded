@@ -24,10 +24,11 @@ from .cohort import evidence_db
 from .crawl import now, site
 from .discovery import record_step
 from .evidence import build_packet, submit_proposal
+from .web_text import LEGACY_EXTRACTOR, visible_text
 from .evidence_worker import eligibility_check
 from .pipeline import sha256, write_json
 
-RULESET = "bulk-source-review/v1"
+RULESET = "bulk-source-review/v2"
 EXTRACTION_POLICY = "substantive-main-boundary/v2"
 ROLE = re.compile(r"\bwe\s+(?:(?:also|primarily|annually)\s+)?(?:award|make|provide|distribute|offer)\s+(?:(?:competitive|charitable|financial|research|matching|annual|small|unrestricted|project|operating)\s+){0,3}(?:grants|scholarships|funding)\b|\bour grantmaking (?:supports|focuses|provides|prioritizes)\b", re.I)
 POLICY = re.compile(r"\b(?:we|the foundation|our foundation)\s+(?:do(?:es)?\s+not\s+|are\s+not\s+|currently\s+|only\s+|welcome\s+|accept\s+|encourage\s+|invite\s+|consider\s+|review\s+|will\s+|can\s+|cannot\s+)|\b(?:unsolicited\s+(?:grant\s+)?(?:proposals|applications|inquiries)|(?:applications|proposals|inquiries|grants)\s+(?:are\s+)?(?:by\s+)?invitation.only)\b", re.I)
@@ -199,7 +200,7 @@ def substantive_passages(page: dict) -> tuple[list[dict], int]:
     for node in doc.xpath("//h1|//h2|//h3|//h4|//p|//li|//td|//div[not(*)]"):
         if _excluded_block(node):
             continue
-        text = " ".join(node.text_content().split())
+        text = visible_text(node, page.get("extractor", LEGACY_EXTRACTOR))
         if node.tag in {"h1", "h2", "h3", "h4"}:
             heading = text[:200]
         if not 25 <= len(text) <= 1000 or text in seen or BOILERPLATE.search(text):
@@ -271,10 +272,12 @@ def review_case(out: Path, manifest: dict, row: dict, before: dict) -> dict:
             raise ValueError("source integrity failure; preserve reasons: " + str(packet["integrity_failures"])[:200])
         own = [p for p in packet["pages"] if site(p["url"]) == site(target["website"])]
         bridge = filing_bridge(target, source, own)
-        exact = packet["identity_evidence"] == "exact_ein_observed; semantic_identity_review_pending"
+        gate = packet["identity_gate"]
+        exact = gate["candidate_supported"]
         conflict = packet["identity_evidence"] == "conflicting_or_multiple_eins; identity_review_required"
-        identity = ("publisher_ein_conflict" if conflict else "exact_publisher_ein" if exact else bridge["state"])
-        review.update(identity=identity, filing_bridge=bridge, pages_checked=len(packet["pages"]),
+        identity = ("scoped_publisher_ein" if exact else "identity_gate_hold" if not gate["filing_fallback_allowed"]
+                    else "publisher_ein_conflict" if conflict else bridge["state"])
+        review.update(identity=identity, identity_gate=gate, filing_bridge=bridge, pages_checked=len(packet["pages"]),
                       source_urls=[p["url"] for p in own], source_hashes=[p["snapshot"]["sha256"] for p in own],
                       source_result_sha256=saved["source_result_sha256"],
                       date_evidence=saved["assessment"].get("date_evidence", []),
@@ -296,7 +299,7 @@ def review_case(out: Path, manifest: dict, row: dict, before: dict) -> dict:
                       omitted_matching_blocks=max(0, total-len(passages)),
                       outgoing_role_passages=len(role), policy_passages=len(policies),
                       unvisited_source_urls=packet.get("unvisited_urls", []))
-        identity_supported = identity in {"exact_publisher_ein", "filer_domain_ein_and_publisher_name"}
+        identity_supported = exact or (gate["filing_fallback_allowed"] and identity == "filer_domain_ein_and_publisher_name")
         review["disposition"] = ("identity_conflict_requires_review" if conflict else
             "literal_funder_candidate; semantic_review_pending" if identity_supported and role else
             "outgoing_funding_evidence_identity_pending" if role else

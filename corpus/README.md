@@ -2,6 +2,32 @@
 
 # Open Funder Database — the `corpus/` pipeline
 
+[Date-event and conditional-policy validation](docs/DATE-POLICY-VALIDATION-2026-10-23.md): explicit experimental v3 improves fresh40 date precision73.3%→83.9% and recall71.0%→83.9%; policy precision70.0%→74.5%, recall63.6% unchanged. Condition flags12/13; retained units62/75→60/75. Extraction +9.8% wall time; invoice unavailable. Same-agent references, not population accuracy. Scaling/default promotion held. Supabase0calls0mutations; duplicates0 in each category, paired runs reuse40orgs. Forty partial reviews recorded once, zero full vetting or qualification.
+
+Exact private `data/research/date-policy-fresh-2026-10-23/HANDOFF-COMPLETE.json`. Do not replay40 steps or reuse this sample as fresh. Next LOI-window, table-heading and invitation-prerequisite fixes, then fresh external labels and invoiced cost. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Existing workers/tracker and paused heartbeat unchanged.
+
+
+[Program-specific extraction validation](docs/PROGRAM-EXTRACTION-VALIDATION-2026-10-22.md): new private opt-in retrieval retains30/40 reviewed units versus6/40 on a fresh20 after an initial40-case development pass. Policy recall46.4%→67.9%, precision65.0%→70.4%; role recall37.5%, precision66.7%; date-event1/4correct, so promotion/scaling held. No independent human accuracy claim;60 actual source reviews,0newcoverage/discovery/qualification/application. Supabase0calls0mutations; duplicates separate.
+
+
+[100-case source adjudication](docs/ADJUDICATION-100-2026-10-21.md) completed: initial masked-case agreement78%role/52%inquiry, not independent human accuracy. Four role gaps and12 inquiry gaps resolved;44 gate-held publisher EIN associations documented; two entity-scope holds, four role gaps and25 inquiry unknowns remain. Twenty fresh pages yield four current cash-program leads, not qualified funders. Scaling held; Supabase0calls0mutations. Duplicates/rechecks separate.
+
+
+[Classification ledger and pilot](docs/CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.
+
+
+[The DBA and relationship correction](docs/DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
+
+[Alias and entity-scope validation](docs/ALIAS-SCOPE-VALIDATION-2026-10-20.md) found no recall gain and one unsafe experimental match. The existing identity gate remains the default; fresh real-table recovery was28/28. Scaling remains held.
+
+[Identity gates and v3 table extraction](docs/IDENTITY-GATES-VALIDATION-2026-10-20.md) are implemented with a fresh source validation, conservative holds and separate cost/duplicate counts; broad scaling remains held.
+
+The [funder-focused challenge validation](docs/FUNDER-IDENTITY-VALIDATION-2026-10-20.md) measures identity, fit/inquiry scope and cost before scaling; directory and entity-role gates remain necessary.
+
+The [versioned EIN/text-boundary fix](docs/EIN-EXTRACTOR-VALIDATION-2026-10-20.md) improves a separate source sample while retaining old citation hashes and keeping discovery yield separate.
+
+The [1,000-organization missing-website pilot](docs/MISSING-WEBSITE-PILOT-1000-2026-10-20.md) reports source-supported identity yield, extraction failures, cost and duplicate counts before further scale.
+
 The [active-funder campaign](docs/ACTIVE-FUNDERS-150K.md) targets 150,000 evidenced
 501(c)(3) funders with recent paid donations or live funder websites, recording
 source-scoped update dates and fit/inquiry gaps. The retained original

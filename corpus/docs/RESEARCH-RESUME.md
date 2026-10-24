@@ -1,5 +1,75 @@
 # Research resume and handoff
 
+## Latest: date/event and conditional-policy experiment — October 23
+
+[Date-event and conditional-policy validation](DATE-POLICY-VALIDATION-2026-10-23.md): explicit experimental v3 improves fresh40 date precision73.3%→83.9% and recall71.0%→83.9%; policy precision70.0%→74.5%, recall63.6% unchanged. Condition flags12/13; retained units62/75→60/75. Extraction +9.8% wall time; invoice unavailable. Same-agent references, not population accuracy. Scaling/default promotion held. Supabase0calls0mutations; duplicates0 in each category, paired runs reuse40orgs. Forty partial reviews recorded once, zero full vetting or qualification.
+
+Exact private `data/research/date-policy-fresh-2026-10-23/HANDOFF-COMPLETE.json`. Do not replay40 steps or reuse this sample as fresh. Next LOI-window, table-heading and invitation-prerequisite fixes, then fresh external labels and invoiced cost. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Existing workers/tracker and paused heartbeat unchanged.
+
+
+## Latest: program extraction implemented; fresh evaluation complete — October 22
+
+[Program-specific extraction validation](PROGRAM-EXTRACTION-VALIDATION-2026-10-22.md): new private opt-in retrieval retains30/40 reviewed units versus6/40 on a fresh20 after an initial40-case development pass. Policy recall46.4%→67.9%, precision65.0%→70.4%; role recall37.5%, precision66.7%; date-event1/4correct, so promotion/scaling held. No independent human accuracy claim;60 actual source reviews,0newcoverage/discovery/qualification/application. Supabase0calls0mutations; duplicates separate.
+
+Exact private `data/research/program-extraction-fresh2-2026-10-22/HANDOFF-COMPLETE.json`; initial40 retained separately. Do not replay60steps or reuse these as untouched holdouts. Next actor/negation, conditional policy and range/deadline-event development, then date-focused independent reference and invoice gate. Existing workers/tracker unchanged; paused heartbeat untouched. Pending application remains active-funderAPPLICATION-BACKLOG; no remote patches.
+
+
+## Latest: 100-case adjudication complete; scale held — October 21
+
+[100-case source adjudication](ADJUDICATION-100-2026-10-21.md) completed: initial masked-case agreement78%role/52%inquiry, not independent human accuracy. Four role gaps and12 inquiry gaps resolved;44 gate-held publisher EIN associations documented; two entity-scope holds, four role gaps and25 inquiry unknowns remain. Twenty fresh pages yield four current cash-program leads, not qualified funders. Scaling held; Supabase0calls0mutations. Duplicates/rechecks separate.
+
+Exact private `data/research/adjudication-100-2026-10-21/HANDOFF-COMPLETE.json`; sample is now development, do not replay100records or call it independent human validation. Next program-scoped multi-role/policy/date retrieval changes, then untouched external semantic labels and invoiced cost gate. Pending application remains active-funderAPPLICATION-BACKLOG; fresh remote readback required separately.
+
+
+## Latest: classification ledger and 308 reviews — October 21
+
+[Classification ledger and pilot](CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.
+
+Exact private handoff: `data/research/classification-ledger-2026-10-21/HANDOFF-COMPLETE.json`. Do not replay 308 claim-review steps. Next independent 100-case semantic adjudication and targeted identity/current-cycle gaps before scale. Pending application remains in the active-funder APPLICATION-BACKLOG; no remote patch or fresh remote before-image was constructed.
+
+
+## Latest: DBA/relationship correction validated; opt-in only — October 20
+
+[The DBA and relationship correction](DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
+
+Exact private `data/research/relationship-validation-fresh2-2026-10-20/HANDOFF-COMPLETE.json`; first failed44-case iteration remains `data/research/relationship-validation-2026-10-20/`. Do not reuse either as fresh holdout or replay88 records. Next separately frozen bounded operational discovery/cost sample and targeted alias-edge benchmark; preserve unresolved roles, name variants and current-cycle blockers. RootAPPLICATION-BACKLOG is analysis-only for this run. Workers/tracker unchanged; paused heartbeat untouched. Inventory/hash preserved.
+
+## Latest: alias/scope validation complete; experimental promotion held — October 20
+
+Read [the fresh alias/scope report](ALIAS-SCOPE-VALIDATION-2026-10-20.md). On32 fresh candidates, recall stayed9/17; experimental precision fell9/9→9/10 because one conflicting same-domain publisher passed. Defaultv3/gatev1 retained; v4/gatev2 only through explicit `experimental_alias_scope=True`. Fresh table recovery28/28EINs and row names across2pages from1publisher, bothversions. No holdout tuning.32bounded local identity reviews, zero new coverage/discoveries/qualification/application/human/publication. Supabase0calls0mutations. Duplicates:0org,1URLrepeat,3textrepeats,18repeatedEINmentions; denominators separate. Extraction+61.9%wall, invoice unknown.
+
+Exact private `data/research/alias-scope-validation-2026-10-20/HANDOFF-COMPLETE.json`; rootAPPLICATION-BACKLOG has analysis-only pointer and retained before-image. Next use completed sample as development: explicit DBA/acronym/relationship evidence and conflicting publisher holds; then a fresh disjoint holdout with a different table publisher, followed by bounded discovery cost/yield measurement before scaling. Do not replay32records or count table rows as discoveries. Existing workers/tracker unchanged; paused heartbeat untouched. Inventory/hash preserved.
+
+## Latest: identity gates and v3 table repair implemented; fresh validation complete — October 20
+
+Read [the v3 identity-gate report](IDENTITY-GATES-VALIDATION-2026-10-20.md). Fresh40cases/175snapshots exclude prior1080orgs and previousvalidationURLs/hashes. Gateprecision10/16(62.5%)→8/8(100%observed),recall10/16→8/16(50%);6directoryfalsehintsremoved,8validsourceassociationsheld. Same-agentlabels/notpopulationaccuracy. EIN161/161unique-textpairs correctbothversions;175rawhashes173URLs172texts/2URL+3textrepeats;26within-source repeats/version. New48.1%wall/+45.9%CPU; no web/Supabase/extractormodelcalls/invoiceunknown.
+
+V3placeholder/table/context+source-role/name/temporal gates wiredactive-funders/v3 andbulk-source-review/v2; filingfallbackcannotbypasshold. V1/v2citationversionsretained/10legacyhasheschecked. Existingworkersnotreloaded/requeued; newinvocationsonly. Known8tableIDsrecovered/placeholderremoved outsidefreshmetrics; fresh175contains0EIN-column tables, local6candidate-sourcesetsyield0unusedtables. DoNOTclaimindependenttableaccuracy.40boundedidentityreviewsrecordedonce/40hashes/0newcoverageauditsdomainsproposalsqualificationappliedhumanpublished. Oneescaped-bugregressionred→green; nofullsuite/CIpoll.
+
+Exact `data/research/identity-gates-validation-2026-10-20/HANDOFF-COMPLETE.json`; rootAPPLICATION-BACKLOGlinksvalidationonly/noexecutablepatch. Nextsource-backedalias/per-entityrecall improvementondevelopmentcases, untouchedidentityholdout, guardedindependentreal-tableacquisition, thenboundeddiscoveryyield/cost. No broadscale. Donotreplay40steps/priorpilot; inventory/hashuntouched/Supabaseread-only/oldheartbeatpaused/noautomation/outreach/subagents/deletion/mainpush/merge.
+
+## Latest: funder-focused challenge validation complete; scaling held — October 20
+
+Read [the40-case funder identity report](FUNDER-IDENTITY-VALIDATION-2026-10-20.md). Frozen10namesake/misassigned+10multi-entity/conflict+10single-EIN+10directory cases exclude prior1040.180native snapshots/179URLs. V2usableEIN recall171/179(95.5%)vs167/179,precision171/172(99.4%);8tableEINsmissed/1placeholderemitted. Existing exact-EIN identity hint11/18precision61.1%,11/15recall73.3%;7directoryfalseleads. These are pending-review hints, not approvals. Manualsource-scope15bridges/40; only2primarysitesexplicitlyinviteorganizationrequests. Same-agentlabels/noindependenthumanreview; challenge sample/notpopulationyield.
+
+40boundedidentity reviews recorded once/40hashes/40orgs,0newcoverage/audits/domains/proposals/claims/qualification.11v1/16v2within-snapshotrepeatsseparate;0duplicate members/snapshots/inputs;1URLrepeatdifferenthash. Supabase0calls0mutations/web0; timingsv2+12.1%overall,+9.4%percorrectEIN; actualusageprivate/invoiceunknown. Private exact `data/research/funder-focused-validation-2026-10-20/HANDOFF-COMPLETE.json`; pendingrootAPPLICATION-BACKLOGlinksanalysis-onlyproposedgates. Nextimplementdirectory/placeholder/per-entity/temporalidentitygate and explicit-column table extraction, validatefreshholdout, then boundednewdiscoveryyield/cost. Rules notdeployed/no scaling/workerreload/requeue. Donotreplay40steps/priorpilot. Inventory/hashuntouched;oldheartbeatpaused/noautomation/outreach/subagents/deletion/merge/mainpush. Verifiedpaired40/180and40canonicalhashes;testsnotrunweeklypolicy/nopollCI.
+
+## Latest: EIN/text-boundary fix validated on separate sources — October 20
+
+Read [the extractor evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md). New v2 packets recover22/22 labelled EINs versus17/22 on40 frozen non-pilot source pages;18 negatives have0 false positives. Known pilot development recovery1/4→4/4 is separate. Labels were fixed before code/predictions by the implementer, not independent human review. Discovery yield stays4/1000; no new domains/audits/steps/proposals/qualifications. Two repeated mentions per version remain separate from22 unique page/EINs.
+
+New invocations use shared v2 structural text/EIN extraction; existing citations select their saved version (missing version means v1). Ten old page hashes/four old claim citations remain valid; no resubmission. Existing workers were not restarted/requeued. Supabase0calls0mutations. One reproducing escaped-bug regression red→green; no routine suite/CI polling. Private exact handoff `data/research/ein-boundary-validation-2026-10-20/HANDOFF-COMPLETE.json`; pending rootAPPLICATION-BACKLOG unchanged location. Next fresh funder-focused validation including wrong/multiple-EIN/directory cases, then bounded discovery yield/cost measurement; do not mass-scale or replay the pilot. Old heartbeat paused/no automation/outreach/subagents/deletion.
+
+## Latest: 1,000-member discovery pilot complete; do not scale — October 20
+
+Read [the pilot report](MISSING-WEBSITE-PILOT-1000-2026-10-20.md). Actual1,000 initial queries plus92followups produced4 current source-supported live EIN/domain bridges (0.4%),4 local admissions,10 native pages and4 strict claims. There are1,100 canonical research records across1,000 organizations.996 remain unresolved by this bounded method; no claim they lack websites. Recency priority used520FY2025/2026 and480FY2024 outgoing-record leads; none has an exact paid date. Zero qualified/applied/human/published-profile additions. Supabase31successful GET query responses/zero mutations.
+
+Do not scale the pilot automatically. The EIN detector found1/4 manually supported native bridges; preserve the3 label/DOM-boundary misses for a versioned fix and independent labelled evaluation. Three wrong-EIN namesake matches and two directory-only EIN hits were held/rejected. A2017 official Ellison domain bridge stays held because current original-document access redirects to a404 route. No bypass. Detailed token counters/cost and duplicate scopes are in private receipts; billed dollars unavailable.
+
+Exact private handoff: `data/research/missing-website-pilot-1000-2026-10-20/HANDOFF-COMPLETE.json`. Root `data/research/active-funders-150k-2026-10-18/APPLICATION-BACKLOG.json` links4 strict preparations,4 proposed domains,exact organization before-images and mandatory gates; fresh program/signal-table before-images still required before separate application. Do not replay1,000queries/92followups/1,100steps/4assignments/4admissions/4preparations. Proposal duplicates4records4hash0repetitions/4claims4scopedkeys0repetitions; URL repetitions/followup records remain separate. Whole-site update month/currentstanding/currentcycles remain unknown. Existing bounded workers remain; oldheartbeat paused/no newautomation/outreach/subagents/deletion. New20k0030/31stillincomplete;4 pilotpairs are not completed wave audits. PR19 remains merged; this pilot is a new branch with no new merge authorization.
+
+Verified by: frozen cohort hash,1,100canonical record hashes,10native pages,4strict preparations and before-images. Tests: not run (weekly review policy).
+
 ## Latest: PR19 capacity reporting fix — October 20, 19:33 UTC
 
 The user explicitly authorized fixing and merging PR19 in this session. This supersedes earlier no-merge instructions for PR19 only; Supabase remains read-only and data candidates are not approved. The tracker now explains current-pool capacity from fresh aggregate snapshots, showing available live pairs, wave minimum, shortfall and screening remaining. Stale/missing snapshots do not assert exhaustion. Verified live:1,703 pairs,8,297 shortfall,0/20,000 requested audits. Tracker alone restarted to load the fix (new PID21562 at checkpoint); crawler/followers/coordinator remain unchanged. Always verify actual identities/leases before process action.

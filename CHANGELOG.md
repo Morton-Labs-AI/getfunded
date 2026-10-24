@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-23
+
+- Add opt-in v3 date-event and conditional policy extraction, explicit CLI flag and fresh40 paired validation. Date metrics improve; policy recall and retained-unit yield still hold promotion. Preserve original and corrected scoring, source spans, duplicate denominators and local-only backlog.
+
+## 2026-10-22
+
+- Add explicit private program-evidence retrieval and CLI; retain version1 and corrected version2. Fresh40 plus disjoint20 improve literal/policy retrieval, but low role recall and date-event failures hold default promotion and scale. Preserve source vintages, unknowns, duplicate denominators and local-only approval gates.
+
+
+## 2026-10-21 — source adjudication
+
+- Complete100 masked-case source rechecks, preserve initial78%role/52%inquiry agreement limits, resolve bounded identity/program gaps with20 fresh pages and hold scaling. Keep comparison labels, revisions, exact source evidence, cost and duplicate counts separate; no remote writes.
+
+
+## 2026-10-21
+
+- Add private checkpointed full-inventory classification ledger and tracker counters, separating recorded observations from vetting; execute 1,000-case source-field reconciliation and 308 bounded candidate reviews. Preserve unknowns, identity holds and duplicate denominators; no remote writes or semantic accuracy claim.
+
+
 ## 2026-10-19 — Resume the checkpointed 20,000-source continuation
 
 Resume the existing guarded research processes after the requested pause,
@@ -19,7 +38,39 @@ Releases are tagged `vX.Y.Z`.
 
 ## [Unreleased]
 
+### Research
+
+- Add explicit experimental DBA/initialism and inter-entity relationship evidence,
+  retaining existing v3 decisions and all saved source versions. Preserve the
+  first iteration's recall regression; a second untouched32-case comparison
+  improves supported hints8→9 with zero observed false positives and higher
+  processing cost. Keep enriched controls, duplicates and qualification separate;
+  defaults unchanged and scaling held. Supabase remains read-only.
+
+- Add opt-in alias and entity-scope extraction with frozen fresh validation.
+  Recall stayed9/17 and one unsafe match reduced precision; existing defaults
+  remain unchanged and scaling is held. Two fresh real EIN tables recovered
+  all28 rows with correct entity names. Report cost, duplicate denominators
+  and unresolved scope gaps separately; Supabase remained read-only.
+
+
+### Fixed
+
+- Add versioned identity gates before active-funder/sweep candidate staging and
+  explicit EIN-column table extraction, preserving legacy citations. Fresh
+  validation reports directory false hints removed, conservative recall losses
+  and extra extraction cost; broad scaling remains held.
+
+- Version EIN labels and structural HTML text boundaries for new research packets,
+  retaining legacy citation hashes and source-version-aware proposal validation.
+  A separate 40-page evaluation recovers22/22 labelled identifiers versus17/22;
+  discovery, duplicate and human-review counts remain separate.
+
 ### Added
+
+- A frozen funder-focused40-case identity validation report separating EIN token
+  recovery, directory/namesake/entity-scope errors, fit/inquiry guidance and cost.
+  Scaling remains held; Supabase stays read-only and duplicate counts stay separate.
 
 - The requested 20,000-source continuation completed with 98,664 page checks,
   private evidence cards, 274 bounded followup dispositions and separate duplicate

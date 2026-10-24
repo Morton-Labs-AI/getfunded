@@ -24,6 +24,8 @@ from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 from lxml import etree, html
 
+from .web_text import CURRENT_EXTRACTOR, ein_mentions as labelled_eins, visible_text
+
 AGENT_TOKEN = "FunderResearch"
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ROBOTS_BYTES = 512 * 1024
@@ -319,14 +321,11 @@ def extract(page: dict, ref: dict) -> dict:
     doc = html.fromstring(page["text"])
     links, feeds, structured, resources = [], [], [], []
     # Footer EINs are useful identity evidence, so inspect before dropping navigation.
-    identifier_text = re.sub(r"\s+", " ", doc.text_content())
+    identifier_text = visible_text(doc)
     ein_mentions = []
-    for match in re.finditer(
-        r"\b(?:EIN|Employer Identification Number|Tax\s*(?:ID|Identification)(?:\s*Number)?)"
-        r"\s*[:#]?\s*(\d{2}[-\s]?\d{7})\b", identifier_text, re.I
-    ):
-        ein_mentions.append({"value": re.sub(r"\D", "", match[1]),
-                             "excerpt": identifier_text[max(0, match.start()-40):match.end()+40],
+    for mention in labelled_eins(identifier_text, doc=doc):
+        ein_mentions.append({"value": mention["ein"],
+                             "excerpt": identifier_text[max(0, mention["start"]-40):mention["end"]+40],
                              "source_url": page["url"]})
     for script in doc.xpath('//script[@type="application/ld+json"]'):
         try:
@@ -358,7 +357,7 @@ def extract(page: dict, ref: dict) -> dict:
         if bad.getparent() is not None:
             bad.getparent().remove(bad)
     title = " ".join(doc.xpath("//title/text()")) or " ".join(doc.xpath("//h1/text()"))
-    text = re.sub(r"\s+", " ", doc.text_content()).strip()
+    text = visible_text(doc)
     # These are research leads only. No amount, date, posture, or contact is promoted.
     signals = []
     for sentence in re.split(r"(?<=[.!?])\s+", text):
@@ -368,7 +367,7 @@ def extract(page: dict, ref: dict) -> dict:
             if len(signals) == 15:
                 break
     return {"url": page["url"], "title": title[:300], "fetched_at": page["fetched_at"],
-            "evidence_reused": page.get("cache_reused", False),
+            "evidence_reused": page.get("cache_reused", False), "extractor": CURRENT_EXTRACTOR,
             "snapshot": ref, "links": sorted(links, key=lambda l: l["navigation"])[:250], "feeds": feeds[:20],
             "public_resource_links": resources[:100],
             "ein_mentions": ein_mentions[:20],

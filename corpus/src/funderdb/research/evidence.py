@@ -22,14 +22,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .cohort import PROTOCOL, evidence_db
 from .crawl import canonical, now, site
 from .pipeline import sha256, write_json
+from .web_text import ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR, CURRENT_EXTRACTOR, LEGACY_EXTRACTOR, ein_mentions, visible_text
+from .identity import identity_gate
+from .source_names import publisher_names
 
 FIELDS = Literal["program_name", "application_status", "application_deadline",
                  "award_amount", "round_budget", "partnership_budget", "eligibility",
                  "geography", "duration", "recipient_award", "grantmaking_role",
                  "funding_focus", "geographic_focus", "inquiry_policy", "inquiry_route"]
-EIN_PATTERN = re.compile(
-    r"\b(?:EIN|Employer Identification Number|Tax\s*(?:ID|Identification)(?:\s*Number)?)"
-    r"\s*[:#]?\s*(\d{2}[-\s]?\d{7})\b", re.I)
 
 
 class StrictModel(BaseModel):
@@ -91,7 +91,7 @@ def text_digest(text: str) -> str:
 
 @lru_cache(maxsize=32)
 def source_text(path: str, stored_hash: str, content_hash: str | None,
-                encoding: str | None) -> dict:
+                encoding: str | None, extractor: str = LEGACY_EXTRACTOR) -> dict:
     source = Path(path)
     if source.stat().st_size > 8 * 1024**2:
         raise ValueError("source envelope exceeds the evidence-reader size guard")
@@ -116,13 +116,12 @@ def source_text(path: str, stored_hash: str, content_hash: str | None,
     doc = html.fromstring(raw["text"])
     for element in doc.xpath("//script|//style|//noscript|//svg"):
         element.drop_tree()
-    visible = " ".join(doc.text_content().split())
-    mentions = [{"ein": re.sub(r"\D", "", match[1]), "start": match.start(),
-                 "end": match.end(), "excerpt": match[0]}
-                for match in EIN_PATTERN.finditer(visible)]
-    return {"url": raw["url"], "observed_at": raw["fetched_at"],
+    visible = visible_text(doc, extractor)
+    mentions = ein_mentions(visible, extractor, doc=doc)
+    return {**({"publisher_names": publisher_names(doc)} if extractor in {ALIAS_EXTRACTOR, STRICT_RELATIONSHIP_EXTRACTOR, RELATIONSHIP_EXTRACTOR} else {}),
+            "url": raw["url"], "observed_at": raw["fetched_at"],
             "text": visible, "text_sha256": text_digest(visible),
-            "extractor": "lxml-visible-text/v1", "ein_mentions": mentions}
+            "extractor": extractor, "ein_mentions": mentions}
 
 
 def checked_page(page: dict, allowed_root: Path) -> dict:
@@ -133,20 +132,31 @@ def checked_page(page: dict, allowed_root: Path) -> dict:
     # Cached references are content addressed. Detect local changes before cache reuse.
     if sha256(path) != ref["sha256"]:
         raise ValueError("snapshot changed since acquisition")
-    text = source_text(str(path), ref["sha256"], ref.get("content_sha256"), ref.get("encoding"))
+    text = source_text(str(path), ref["sha256"], ref.get("content_sha256"), ref.get("encoding"),
+                       page.get("extractor", LEGACY_EXTRACTOR))
     if canonical(text["url"]) != canonical(page["url"]):
         raise ValueError("snapshot URL differs from result reference")
     return {**text, "snapshot": ref, "source_license": ref.get("license_code", "publisher_website"),
             "republishable": False}
 
 
-def build_packet(target: dict, result: dict, source_run: Path) -> dict:
+def build_packet(target: dict, result: dict, source_run: Path, *, experimental_alias_scope: bool = False,
+                 experimental_relationships: bool = False, program_as_of: date | None = None,
+                 experimental_program_events: bool = False) -> dict:
+    """Experimental alias/relationship versions never replace default v3 implicitly."""
+    if experimental_alias_scope and experimental_relationships:
+        raise ValueError("select only one experimental identity version")
+    if experimental_program_events and program_as_of is None:
+        raise ValueError("program event extraction requires an explicit program_as_of date")
+    extractor = (RELATIONSHIP_EXTRACTOR if experimental_relationships else
+                 ALIAS_EXTRACTOR if experimental_alias_scope else CURRENT_EXTRACTOR)
     if result.get("org_id") != target["org_id"] or result.get("ein") != target.get("ein"):
         raise ValueError("result organization or EIN differs from fixed cohort member")
     pages, failures = [], []
     for page in result.get("pages", []):
         try:
-            pages.append(checked_page(page, source_run.parent))
+            # Default packets retain validated v3; saved packets use their own version.
+            pages.append(checked_page({**page, "extractor": extractor}, source_run.parent))
         except (OSError, ValueError, KeyError, etree.ParserError) as exc:
             failures.append({"source_url": page.get("url"), "reason": str(exc)[:300]})
     own_pages = [p for p in pages if target.get("website")
@@ -158,12 +168,30 @@ def build_packet(target: dict, result: dict, source_run: Path) -> dict:
         identity = "conflicting_or_multiple_eins; identity_review_required"
     else:
         identity = "ein_bridge_not_established"
+    gate = identity_gate(target, own_pages, version=(
+        "source-identity-gates/v4" if experimental_relationships else
+        "source-identity-gates/v2" if experimental_alias_scope else "source-identity-gates/v1"))
+    literal_identity = identity
+    if gate["candidate_supported"]:
+        identity = ("exact_ein_observed; semantic_identity_review_pending" if own_eins == {target.get("ein")}
+                    else "scoped_ein_observed; semantic_identity_review_pending")
+    elif gate["blockers"]:
+        identity = ("conflicting_or_multiple_eins; identity_review_required" if len(own_eins) > 1
+                    else "identity_gate_blocked; semantic_identity_review_required")
     state = ("source_integrity_blocked" if failures else
              "awaiting_claim_review" if any(len(p["text"]) >= 100 for p in pages) else
              "unusable_text" if pages else "acquisition_blocked")
-    return {"schema": PROTOCOL, "org_id": target["org_id"], "org_name": target["org_name"],
+    program_evidence = {}
+    if program_as_of is not None:
+        if experimental_program_events:
+            from .programs_v3 import extract_program_context
+        else:
+            from .programs_v2 import extract_program_context
+        program_evidence = {"program_evidence": [extract_program_context(p, program_as_of) for p in own_pages]}
+    return {**program_evidence, "schema": PROTOCOL, "org_id": target["org_id"], "org_name": target["org_name"],
             "ein": target.get("ein"), "checked_at": now(), "state": state,
-            "identity_evidence": identity, "c3_evidence": target["c3_evidence"],
+            "identity_evidence": identity, "literal_identity_evidence": literal_identity,
+            "identity_gate": gate, "c3_evidence": target["c3_evidence"],
             "pages": pages, "integrity_failures": failures,
             "acquisition_errors": result.get("errors", []),
             "unvisited_urls": result.get("unvisited_urls", []),
@@ -198,8 +226,7 @@ def submit_proposal(run: Path, source: Path) -> dict:
                 page = pages.get(citation.snapshot_sha256)
                 if not page:
                     raise ValueError("citation is not an acquired source in this member packet")
-                fresh = checked_page({"url": page["url"], "snapshot": page["snapshot"]},
-                                     Path(cohort["source_run"]).parent)
+                fresh = checked_page(page, Path(cohort["source_run"]).parent)
                 if (citation.text_sha256 != fresh["text_sha256"]
                         or citation.end <= citation.start
                         or citation.end > len(fresh["text"])

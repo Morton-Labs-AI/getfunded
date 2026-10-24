@@ -1,5 +1,33 @@
 # Organization research protocol
 
+## Latest: date/event and conditional-policy experiment — October 23
+
+[Date-event and conditional-policy validation](DATE-POLICY-VALIDATION-2026-10-23.md): explicit experimental v3 improves fresh40 date precision73.3%→83.9% and recall71.0%→83.9%; policy precision70.0%→74.5%, recall63.6% unchanged. Condition flags12/13; retained units62/75→60/75. Extraction +9.8% wall time; invoice unavailable. Same-agent references, not population accuracy. Scaling/default promotion held. Supabase0calls0mutations; duplicates0 in each category, paired runs reuse40orgs. Forty partial reviews recorded once, zero full vetting or qualification.
+
+Exact private `data/research/date-policy-fresh-2026-10-23/HANDOFF-COMPLETE.json`. Do not replay40 steps or reuse this sample as fresh. Next LOI-window, table-heading and invitation-prerequisite fixes, then fresh external labels and invoiced cost. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Existing workers/tracker and paused heartbeat unchanged.
+
+
+## Latest: program extraction implemented; fresh evaluation complete — October 22
+
+[Program-specific extraction validation](PROGRAM-EXTRACTION-VALIDATION-2026-10-22.md): new private opt-in retrieval retains30/40 reviewed units versus6/40 on a fresh20 after an initial40-case development pass. Policy recall46.4%→67.9%, precision65.0%→70.4%; role recall37.5%, precision66.7%; date-event1/4correct, so promotion/scaling held. No independent human accuracy claim;60 actual source reviews,0newcoverage/discovery/qualification/application. Supabase0calls0mutations; duplicates separate.
+
+Exact private `data/research/program-extraction-fresh2-2026-10-22/HANDOFF-COMPLETE.json`; initial40 retained separately. Do not replay60steps or reuse these as untouched holdouts. Next actor/negation, conditional policy and range/deadline-event development, then date-focused independent reference and invoice gate. Existing workers/tracker unchanged; paused heartbeat untouched. Pending application remains active-funderAPPLICATION-BACKLOG; no remote patches.
+
+
+## Latest: 100-case adjudication complete; scale held — October 21
+
+[100-case source adjudication](ADJUDICATION-100-2026-10-21.md) completed: initial masked-case agreement78%role/52%inquiry, not independent human accuracy. Four role gaps and12 inquiry gaps resolved;44 gate-held publisher EIN associations documented; two entity-scope holds, four role gaps and25 inquiry unknowns remain. Twenty fresh pages yield four current cash-program leads, not qualified funders. Scaling held; Supabase0calls0mutations. Duplicates/rechecks separate.
+
+Exact private `data/research/adjudication-100-2026-10-21/HANDOFF-COMPLETE.json`; sample is now development, do not replay100records or call it independent human validation. Next program-scoped multi-role/policy/date retrieval changes, then untouched external semantic labels and invoiced cost gate. Pending application remains active-funderAPPLICATION-BACKLOG; fresh remote readback required separately.
+
+
+## Latest: classification ledger and 308 reviews — October 21
+
+[Classification ledger and pilot](CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.
+
+Exact private handoff: `data/research/classification-ledger-2026-10-21/HANDOFF-COMPLETE.json`. Do not replay 308 claim-review steps. Next independent 100-case semantic adjudication and targeted identity/current-cycle gaps before scale. Pending application remains in the active-funder APPLICATION-BACKLOG; no remote patch or fresh remote before-image was constructed.
+
+
 Extend the filing spine with current, attributable web evidence. Include every
 organization: no website, no recorded grants, unknown posture, a confirmed web
 profile, or a canonical redirect are all valid inventory entries. A download is
@@ -310,3 +338,39 @@ specific blocker recorded, claims reviewed, and approved updates applied through
 provenance-preserving paths. Report remaining counts honestly. Estimate large-run
 costs from measured throughput, page sizes and actual model usage. A million
 inventory rows are not a million researched funders.
+
+## Versioned HTML and EIN extraction
+
+New evidence packets/crawler summaries use `lxml-visible-text/v3` (v1/v2 remain available for saved citations): structural HTML boundaries are separated while inline fragments remain joined. Inert content is excluded from identity leads. EIN recognition requires a bounded label and complete nine-digit identifier; it does not approve an entity or fill missing digits. Saved packets/citations select their recorded version, with absent metadata meaning historical v1. Unknown versions are rejected. Re-extraction is a new text vintage, never a new website observation or completed semantic review. The [dated evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md) reports recovery, limits and cost separately from discovery yield.
+
+V3 adds explicit EIN-column table recovery and scoped assertion metadata, while preserving non-EIN numeric columns. Active triage and automatic sweep staging apply source-identity-gates/v1: directory/shared-platform, placeholder, EIN mismatch, local publisher-name, multi-entity and historical/succession holds. A blocked gate cannot be overridden by the filing-domain fallback. Gate-passing hints remain unapproved and never establish standing, current funding interest or inquiry permission. See [the fresh validation and coverage limits](IDENTITY-GATES-VALIDATION-2026-10-20.md). New rule versions do not authorize restarting workers or rewriting old audits.
+
+
+### Experimental alias and entity-scope recall
+
+V4 display-name/context extraction and identity gate v2 are evaluation-only via
+`build_packet(..., experimental_alias_scope=True)`. Fresh validation did not
+improve recall and introduced one unsafe match; the defaults remain v3/gate v1.
+Literal display names are source assertions, not legal aliases. A separately
+named entity does not establish a shared-domain relationship. Explicit DBA,
+acronym and relationship evidence and unexplained publisher changes need further
+development and a new disjoint holdout before promotion. Do not tune a completed
+holdout then report it as fresh. Two independent real-table pages validate28
+row/EIN pairs, but share one publisher. See the [dated results and costs](ALIAS-SCOPE-VALIDATION-2026-10-20.md).
+
+
+### Corrected experimental relationship checks
+
+`build_packet(..., experimental_relationships=True)` selects sourcev6/gatev4;
+ordinary callers retainv3/gatev1. The two experiment flags are mutually exclusive.
+V6 retains v3 assertions and existing evidence-supported hints unless a hard hold
+applies; new matches require literal DBA/initialism evidence or a bounded
+relationship statement between named entities. Separate names alone do not prove
+a shared domain. Funding scope, current standing, dates and inquiry permission
+remain unverified. Originalv4/v5 outputs remain reproducible.
+
+The [two-pass validation](DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) records the
+first rule's recall regression, the corrected untouched evaluation, separate
+marker/DBA denominators, cost and unresolved alias-edge coverage. Do not count
+primary-association accuracy as DBA-edge recall, or source reviews as coverage.
+No default promotion or broad scaling follows this small result.

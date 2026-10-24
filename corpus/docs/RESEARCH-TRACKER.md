@@ -1,3 +1,53 @@
+# DBA/relationship validation · October 20, 2026
+
+## Latest: date/event and conditional-policy experiment — October 23
+
+[Date-event and conditional-policy validation](DATE-POLICY-VALIDATION-2026-10-23.md): explicit experimental v3 improves fresh40 date precision73.3%→83.9% and recall71.0%→83.9%; policy precision70.0%→74.5%, recall63.6% unchanged. Condition flags12/13; retained units62/75→60/75. Extraction +9.8% wall time; invoice unavailable. Same-agent references, not population accuracy. Scaling/default promotion held. Supabase0calls0mutations; duplicates0 in each category, paired runs reuse40orgs. Forty partial reviews recorded once, zero full vetting or qualification.
+
+Exact private `data/research/date-policy-fresh-2026-10-23/HANDOFF-COMPLETE.json`. Do not replay40 steps or reuse this sample as fresh. Next LOI-window, table-heading and invitation-prerequisite fixes, then fresh external labels and invoiced cost. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Existing workers/tracker and paused heartbeat unchanged.
+
+
+## Latest: program extraction implemented; fresh evaluation complete — October 22
+
+[Program-specific extraction validation](PROGRAM-EXTRACTION-VALIDATION-2026-10-22.md): new private opt-in retrieval retains30/40 reviewed units versus6/40 on a fresh20 after an initial40-case development pass. Policy recall46.4%→67.9%, precision65.0%→70.4%; role recall37.5%, precision66.7%; date-event1/4correct, so promotion/scaling held. No independent human accuracy claim;60 actual source reviews,0newcoverage/discovery/qualification/application. Supabase0calls0mutations; duplicates separate.
+
+Exact private `data/research/program-extraction-fresh2-2026-10-22/HANDOFF-COMPLETE.json`; initial40 retained separately. Do not replay60steps or reuse these as untouched holdouts. Next actor/negation, conditional policy and range/deadline-event development, then date-focused independent reference and invoice gate. Existing workers/tracker unchanged; paused heartbeat untouched. Pending application remains active-funderAPPLICATION-BACKLOG; no remote patches.
+
+
+## Latest: 100-case adjudication complete; scale held — October 21
+
+[100-case source adjudication](ADJUDICATION-100-2026-10-21.md) completed: initial masked-case agreement78%role/52%inquiry, not independent human accuracy. Four role gaps and12 inquiry gaps resolved;44 gate-held publisher EIN associations documented; two entity-scope holds, four role gaps and25 inquiry unknowns remain. Twenty fresh pages yield four current cash-program leads, not qualified funders. Scaling held; Supabase0calls0mutations. Duplicates/rechecks separate.
+
+Exact private `data/research/adjudication-100-2026-10-21/HANDOFF-COMPLETE.json`; sample is now development, do not replay100records or call it independent human validation. Next program-scoped multi-role/policy/date retrieval changes, then untouched external semantic labels and invoiced cost gate. Pending application remains active-funderAPPLICATION-BACKLOG; fresh remote readback required separately.
+
+
+## Latest: classification ledger and 308 reviews — October 21
+
+[Classification ledger and pilot](CLASSIFICATION-LEDGER-PILOT-2026-10-21.md): all 2,309,073 records represented with explicit unknowns; 1,000/1,000 native-field agreement and 308 bounded candidate reviews. This is not completed vetting; semantic accuracy and invoice cost remain unestablished. Supabase remains read-only.
+
+Exact private handoff: `data/research/classification-ledger-2026-10-21/HANDOFF-COMPLETE.json`. Do not replay 308 claim-review steps. Next independent 100-case semantic adjudication and targeted identity/current-cycle gaps before scale. Pending application remains in the active-funder APPLICATION-BACKLOG; no remote patch or fresh remote before-image was constructed.
+
+
+[The DBA and relationship correction](DBA-RELATIONSHIP-VALIDATION-2026-10-20.md) improves fresh main-sample hint yield8/32→9/32 and recall42.1%→47.4%, with zero observed false positives. Marker/DBA controls show no additional yield. Parsing costs70.7% more wall time; invoice dollars unavailable. Defaultv3/gatev1 remains; v6/gatev4 is explicit opt-in only. Both iterations are preserved;88 actual bounded reviews add zero coverage/discovery/qualification. Supabase0calls0mutations; duplicate denominators remain separate.
+
+# Alias/scope validation · October 20, 2026
+
+The [32-case fresh comparison](ALIAS-SCOPE-VALIDATION-2026-10-20.md) adds32 bounded identity-review records and zero coverage, discovery or verified-funder additions. Recall did not improve; one unsafe match keeps the new gate experimental. Defaultv3/gatev1 remains. Two fresh EIN tables recovered28/28rows; they do not advance organization progress. Organization, URL, text and mention repeats remain separate.
+
+# Identity gates · October 20, 2026
+
+The [implemented v3 gates and fresh validation](IDENTITY-GATES-VALIDATION-2026-10-20.md) add40 bounded identity-review records on existing organizations and0 new coverage, acquisition audits, discoveries or qualifications. Eight gate-passing hints remain pending semantic review; they are not eight new verified funders. New code is available to new invocations; existing workers were not reloaded. Table repair has development/regression coverage but no independent real-table holdout yet. Duplicates and extraction observations retain separate denominators.
+
+# Funder identity validation · October 20, 2026
+
+The [40-case funder-focused challenge set](FUNDER-IDENTITY-VALIDATION-2026-10-20.md) adds40 actual bounded identity-review records on existing organizations, with0 new acquisition audits, coverage, domains or qualifications. Its15 source-scoped bridges are validation outcomes, not new funders. Directory/temporal/entity-role gaps keep scaling held; duplicate sample members0, repeated URL1, repeated v2mentions16 are separate. Existing workers were not restarted.
+
+# Extractor validation · October 20, 2026
+
+The [40-page separate-source evaluation](EIN-EXTRACTOR-VALIDATION-2026-10-20.md) improves labelled EIN recovery17/22→22/22. It adds **zero** audited organizations, discoveries, qualified funders or research steps to tracker coverage. Both versions repeat two within-page mentions, excluded from unique yield. Existing pilot yield stays4/1000; existing worker processes were not reloaded.
+
+Latest independent work: [the1,000-member missing-site pilot](MISSING-WEBSITE-PILOT-1000-2026-10-20.md) completed its bounded discovery pass with4 current source-supported live identity bridges. Its1,100research records and4candidate admissions are not20k source-audit completion or150k qualification. The pilot is held from scaling pending extractor/accuracy/cost work. The requested0030/0031 audit panel retains its own denominator and actual proof counts.
+
 The requested-batch panel now explains next-wave capacity from fresh pool and
 audit snapshots: unseen live-source pairs, the wave minimum, the shortfall and
 pool candidates still awaiting screening. When the pool is fully screened and
