@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — nomination and recipient-report events
+
+- Add explicit v9 subject citations and application-cue precedence; correct two old failures and three fresh targeted errors. Combined24 date precision79.5%/recall70.5%; primary20 unchanged. Preserve defaults, separate duplicate/reference counts and retain scaling/application gates. Supabase untouched.
+
 ## 2026-10-25 — invitation/activity event roles
 
 - Add explicit v8 eligibility qualifiers and non-grant event subjects with exact citations. Correct two old failures; fresh28 has unchanged80.6% date precision/recall and seven shared gaps. Retain defaults and scaling holds, conflicts and local-only review/application gates.

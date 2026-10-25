@@ -1,5 +1,11 @@
 # Organization research protocol
 
+## Latest: nomination and recipient-report dates — October 25
+
+[Nomination/report date validation](HONORIFIC-REPORT-VALIDATION-2026-10-25.md): explicit v9 corrects two old failures and three fresh targeted events. Primary20 shows no gain; separate targeted4 improves date precision/recall73.3%→93.3%. Combined24 precision71.8%→79.5%, recall63.6%→70.5%; retained52/70 units and19/24 pages unchanged. Same-agent selected references, not population accuracy; eight extra/thirteen missed events and external-reference/cost gates hold scale. Local1.801s→1.822s, invoice unknown.24bounded reviews recorded once;0duplicates per org/URL/raw/text,4repeated date references separate;0newqualified/human/applied/published. Supabase0calls0mutations.
+
+Exact private `data/research/nomination-report-fresh-2026-10-25/HANDOFF-COMPLETE.json`; do not replay24steps or prior batches. Defaults unchanged; v9 explicit --events-version only. Next award-submission scope/nested schedules, external semantic labels and operational cost. APPLICATION-BACKLOG analysis-only with before-image/hash; await separate application. Workers/tracker/paused heartbeat unchanged.
+
 ## Latest: invitation/activity event roles — October 25
 
 [Invitation/activity event validation](EVENT-SUBJECT-VALIDATION-2026-10-25.md): two old failures corrected in explicit v8, but fresh28 shows no gain over v7: date precision/recall80.6% both; retained units61/80 both; policy84.4%precision/50.9%recall unchanged. Single local run1.600s→1.500s, not proven optimization; invoice unknown. Seven shared date errors and external-reference/cost gaps hold scale and defaults. Same-agent references, not population accuracy.28partial reviews recorded once,0duplicates per category,0newqualified/applied/human/published. Supabase0calls0mutations.
