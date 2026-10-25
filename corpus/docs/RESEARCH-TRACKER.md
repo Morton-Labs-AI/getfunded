@@ -1,5 +1,11 @@
 # DBA/relationship validation · October 20, 2026
 
+## Latest: award scope and nested schedules — October 25
+
+[Award/schedule validation](AWARD-SCHEDULE-VALIDATION-2026-10-25.md): explicit v10 corrects five event errors on two old development pages; fresh28 adds one nested-deadline correction. Primary20/broad4 unchanged; direct4 precision81.8%→90.9%, recall75.0%→83.3%. Combined date precision84.7%→86.4%, recall78.1%→79.7%; retention74/106 and24/28 pages unchanged. Same-agent selected references, not population accuracy. Eight extra/thirteen missed references and fresh recognition-only/external-reference/cost gaps hold scale. Local1.468s→1.500s; invoice unknown.28bounded reviews recorded once,0org/URL/raw/text duplicates;7shared case/date/event keys separate.0newqualified/human/applied/published;Supabase0calls0mutations.
+
+Exact private `data/research/award-schedule-fresh-2026-10-25/HANDOFF-COMPLETE.json`; do not replay28steps or prior batches. Defaults unchanged; v10 explicit only. Next portal/post-date labels, disbursement/application-interview scope and custom markup; untouched recognition/ambiguous-heading sources, external labels and operational cost before scale. APPLICATION-BACKLOG analysis-only with exact before-image/hash, awaiting separate application. Workers/tracker/paused heartbeat unchanged.
+
 ## Latest: nomination and recipient-report dates — October 25
 
 [Nomination/report date validation](HONORIFIC-REPORT-VALIDATION-2026-10-25.md): explicit v9 corrects two old failures and three fresh targeted events. Primary20 shows no gain; separate targeted4 improves date precision/recall73.3%→93.3%. Combined24 precision71.8%→79.5%, recall63.6%→70.5%; retained52/70 units and19/24 pages unchanged. Same-agent selected references, not population accuracy; eight extra/thirteen missed events and external-reference/cost gates hold scale. Local1.801s→1.822s, invoice unknown.24bounded reviews recorded once;0duplicates per org/URL/raw/text,4repeated date references separate;0newqualified/human/applied/published. Supabase0calls0mutations.

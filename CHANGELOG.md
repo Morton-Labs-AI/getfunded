@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — award scope and nested schedules
+
+- Add explicit v10 recognition-submission cues and bounded nested h1–h6 heading attribution. Five development corrections; fresh28 adds one nested deadline, precision86.4%/recall79.7%, unchanged evidence yield. Keep defaults, source conflicts, separate duplicate counts and scaling/application gates. Supabase untouched.
+
 ## 2026-10-25 — nomination and recipient-report events
 
 - Add explicit v9 subject citations and application-cue precedence; correct two old failures and three fresh targeted errors. Combined24 date precision79.5%/recall70.5%; primary20 unchanged. Preserve defaults, separate duplicate/reference counts and retain scaling/application gates. Supabase untouched.

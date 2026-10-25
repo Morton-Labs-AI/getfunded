@@ -101,8 +101,8 @@ def research_classification_ledger(source: Path, active: Path, out: Path) -> Non
               help="Private JSON containing target and saved source result objects.")
 @click.option("--as-of", type=click.DateTime(formats=["%Y-%m-%d"]), required=True)
 @click.option("--experimental-events", is_flag=True, help="Opt in to versioned program date/policy leads (v3 by default).")
-@click.option("--events-version", type=click.Choice(["v3", "v4", "v5", "v6", "v7", "v8", "v9"]), default="v3", show_default=True,
-              help="Select an experimental version; v4/v5/v6/v7/v8/v9 require separate validation.")
+@click.option("--events-version", type=click.Choice(["v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"]), default="v3", show_default=True,
+              help="Select an experimental version; v4/v5/v6/v7/v8/v9/v10 require separate validation.")
 @click.option("--out", type=click.Path(path_type=Path), required=True)
 def research_program_evidence(source: Path, case_path: Path, as_of, experimental_events: bool, events_version: str, out: Path) -> None:
     """Extract private program-scoped leads without changing existing workers."""
@@ -114,7 +114,7 @@ def research_program_evidence(source: Path, case_path: Path, as_of, experimental
     if source.parent.name != "research" or source.parent not in out.parents:
         raise click.ClickException("output must remain inside the private research directory")
     if events_version != "v3" and not experimental_events:
-        raise click.UsageError("--events-version v4/v5/v6/v7/v8/v9 requires --experimental-events")
+        raise click.UsageError("--events-version v4/v5/v6/v7/v8/v9/v10 requires --experimental-events")
     guard(source)
     case = json.loads(case_path.read_text())
     packet = build_packet(case["target"], case["result"], source, program_as_of=as_of.date(),
