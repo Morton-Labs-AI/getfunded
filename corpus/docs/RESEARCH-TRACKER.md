@@ -1,5 +1,12 @@
 # DBA/relationship validation · October 20, 2026
 
+## Latest: invitation/activity event roles — October 25
+
+[Invitation/activity event validation](EVENT-SUBJECT-VALIDATION-2026-10-25.md): two old failures corrected in explicit v8, but fresh28 shows no gain over v7: date precision/recall80.6% both; retained units61/80 both; policy84.4%precision/50.9%recall unchanged. Single local run1.600s→1.500s, not proven optimization; invoice unknown. Seven shared date errors and external-reference/cost gaps hold scale and defaults. Same-agent references, not population accuracy.28partial reviews recorded once,0duplicates per category,0newqualified/applied/human/published. Supabase0calls0mutations.
+
+Exact private `data/research/event-subjects-fresh-2026-10-25/HANDOFF-COMPLETE.json`; do not replay28steps or earlier52/70/40/60. Experimental default remainsv3; v8 explicit --events-version only. Next honorific nominations/recipient reports, closing and post-date cues, nested heading context; fresh direct actor/eligibility references, external labels and invoiced cost before scale. Source weekday conflict retained with clarification. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Workers/tracker/paused heartbeat unchanged.
+
+
 ## Latest: table-cell/event correction — October 25
 
 [Table-cell and event validation](TABLE-EVENT-VALIDATION-2026-10-25.md): explicit v7 improves final26 date precision/recall81.3%→93.8% versus v5; retained units60/74→59/74. Policy unchanged78.6%precision/46.8%recall; conditions6/14. Local extraction+72.8%wall versus v5, invoice unknown. Two date errors and external-reference/native-merged-cell/cost gates hold promotion and scale. Same-agent references, not population accuracy. Initial26 retained separately; all52 partial reviews recorded once,0duplicates per category,0newqualified/applied/human/published. Supabase0calls0mutations.

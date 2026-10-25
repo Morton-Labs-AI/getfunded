@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — invitation/activity event roles
+
+- Add explicit v8 eligibility qualifiers and non-grant event subjects with exact citations. Correct two old failures; fresh28 has unchanged80.6% date precision/recall and seven shared gaps. Retain defaults and scaling holds, conflicts and local-only review/application gates.
+
 ## 2026-10-25 — table-cell and event correction
 
 - Add bounded table grids, exact repeated-text occurrence citations and event exclusions as explicit v6/v7 experiments. Retain initial26 and disjoint final26 validation: date precision/recall improve to93.8% versus v5, while remaining actor/condition errors, citation cost and external reference gaps hold promotion. Keep defaults unchanged and Supabase read-only.
