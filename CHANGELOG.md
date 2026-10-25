@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25 — table-cell and event correction
+
+- Add bounded table grids, exact repeated-text occurrence citations and event exclusions as explicit v6/v7 experiments. Retain initial26 and disjoint final26 validation: date precision/recall improve to93.8% versus v5, while remaining actor/condition errors, citation cost and external reference gaps hold promotion. Keep defaults unchanged and Supabase read-only.
+
 ## 2026-10-25
 
 - Retain experimental LOI-window, cited deadline-header and invitation-prerequisite versions with explicit selection. Correct three old failures; retain failed46 and disjoint24 validation, whose native structural regression holds promotion/scaling. Existing packet and experimental v3 defaults unchanged; no remote writes.

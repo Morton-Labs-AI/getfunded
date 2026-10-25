@@ -146,7 +146,7 @@ def build_packet(target: dict, result: dict, source_run: Path, *, experimental_a
     """Experimental alias/relationship versions never replace default v3 implicitly."""
     if experimental_alias_scope and experimental_relationships:
         raise ValueError("select only one experimental identity version")
-    if program_events_version not in {"v3", "v4", "v5"}:
+    if program_events_version not in {"v3", "v4", "v5", "v6", "v7"}:
         raise ValueError("unknown experimental program events version")
     if program_events_version != "v3" and not experimental_program_events:
         raise ValueError("program events version requires experimental_program_events=True")
@@ -188,7 +188,11 @@ def build_packet(target: dict, result: dict, source_run: Path, *, experimental_a
     program_evidence = {}
     if program_as_of is not None:
         if experimental_program_events:
-            if program_events_version == "v5":
+            if program_events_version == "v7":
+                from .programs_v7 import extract_program_context
+            elif program_events_version == "v6":
+                from .programs_v6 import extract_program_context
+            elif program_events_version == "v5":
                 from .programs_v5 import extract_program_context
             elif program_events_version == "v4":
                 from .programs_v4 import extract_program_context

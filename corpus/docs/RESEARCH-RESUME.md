@@ -1,5 +1,12 @@
 # Research resume and handoff
 
+## Latest: table-cell/event correction — October 25
+
+[Table-cell and event validation](TABLE-EVENT-VALIDATION-2026-10-25.md): explicit v7 improves final26 date precision/recall81.3%→93.8% versus v5; retained units60/74→59/74. Policy unchanged78.6%precision/46.8%recall; conditions6/14. Local extraction+72.8%wall versus v5, invoice unknown. Two date errors and external-reference/native-merged-cell/cost gates hold promotion and scale. Same-agent references, not population accuracy. Initial26 retained separately; all52 partial reviews recorded once,0duplicates per category,0newqualified/applied/human/published. Supabase0calls0mutations.
+
+Exact private `data/research/table-events-fresh2-2026-10-25/HANDOFF-COMPLETE.json`; do not replay52steps or earlier70/40/60. Experimental default remainsv3; v6/v7 require explicit --events-version. Next eligibility-condition versus notification dates, volunteer/donor scope, prose schedules, citation-preserving cost optimization, fresh external labels and native merged-cell sources. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Workers/tracker/paused heartbeat unchanged.
+
+
 ## Latest: LOI/header/prerequisite validation — October 25
 
 [LOI, heading and prerequisite validation](LOI-PREREQUISITE-VALIDATION-2026-10-25.md): three prior source failures corrected, but fresh native structural cases reject promotion. Final24 date precision92.3%→50.0%, recall41.4%→34.5%; policy unchanged73.1%precision/55.9%recall. Retained units38/66→45/66; local extraction+3.0%, invoice unknown. Original failed46 retained separately. Same-agent references, not population accuracy. All70 bounded reviews recorded once,0duplicates in each category,0newqualified/applied/human/published. Supabase0calls0mutations.
