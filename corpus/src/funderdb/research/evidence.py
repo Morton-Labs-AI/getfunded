@@ -142,10 +142,14 @@ def checked_page(page: dict, allowed_root: Path) -> dict:
 
 def build_packet(target: dict, result: dict, source_run: Path, *, experimental_alias_scope: bool = False,
                  experimental_relationships: bool = False, program_as_of: date | None = None,
-                 experimental_program_events: bool = False) -> dict:
+                 experimental_program_events: bool = False, program_events_version: str = "v3") -> dict:
     """Experimental alias/relationship versions never replace default v3 implicitly."""
     if experimental_alias_scope and experimental_relationships:
         raise ValueError("select only one experimental identity version")
+    if program_events_version not in {"v3", "v4", "v5"}:
+        raise ValueError("unknown experimental program events version")
+    if program_events_version != "v3" and not experimental_program_events:
+        raise ValueError("program events version requires experimental_program_events=True")
     if experimental_program_events and program_as_of is None:
         raise ValueError("program event extraction requires an explicit program_as_of date")
     extractor = (RELATIONSHIP_EXTRACTOR if experimental_relationships else
@@ -184,7 +188,12 @@ def build_packet(target: dict, result: dict, source_run: Path, *, experimental_a
     program_evidence = {}
     if program_as_of is not None:
         if experimental_program_events:
-            from .programs_v3 import extract_program_context
+            if program_events_version == "v5":
+                from .programs_v5 import extract_program_context
+            elif program_events_version == "v4":
+                from .programs_v4 import extract_program_context
+            else:
+                from .programs_v3 import extract_program_context
         else:
             from .programs_v2 import extract_program_context
         program_evidence = {"program_evidence": [extract_program_context(p, program_as_of) for p in own_pages]}

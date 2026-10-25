@@ -1,5 +1,12 @@
 # Research resume and handoff
 
+## Latest: LOI/header/prerequisite validation — October 25
+
+[LOI, heading and prerequisite validation](LOI-PREREQUISITE-VALIDATION-2026-10-25.md): three prior source failures corrected, but fresh native structural cases reject promotion. Final24 date precision92.3%→50.0%, recall41.4%→34.5%; policy unchanged73.1%precision/55.9%recall. Retained units38/66→45/66; local extraction+3.0%, invoice unknown. Original failed46 retained separately. Same-agent references, not population accuracy. All70 bounded reviews recorded once,0duplicates in each category,0newqualified/applied/human/published. Supabase0calls0mutations.
+
+Exact private `data/research/loi-prerequisite-fresh2-2026-10-25/HANDOFF-COMPLETE.json`; do not replay70steps. Existing experimental flag staysv3; v4/v5 require explicit --events-version. Next merged-cell table grid, exclusion of webinar/notification/performance events, fresh native LOI/prerequisite examples and external labels/invoiced cost before scaling. Pending application remains active-funder APPLICATION-BACKLOG, analysis-only. Workers/tracker/paused heartbeat unchanged.
+
+
 ## Latest: date/event and conditional-policy experiment — October 23
 
 [Date-event and conditional-policy validation](DATE-POLICY-VALIDATION-2026-10-23.md): explicit experimental v3 improves fresh40 date precision73.3%→83.9% and recall71.0%→83.9%; policy precision70.0%→74.5%, recall63.6% unchanged. Condition flags12/13; retained units62/75→60/75. Extraction +9.8% wall time; invoice unavailable. Same-agent references, not population accuracy. Scaling/default promotion held. Supabase0calls0mutations; duplicates0 in each category, paired runs reuse40orgs. Forty partial reviews recorded once, zero full vetting or qualification.

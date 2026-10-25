@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-25
+
+- Retain experimental LOI-window, cited deadline-header and invitation-prerequisite versions with explicit selection. Correct three old failures; retain failed46 and disjoint24 validation, whose native structural regression holds promotion/scaling. Existing packet and experimental v3 defaults unchanged; no remote writes.
+
 ## 2026-10-23
 
 - Add opt-in v3 date-event and conditional policy extraction, explicit CLI flag and fresh40 paired validation. Date metrics improve; policy recall and retained-unit yield still hold promotion. Preserve original and corrected scoring, source spans, duplicate denominators and local-only backlog.
