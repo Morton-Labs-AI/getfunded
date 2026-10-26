@@ -10,7 +10,8 @@
  *       writes evals/search/out/packets-<stamp>.jsonl: one unlabeled (case, funder) pair per line,
  *       with what the searcher asked and the funder's evidence from its own filings
  *   node evals/search/judge.mjs score --run <out json>
- *       P@10 and nDCG@10 over the judged pairs of that run
+ *       over the judged pairs of that run's top 10s: P@10 (graded 1 or 2), strong@10 (graded 2)
+ *       and nDCG@10 (the order of the judged pairs against their best order)
  *
  * A label line: {"case": "<list key>", "orgId": "<uuid>", "label": 0|1|2, "why": "...", "judgedBy": "...", "at": "YYYY-MM-DD"}
  *   2 a strong lead: it has funded this kind of work for this kind of place recently
@@ -155,6 +156,7 @@ function score(a) {
   let pairs = 0;
   let judged = 0;
   const p10 = [];
+  const strong10 = [];
   const ndcg = [];
   for (const list of judgeable(run)) {
     const top = list.json.hits.slice(0, 10);
@@ -165,12 +167,27 @@ function score(a) {
     if (known.length < 5) continue; // too few judged to say anything about this list
     scored++;
     p10.push(known.filter((g) => g >= 1).length / known.length);
+    strong10.push(known.filter((g) => g === 2).length / known.length);
     const dcg = gains.reduce((s, g, i) => s + (g === undefined ? 0 : (2 ** g - 1) / Math.log2(i + 2)), 0);
     const ideal = [...known].sort((x, y) => y - x).reduce((s, g, i) => s + (2 ** g - 1) / Math.log2(i + 2), 0);
     ndcg.push(ideal > 0 ? dcg / ideal : 0);
   }
   const mean = (xs) => (xs.length ? Math.round((xs.reduce((s, x) => s + x, 0) / xs.length) * 1000) / 1000 : null);
-  console.log(JSON.stringify({ listsScored: scored, judgedPairs: judged, pairsInTop10: pairs, coverage: pairs ? Math.round((judged / pairs) * 1000) / 1000 : 0, precisionAt10: mean(p10), ndcgAt10: mean(ndcg) }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        listsScored: scored,
+        judgedPairs: judged,
+        pairsInTop10: pairs,
+        coverage: pairs ? Math.round((judged / pairs) * 1000) / 1000 : 0,
+        precisionAt10: mean(p10),
+        strongAt10: mean(strong10),
+        ndcgAt10: mean(ndcg),
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 const a = args(process.argv.slice(2));
