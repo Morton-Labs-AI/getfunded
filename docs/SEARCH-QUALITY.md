@@ -35,8 +35,17 @@ and what is left. The numbers come from the search eval suite
 - [x] Analyst: giving profiles described once filled; a "who funds X in a state" recipe that does not scan 18M grants
 - [x] Weekly search eval workflow
 - [x] `evals/search/README.md`, `IMPROVE.md`, `apps/web/AGENTS.md` section 6
-- [ ] Golden labels: seeded in this session (see `evals/search/labels/golden/`); grow them each review
+- [x] Golden labels: 240 judged results, the top 10 of the 24 industry sentence searches (`evals/search/labels/golden/`); `judge.mjs score` reports P@10, strong@10 and nDCG@10
+- [ ] Grow the golden labels each review: `judge.mjs packets` lists the unjudged top-10 results of a run
 - [ ] Signal alerts: the profile's state is matched as a substring ("CA" in "America") and sector keywords as substrings ("organ" in "organizing") in `getfunded.sync_signal_notifications` (web 0016). Fix with a new migration that matches whole words.
+
+### Next: found in this review, not done
+- [ ] Name search p95 under 1 s (1.9 s on the final preview: a cold trigram scan on a common word)
+- [ ] Greenbook (`apps/greenbook/lib/queries/browse.ts`, `lib/ai/tools.ts`) and the commons MCP (`open-nonprofit-platform/services/commons-mcp/lib/search/sql.ts`) still call `internal.hybrid_search` with filters inside, the exact-scan path that timed out here
+- [ ] 9,922 private foundations report giving in their latest 990-PF ($6.8B a year together; 2,806 give $50k or more) but have no search summary, because none of their grants are itemized in the corpus; topic search cannot find them
+- [ ] Tuned results are fully local: two profiles in different states share none of their top 20 (twin Jaccard 0.00). Decide how many national funders a tuned first page should keep (the geo weights in `rank.ts`)
+- [ ] Write full state names into the search summaries ("Ohio" as well as "OH"), so the meaning leg connects a written-out state to a funder's geography
+- [ ] Funders whose grants all went to one or two organizations (often a supporting fund for their own affiliate) fill 12% of the judged top-10 slots, and none of the 28 listing a single grantee was a strong lead. A ranking change for them is its own PR, stacked on this one
 
 ## After the giving profiles are filled
 
