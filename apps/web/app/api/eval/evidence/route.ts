@@ -35,7 +35,7 @@ export async function GET(req: Request): Promise<Response> {
                   row_number() over (partition by pe.funder_org_id order by count(*) desc, upper(left(btrim(pe.purpose_text), 120))) as rk
            from public.funding_events pe
            where pe.funder_org_id = any($1::uuid[]) and pe.fiscal_year >= $2 and pe.purpose_text is not null and ${LIVE}
-           group by 1, 2) t
+           group by pe.funder_org_id, upper(left(btrim(pe.purpose_text), 120))) t
          where rk <= 8`,
         [ids, minFy] as never[],
       );
@@ -46,7 +46,7 @@ export async function GET(req: Request): Promise<Response> {
                   row_number() over (partition by pe.funder_org_id order by sum(pe.amount) desc nulls last, upper(btrim(pe.recipient_name))) as rk
            from public.funding_events pe
            where pe.funder_org_id = any($1::uuid[]) and pe.fiscal_year >= $2 and pe.recipient_name is not null and ${LIVE}
-           group by 1, 2) t
+           group by pe.funder_org_id, upper(btrim(pe.recipient_name))) t
          where rk <= 6`,
         [ids, minFy] as never[],
       );

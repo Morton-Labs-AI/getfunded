@@ -6,7 +6,7 @@
  * nonprofit. Labels accumulate in labels/golden/*.jsonl, so each run only
  * needs the pairs nobody has judged yet.
  *
- *   node evals/search/judge.mjs packets --run <out json> [--evidence-from <url>] [--limit N]
+ *   node evals/search/judge.mjs packets --run <out json> [--evidence-from <url>] [--limit N] [--cases <regex on list keys>]
  *       writes evals/search/out/packets-<stamp>.jsonl: one unlabeled (case, funder) pair per line,
  *       with what the searcher asked and the funder's evidence from its own filings
  *   node evals/search/judge.mjs score --run <out json>
@@ -91,7 +91,8 @@ async function packets(a) {
   const labels = readLabels();
   const profiles = new Map(buildProfiles().map((p) => [p.id, p]));
   const want = [];
-  for (const list of judgeable(run)) {
+  const only = a.cases ? new RegExp(String(a.cases)) : null;
+  for (const list of judgeable(run).filter((l) => !only || only.test(l.key))) {
     for (const hit of list.json.hits.slice(0, 10)) {
       if (!labels.has(`${list.key}|${hit.orgId}`)) want.push({ list, hit });
       if (want.length >= limit) break;
