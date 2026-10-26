@@ -52,13 +52,18 @@ export type RankWeights = {
   size: number;
 };
 
+/**
+ * Measured 2026-10-26 (evals/search, full suite on previews): "add" with these
+ * weights beat "multiply" (geo 1, located 0.3, cause 0.6) on topic match
+ * (0.811 vs 0.806), geo match (0.966 vs 0.955) and cause lift (0.17 vs 0.14).
+ */
 export const RANK_WEIGHTS: RankWeights = {
-  blend: "multiply",
+  blend: "add",
   keywordLeg: 0.8,
   localLeg: 1,
-  geo: 1,
-  located: 0.3,
-  cause: 0.6,
+  geo: 0.45,
+  located: 0.15,
+  cause: 0.3,
   open: 0.05,
   preselected: 0.12,
   stale: 0.2,
