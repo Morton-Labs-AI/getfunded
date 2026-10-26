@@ -327,33 +327,57 @@ function einPool(ein: string, ps: Params): string {
     limit ${EIN_POOL_LIMIT}`;
 }
 
+/** Words too common in funder names to narrow a name search through the trigram index. */
+const GENERIC_NAME_TOKENS = new Set([
+  "THE", "OF", "AND", "FOR", "FOUNDATION", "FOUNDATIONS", "FUND", "FUNDS", "TRUST", "INC", "INCORPORATED", "CORP",
+  "CORPORATION", "CHARITABLE", "FAMILY", "COMMUNITY", "ENDOWMENT", "ASSOCIATION", "SOCIETY", "INSTITUTE", "GIVING",
+  "LLC", "LTD", "CO",
+]);
+
 /**
- * A funder's own name. Ranked: the whole name exactly (as the corpus
- * normalizes it) first, then names containing the words as a phrase, then a
- * prefix, then trigram similarity; among equally good matches the funder that
- * gives most comes first ("Moore Foundation" means the large one far more
- * often than the dozen small ones sharing the words).
+ * The words that make a name distinctive ("MOORE" in "Moore Foundation"),
+ * longest first, at most three. A trigram match on "%foundation%" touches
+ * hundreds of thousands of names; one on "%moore%" a thousand.
+ */
+export function nameTokens(normalized: string): string[] {
+  return [...new Set(normalized.split(" ").filter((t) => t.length >= 3 && !GENERIC_NAME_TOKENS.has(t)))]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 3);
+}
+
+/**
+ * A funder's own name. Candidates come through the trigram index on the
+ * distinctive words, then must contain the whole name as the corpus
+ * normalizes it (so "Annie E. Casey" finds "ANNIE E CASEY FOUNDATION").
+ * Ranked: the exact name, the name as a whole phrase, a prefix, trigram
+ * similarity, and how much the funder gives ("Moore Foundation" means the
+ * large one far more often than the small ones sharing the words).
  */
 function namePool(name: string, p: SearchParams, ps: Params, profiles: boolean): string {
   const q = ps.add(name);
   const variants = nameVariants(name);
-  const norm = normalizeName(name);
-  const normContains = ps.add(likeContains(norm));
-  const contains = [...variants.map((v) => `o.name ilike ${ps.add(likeContains(v))}::text`), `o.name_normalized like ${normContains}::text`].join(" or ");
-  const prefix = variants.map((v) => `upper(o.name) like ${ps.add(likePrefix(v.toUpperCase()))}::text`).join(" or ");
+  const norms = [...new Set(variants.map(normalizeName))].filter(Boolean);
+  const tokens = nameTokens(norms[0] ?? "");
+  const narrow = tokens.length
+    ? tokens.map((t) => `o.name ilike ${ps.add(likeContains(t))}::text`).join(" and ")
+    : `(${variants.map((v) => `o.name ilike ${ps.add(likeContains(v))}::text`).join(" or ")})`;
+  const whole = norms.map((n) => `strpos(o.name_normalized, ${ps.add(n)}::text) > 0`).join(" or ");
+  const norm = norms[0] ?? normalizeName(name);
   const exact = `o.name_normalized = ${ps.add(norm)}::text`;
-  const phrase = `o.name_normalized ~ ${ps.add(`\\m${norm.replace(/[^\w\s&-]/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\M`)}::text`;
+  const prefix = `o.name_normalized like ${ps.add(likePrefix(norm))}::text`;
+  const phrase = `o.name_normalized ~ ${ps.add(`\\m${norm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\M`)}::text`;
   const bits = orgFilters(p, ps, { profiles });
   return `select o.id as org_id,
-           ((case when ${exact} then 3 else 0 end)
+           ((case when ${exact} then 1.5 else 0 end)
             + (case when ${phrase} then 1 else 0 end)
             + (case when ${prefix} then 0.5 else 0 end)
             + similarity(o.name, ${q}::text)
-            + 0.25 * log(1 + greatest(coalesce(${GIVING}, 0), 0)::numeric))::float8 as rank,
+            + 0.35 * log(1 + greatest(coalesce(${GIVING}, 0), coalesce(o.asset_amount, 0) * 0.05, 0)::numeric))::float8 as rank,
            null::text as snippet,
            null::jsonb as fit
     from internal.organizations o${joins({ ...bits, needFin: true })}
-    where (${contains})
+    where ${narrow}
+      and (${whole})
       and ${bits.where.join("\n      and ")}
     order by rank desc, o.name_normalized asc, o.id asc
     limit ${POOL_LIMIT}`;

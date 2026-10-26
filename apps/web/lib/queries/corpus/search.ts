@@ -16,7 +16,7 @@ import { filingSourceLabel, nteeMajorLabel, orgTypeLabel } from "@/lib/content/l
 import { embedText, resolveContext, type ProfileContext, type SearcherContext } from "@/lib/search/context";
 import { embedQuery } from "@/lib/search/embed";
 import { PAGE_SIZE, nameQuery, type SearchParams } from "@/lib/search/params";
-import { buildSearchSql, likeContains, normalizeName, type RanMode } from "@/lib/search/sql";
+import { buildSearchSql, likeContains, nameTokens, normalizeName, type RanMode } from "@/lib/search/sql";
 import { understand, type Understanding } from "@/lib/search/understand";
 
 import { givingProfilesReady } from "./giving-profile";
@@ -256,19 +256,31 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {},
   }
 }
 
-/** Grantmakers whose own name matches a short topic query, for the "Funders named ..." line. */
+/**
+ * Grantmakers whose own name matches a short topic query, for the "Funders
+ * named ..." line. Candidates come through the trigram index on the query's
+ * distinctive words (one indexed condition, so the planner never falls back
+ * to reading all 2.3M names), then must be close in similarity and have a
+ * funder summary (grants on file).
+ */
 async function namedFunders(sql: postgres.TransactionSql, q: string): Promise<NamedFunder[]> {
+  const tokens = nameTokens(normalizeName(q));
+  if (tokens.length === 0) return [];
+  const values: unknown[] = tokens.map((t) => likeContains(t));
+  const narrow = tokens.map((_, i) => `o.name ilike $${i + 1}::text`).join(" and ");
+  values.push(q);
+  const qp = `$${values.length}`;
   const rows = await sql.unsafe<{ id: string; name: string; city: string | null; state: string | null }[]>(
     `select o.id::text as id, o.name, o.city, o.state
      from internal.organizations o
-     where o.canonical_org_id is null
-       and (o.name ilike $1::text or o.name_normalized like $2::text)
-       and similarity(o.name, $3::text) >= 0.45
+     where ${narrow}
+       and o.canonical_org_id is null
+       and similarity(o.name, ${qp}::text) >= 0.45
        and exists (select 1 from internal.search_documents sd
                    where sd.org_id = o.id and sd.program_id is null and sd.doc_kind = 'foundation')
-     order by similarity(o.name, $3::text) desc, o.id
+     order by similarity(o.name, ${qp}::text) desc, o.id
      limit 3`,
-    [likeContains(q), likeContains(normalizeName(q)), q] as never[],
+    values as never[],
   );
   return rows.map((r) => ({ orgId: r.id, name: r.name, city: r.city, state: r.state }));
 }
