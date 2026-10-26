@@ -91,6 +91,16 @@ export type SearchResult = {
   notices: SearchNotice[];
   /** Seconds to wait when `notices` includes "rate_limited". */
   retryAfterSec?: number;
+  /** Where the time went, in milliseconds. Absent on results that ran no query. */
+  timing?: SearchTiming;
+};
+
+export type SearchTiming = {
+  /** The query embedding call; null when the search needed no vector. */
+  embedMs: number | null;
+  /** Every database round trip, including a keyword fallback. */
+  dbMs: number;
+  totalMs: number;
 };
 
 /* --------------------------------------------------------------- profile */

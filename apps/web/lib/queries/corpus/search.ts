@@ -172,21 +172,30 @@ export function timedOutResult(err: unknown, params: SearchParams): SearchResult
  */
 export const SEMANTIC_TIMEOUT_MS = 8_000;
 
+const msSince = (start: number): number => Math.round(performance.now() - start);
+
 export async function searchFunders(params: SearchParams, deps: SearchDeps = {}): Promise<SearchResult> {
   const run = deps.run ?? corpusQuery;
   const embed = deps.embed ?? embedQuery;
+  const started = performance.now();
 
   const wantsVector = Boolean(params.q && !params.ein && params.mode === "thesis");
   const vec = wantsVector && params.q ? await embed(params.q) : null;
+  const embedMs = wantsVector ? msSince(started) : null;
 
   // Pure first pass: it tells us whether a query runs at all (a name that is
   // too short does not), before any connection is opened.
   const first = buildSearchSql(params, { vec });
   if (first.text === null) return emptyResult(params, { notices: first.notices });
-  if (first.ran !== "semantic") return runSearch(params, vec, first, run);
+  const dbStarted = performance.now();
+  const timed = (result: SearchResult): SearchResult => ({
+    ...result,
+    timing: { embedMs, dbMs: msSince(dbStarted), totalMs: msSince(started) },
+  });
+  if (first.ran !== "semantic") return timed(await runSearch(params, vec, first, run));
 
   try {
-    return await runSearch(params, vec, first, run, { timeoutMs: SEMANTIC_TIMEOUT_MS });
+    return timed(await runSearch(params, vec, first, run, { timeoutMs: SEMANTIC_TIMEOUT_MS }));
   } catch (err) {
     // A slow meaning-based search is answered with keywords and a notice,
     // never an error page. Every other failure still propagates.
@@ -195,7 +204,7 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {})
     const keyword = buildSearchSql(params, { vec: null });
     if (keyword.text === null) throw err;
     const result = await runSearch(params, null, keyword, run);
-    return { ...result, notices: ["semantic_timed_out", ...result.notices.filter((n) => n !== "semantic_unavailable")] };
+    return timed({ ...result, notices: ["semantic_timed_out", ...result.notices.filter((n) => n !== "semantic_unavailable")] });
   }
 }
 

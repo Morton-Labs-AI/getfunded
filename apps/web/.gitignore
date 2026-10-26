@@ -47,3 +47,7 @@ playwright-report/
 
 # build-time copies
 content/generated/
+
+# search eval suite: run output and the facts cache (reports/ and baseline.json are committed)
+/evals/search/.cache/
+/evals/search/out/

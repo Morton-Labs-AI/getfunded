@@ -1,0 +1,15 @@
+{
+  "_doc": "The same intent typed the messy ways people type: misspelled, abbreviated, a city instead of a state, all caps, a pasted mission statement. Scored like industry cases.",
+  "cases": [
+    { "id": "rob-typo", "cause": "O", "query": "youth mentring programs" },
+    { "id": "rob-ampersand", "cause": "K", "query": "food & nutrition for kids" },
+    { "id": "rob-caps", "cause": "L", "query": "HOMELESS SHELTER" },
+    { "id": "rob-state-code", "cause": "F", "state": "OR", "query": "youth mental health in OR" },
+    { "id": "rob-state-name", "cause": "F", "state": "OR", "query": "youth mental health in Oregon" },
+    { "id": "rob-city", "cause": "L", "state": "ID", "query": "homeless services in Boise" },
+    { "id": "rob-city-2", "cause": "B", "state": "CO", "query": "early childhood education Denver" },
+    { "id": "rob-one-word", "cause": "D", "query": "dogs" },
+    { "id": "rob-long", "cause": "P", "state": "WI", "query": "We are a small community nonprofit in Green Bay, Wisconsin. We run a respite program for family caregivers of adults with dementia, offer support groups, and train volunteers to visit isolated older adults at home. We are looking for funders for general operating support and for expanding into two rural counties." },
+    { "id": "rob-question", "cause": "C", "query": "who funds watershed restoration?" }
+  ]
+}
