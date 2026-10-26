@@ -46,6 +46,9 @@ describe("understand: names and topics", () => {
     expect(looksLikeFunderName("Silicon Valley Community Foundation")).toBe(true);
     expect(looksLikeFunderName("community foundation grants for nonprofits in Montana")).toBe(false);
     expect(looksLikeFunderName("food bank")).toBe(false);
+    // A place after the funder word makes it a topic; a place inside the name does not.
+    expect(looksLikeFunderName("public policy research institute in Virginia")).toBe(false);
+    expect(looksLikeFunderName("Oregon Community Foundation")).toBe(true);
   });
 
   it("keeps the meaningful words for the in-state leg", () => {

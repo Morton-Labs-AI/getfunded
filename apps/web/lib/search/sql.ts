@@ -86,6 +86,8 @@ export type SearchNotice =
   | "semantic_timed_out"
   /** A topic search with filters: the filters ran over the best-matching candidates. */
   | "semantic_filtered"
+  /** The words read like a funder's name but no funder has it, so they were searched as a topic. */
+  | "name_no_match"
   /** "Gives in" or "funds this cause" was asked, but the giving profiles are not loaded yet, so it was not applied. */
   | "giving_profiles_unavailable"
   /** Organizations the IRS automatically revoked were left out, because the reader asked for that. */

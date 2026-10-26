@@ -125,9 +125,18 @@ export function findPlace(q: string): { place: Place; topic: string } | null {
   return null;
 }
 
+/**
+ * A few words with a funder word and no request in them ("Ford Foundation",
+ * "Oregon Community Foundation"). A place AFTER the funder word makes it a
+ * topic again ("public policy research institute in Virginia").
+ */
 export function looksLikeFunderName(q: string): boolean {
   const words = q.trim().split(/\s+/).filter(Boolean);
-  return words.length > 0 && words.length <= 6 && NAME_WORDS.test(q) && !ASKING_WORDS.test(q);
+  if (words.length === 0 || words.length > 6 || !NAME_WORDS.test(q) || ASKING_WORDS.test(q)) return false;
+  const place = findPlace(q);
+  if (!place) return true;
+  const last = words[words.length - 1];
+  return NAME_WORDS.test(last);
 }
 
 export function understand(q: string | null): Understanding {

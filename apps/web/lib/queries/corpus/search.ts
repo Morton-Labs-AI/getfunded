@@ -17,6 +17,7 @@ import { embedText, resolveContext, type ProfileContext, type SearcherContext } 
 import { embedQuery } from "@/lib/search/embed";
 import { PAGE_SIZE, nameQuery, type SearchParams } from "@/lib/search/params";
 import { buildSearchSql, likeContains, nameTokens, normalizeName, type RanMode } from "@/lib/search/sql";
+import { unquote } from "@/lib/search/ein";
 import { understand, type Understanding } from "@/lib/search/understand";
 
 import { givingProfilesReady } from "./giving-profile";
@@ -242,6 +243,16 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {},
     timing: { embedMs, dbMs: msSince(dbStarted), totalMs: msSince(started) },
     context: hasContext(context) ? context : null,
   });
+  if (first.ran === "name" && !params.ein && params.q && unquote(params.q) === null) {
+    // Words that read like a name but match no funder's name are asked again
+    // as a topic, with a notice, rather than answered with an empty page.
+    const named = await runSearch(params, build, run);
+    if (named.total > 0 || params.page > 1) return timed(named);
+    const asTopic = { ...params, mode: "thesis" as const };
+    const topicVec = await embed(embedText(params.q, understanding, context));
+    const topic = await searchFunders(asTopic, { run, embed: async () => topicVec }, opts);
+    return timed({ ...topic, notices: ["name_no_match", ...topic.notices] });
+  }
   if (first.ran !== "semantic") return timed(await runSearch(params, build, run));
 
   try {

@@ -43,6 +43,9 @@ export const SEMANTIC_FILTERED_NOTE = (candidates: number) =>
   `Filters were applied to the ${candidates.toLocaleString("en-US")} funders whose giving reads most like your description. ` +
   "Remove a filter to widen the list.";
 
+export const NAME_NO_MATCH_NOTE = (q: string) =>
+  `No funder is named “${q}”, so we searched for funders whose giving matches those words. Put a name in quotes to search names only.`;
+
 export const GIVING_PROFILES_UNAVAILABLE_NOTE =
   "Filtering by where a funder gives and which causes it funds is not ready yet, so that filter was not applied. " +
   "Results still favor funders whose filings show grants in the place you searched for.";
