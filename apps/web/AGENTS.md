@@ -52,3 +52,10 @@ Every value shown on a funder surface belongs to exactly one class, and colour i
 - Dev server runs on port 3050 (`npm run dev`); Playwright targets the production build on the same port.
 - New UI primitives go in `components/ui` (shadcn new-york style, data-slot attributes, no forwardRef). Data-honesty primitives go in `components/data`. Register anything new on `/dev/styleguide`.
 - Read the Next.js docs in `node_modules/next/dist/docs/` before using an API you have not used in this repo; Cache Components are on, so `usePathname`/`useSearchParams` consumers sit under `<Suspense>`.
+
+### 6. Funder search quality
+
+- Search is measured, not argued: `evals/search` scores speed, accuracy, coverage across every NTEE group, navigational lookups, and how results change for 100 synthetic nonprofits. Before and after any change to `lib/search/*` or `lib/queries/corpus/search.ts`, run it on a preview and follow `evals/search/IMPROVE.md`. Keep a change only when its target measure improves and no guard regresses.
+- The ranking lives in `lib/search/rank.ts` (weights), `lib/search/sql.ts` (the legs; its header explains each), `lib/search/understand.ts` (places, names) and `lib/search/context.ts` (who is searching). Results explain themselves with Source-class facts (`components/search/fit-line.tsx`); never show a fit claim a filing does not support.
+- Never pass a filter to pgvector's index walk: any WHERE on `search_documents` beside `embedding is not null` turns the HNSW walk into an exact scan that outruns the statement timeout on the hosted database. Filter the merged candidates instead.
+- The giving profiles (corpus 0040) may be empty: read them only through `givingProfilesReady()` (lib/queries/corpus/giving-profile.ts).
