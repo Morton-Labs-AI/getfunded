@@ -8,21 +8,32 @@
  *   q                 name, EIN (9 digits, dash optional) or free text
  *   mode              name | keyword | thesis (inferred from q when absent)
  *   type              private_foundation | public_charity | company | gov_agency | all
- *   state             two-letter US state
+ *   state             two-letter US state where the funder is LOCATED
+ *   gives_in          two-letter US state where the funder has PAID grants
+ *                     (corpus 0040 giving profiles; see lib/queries/corpus/giving-profile.ts)
+ *   cause             NTEE major group letter the funder's grant RECIPIENTS belong to
  *   posture           open | preselected | unknown
  *   min_distributions floor on money paid out in the latest filing (USD)
  *   min_assets        floor on assets (USD)
- *   ntee              NTEE major group letter
+ *   ntee              NTEE major group letter of the funder's OWN record
  *   giving_to         keywords matched against the funder's grant recipients
  *   standing          hide_revoked leaves out organizations the IRS automatically
  *                     revoked (lib/search/standing-filter.ts). Absent = hide nothing.
  *   sort              relevance | distributions | assets | name
  *   page              1-based, bounded
  *   view              cards | table
+ *
+ * Who is searching (lib/search/context.ts). These rank, they never filter:
+ *   for_state         the grantseeker's two-letter state
+ *   for_cause         the grantseeker's NTEE major group
+ *   for_budget        the grantseeker's annual budget (USD)
+ *   for_city          the grantseeker's city, for the meaning-based search only
+ *   tune              off: ignore the signed-in workspace's profile
  */
 import { z } from "zod";
 
 import { detectEin, unquote } from "./ein";
+import { looksLikeFunderName } from "./understand";
 import { STANDING_PARAM, standingParamSchema, type StandingFilter } from "./standing-filter";
 
 export const SEARCH_MODES = ["name", "keyword", "thesis"] as const;
@@ -60,12 +71,23 @@ export type SearchParams = {
   minDistributions: number | null;
   minAssets: number | null;
   ntee: string | null;
+  /** State where the funder has paid grants (corpus 0040). */
+  givesIn: string | null;
+  /** NTEE major group of the funder's grant recipients (corpus 0040). */
+  cause: string | null;
   givingTo: string | null;
   /** IRS standing filter. Null hides nothing, and null is the default. */
   standing: StandingFilter | null;
   sort: SearchSort;
   page: number;
   view: SearchView;
+  /** The grantseeker, for ranking only (lib/search/context.ts). */
+  forState: string | null;
+  forCause: string | null;
+  forBudget: number | null;
+  forCity: string | null;
+  /** "off" ignores the signed-in workspace's profile. */
+  tune: "off" | null;
 };
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;
@@ -80,11 +102,18 @@ export const DEFAULT_SEARCH_PARAMS: SearchParams = {
   minDistributions: null,
   minAssets: null,
   ntee: null,
+  givesIn: null,
+  cause: null,
   givingTo: null,
   standing: null,
   sort: "relevance",
   page: 1,
   view: "cards",
+  forState: null,
+  forCause: null,
+  forBudget: null,
+  forCity: null,
+  tune: null,
 };
 
 /* ---------------------------------------------------------------- parsing */
@@ -105,44 +134,57 @@ const text = (max: number) =>
 
 const money = z.coerce.number().finite().int().min(0).max(MAX_MONEY).optional().catch(undefined);
 
+const stateCode = z
+  .string()
+  .transform((s) => s.toUpperCase())
+  .pipe(z.string().regex(/^[A-Z]{2}$/))
+  .optional()
+  .catch(undefined);
+
+const nteeLetter = z
+  .string()
+  .transform((s) => s.toUpperCase())
+  .pipe(z.string().regex(/^[A-Z]$/))
+  .optional()
+  .catch(undefined);
+
 const RawSchema = z.object({
   q: text(MAX_QUERY_CHARS),
   mode: z.enum(SEARCH_MODES).optional().catch(undefined),
   type: z.enum(SEARCH_TYPES).optional().catch(undefined),
-  state: z
-    .string()
-    .transform((s) => s.toUpperCase())
-    .pipe(z.string().regex(/^[A-Z]{2}$/))
-    .optional()
-    .catch(undefined),
+  state: stateCode,
+  gives_in: stateCode,
+  cause: nteeLetter,
   posture: z.enum(SEARCH_POSTURES).optional().catch(undefined),
   min_distributions: money,
   min_assets: money,
-  ntee: z
-    .string()
-    .transform((s) => s.toUpperCase())
-    .pipe(z.string().regex(/^[A-Z]$/))
-    .optional()
-    .catch(undefined),
+  ntee: nteeLetter,
   giving_to: text(MAX_GIVING_TO_CHARS),
   standing: standingParamSchema,
   sort: z.enum(SEARCH_SORTS).optional().catch(undefined),
   page: z.coerce.number().int().min(1).max(MAX_PAGE).optional().catch(undefined),
   view: z.enum(SEARCH_VIEWS).optional().catch(undefined),
+  for_state: stateCode,
+  for_cause: nteeLetter,
+  for_budget: money,
+  for_city: text(80),
+  tune: z.enum(["off"]).optional().catch(undefined),
 });
 
 /**
  * Which mode a bare query means. An EIN is always exact. Quoted text is a
- * name. Three or more words read like a description of work, so they go to
- * the meaning-based search (which falls back to keywords when it is off).
- * Everything else is a name lookup.
+ * name, and so are a few words that read like a funder's own name ("Ford
+ * Foundation", "Lilly Endowment"; lib/search/understand.ts). Everything else
+ * is a topic, however short: "literacy" or "food bank" asks who funds that
+ * work, so it goes to the meaning-based search (which falls back to keywords
+ * when it is off). The search page still offers a name match for short words
+ * (the "Funder named ..." line), and the mode switch can always force one.
  */
 export function inferMode(q: string | null): SearchMode {
   if (!q) return "name";
   if (detectEin(q)) return "name";
   if (unquote(q) !== null) return "name";
-  const words = q.split(/\s+/).filter(Boolean);
-  return words.length >= 3 ? "thesis" : "name";
+  return looksLikeFunderName(q) ? "name" : "thesis";
 }
 
 export function parseSearchParams(raw: RawSearchParams | URLSearchParams | null | undefined): SearchParams {
@@ -168,11 +210,18 @@ export function parseSearchParams(raw: RawSearchParams | URLSearchParams | null 
     minDistributions: r.min_distributions && r.min_distributions > 0 ? r.min_distributions : null,
     minAssets: r.min_assets && r.min_assets > 0 ? r.min_assets : null,
     ntee: r.ntee ?? null,
+    givesIn: r.gives_in ?? null,
+    cause: r.cause ?? null,
     givingTo: r.giving_to && r.giving_to.length > 0 ? r.giving_to : null,
     standing: r.standing ?? null,
     sort: r.sort ?? "relevance",
     page: r.page ?? 1,
     view: r.view ?? "cards",
+    forState: r.for_state ?? null,
+    forCause: r.for_cause ?? null,
+    forBudget: r.for_budget && r.for_budget > 0 ? r.for_budget : null,
+    forCity: r.for_city && r.for_city.length > 0 ? r.for_city : null,
+    tune: r.tune ?? null,
   };
 }
 
@@ -191,11 +240,18 @@ export function toQueryString(p: Partial<SearchParams>): string {
   if (p.minDistributions) sp.set("min_distributions", String(p.minDistributions));
   if (p.minAssets) sp.set("min_assets", String(p.minAssets));
   if (p.ntee) sp.set("ntee", p.ntee);
+  if (p.givesIn) sp.set("gives_in", p.givesIn);
+  if (p.cause) sp.set("cause", p.cause);
   if (p.givingTo) sp.set("giving_to", p.givingTo);
   if (p.standing) sp.set(STANDING_PARAM, p.standing);
   if (p.sort && p.sort !== "relevance") sp.set("sort", p.sort);
   if (p.page && p.page > 1) sp.set("page", String(p.page));
   if (p.view && p.view !== "cards") sp.set("view", p.view);
+  if (p.forState) sp.set("for_state", p.forState);
+  if (p.forCause) sp.set("for_cause", p.forCause);
+  if (p.forBudget) sp.set("for_budget", String(p.forBudget));
+  if (p.forCity) sp.set("for_city", p.forCity);
+  if (p.tune) sp.set("tune", p.tune);
   return sp.toString();
 }
 
@@ -215,9 +271,20 @@ export function withParams(current: SearchParams, patch: Partial<SearchParams>):
   return next;
 }
 
-export type FilterKey = "q" | "state" | "type" | "posture" | "minDistributions" | "minAssets" | "ntee" | "givingTo" | "standing";
+export type FilterKey =
+  | "q"
+  | "state"
+  | "givesIn"
+  | "cause"
+  | "type"
+  | "posture"
+  | "minDistributions"
+  | "minAssets"
+  | "ntee"
+  | "givingTo"
+  | "standing";
 
-export const FILTER_KEYS: readonly FilterKey[] = ["q", "givingTo", "type", "state", "posture", "minDistributions", "minAssets", "ntee", "standing"];
+export const FILTER_KEYS: readonly FilterKey[] = ["q", "givingTo", "givesIn", "cause", "type", "state", "posture", "minDistributions", "minAssets", "ntee", "standing"];
 
 export function removeFilter(current: SearchParams, key: FilterKey): SearchParams {
   const patch: Partial<SearchParams> = key === "type" ? { type: "all" } : { [key]: null };

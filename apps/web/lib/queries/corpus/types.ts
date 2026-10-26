@@ -4,6 +4,7 @@
  * client boundary and be returned from the JSON API unchanged.
  */
 import type { PostureValue } from "@/components/data/posture";
+import type { SearcherContext } from "@/lib/search/context";
 import type { SearchParams } from "@/lib/search/params";
 import type { RanMode, SearchNotice } from "@/lib/search/sql";
 
@@ -31,6 +32,37 @@ export type GivingToEvidence = {
   total: string | null;
   /** Up to three recipient names, as reported. */
   samples: string[];
+};
+
+/**
+ * Why a topic result fits the searcher: SOURCE-class facts read from the
+ * funder's filings (its grant rows, or the summary built from them), never a
+ * model's guess. `tier` says which: "profiles" when the corpus 0040 giving
+ * profiles are loaded (exact counts), "summary" when only the funder's search
+ * summary is (its top recipient states). Absent fields were not computed.
+ */
+export type SearchFit = {
+  tier: "profiles" | "summary";
+  /** The state the ranking looked at, and whether the funder is based there. */
+  state?: string;
+  located?: boolean;
+  /** Up to five recipient states, most first, as the funder's summary lists them. */
+  topStates?: string[];
+  /** Paid grants to recipients in `state` over the window (profiles). */
+  inState5y?: number;
+  /** The searcher's cause (NTEE major group) the ranking looked at. */
+  cause?: string;
+  /** The funder's summary uses words about that cause (summary tier). */
+  causeMentioned?: boolean;
+  /** Paid grants to recipients in that group over the window (profiles). */
+  cause5y?: number;
+  /** All paid grants over the window, their median amount, and the window. */
+  grants5y?: number;
+  median5y?: number;
+  windowFirstFy?: number;
+  windowLastFy?: number;
+  /** Latest fiscal year with a paid grant on file. */
+  lastFy?: number;
 };
 
 export type SearchHit = {
@@ -74,8 +106,13 @@ export type SearchHit = {
     snippet: string | null;
     givingTo: GivingToEvidence | null;
   };
+  /** Fit evidence for topic searches; null elsewhere. */
+  fit: SearchFit | null;
   snapshot: FunderSnapshot;
 };
+
+/** A grantmaker whose own name matches a short topic query ("Funders named ..."). */
+export type NamedFunder = { orgId: string; name: string; city: string | null; state: string | null };
 
 export type SearchResult = {
   params: SearchParams;
@@ -93,6 +130,12 @@ export type SearchResult = {
   retryAfterSec?: number;
   /** Where the time went, in milliseconds. Absent on results that ran no query. */
   timing?: SearchTiming;
+  /** Who the ranking was tuned for (lib/search/context.ts); absent when nobody. */
+  context?: SearcherContext | null;
+  /** Grantmakers named like a short topic query, offered above the topic results. */
+  named?: NamedFunder[];
+  /** The corpus 0040 giving profiles were readable and filled for this search. */
+  givingProfiles?: boolean;
 };
 
 export type SearchTiming = {

@@ -43,6 +43,10 @@ export const SEMANTIC_FILTERED_NOTE = (candidates: number) =>
   `Filters were applied to the ${candidates.toLocaleString("en-US")} funders whose giving reads most like your description. ` +
   "Remove a filter to widen the list.";
 
+export const GIVING_PROFILES_UNAVAILABLE_NOTE =
+  "Filtering by where a funder gives and which causes it funds is not ready yet, so that filter was not applied. " +
+  "Results still favor funders whose filings show grants in the place you searched for.";
+
 export const NAME_TOO_SHORT_NOTE = "Type at least three letters of the name so we can match it.";
 
 export const POOL_BOUNDED_NOTE = (limit: number) =>

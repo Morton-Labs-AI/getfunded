@@ -1,6 +1,7 @@
 import { Info, TriangleAlert } from "lucide-react";
 
 import {
+  GIVING_PROFILES_UNAVAILABLE_NOTE,
   GIVING_TO_NOTE,
   NAME_TOO_SHORT_NOTE,
   POOL_BOUNDED_NOTE,
@@ -36,6 +37,8 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
       return SEMANTIC_TIMED_OUT_NOTICE;
     case "semantic_filtered":
       return SEMANTIC_FILTERED_NOTE(SEMANTIC_CANDIDATES);
+    case "giving_profiles_unavailable":
+      return GIVING_PROFILES_UNAVAILABLE_NOTE;
     case "standing_filter":
       return STANDING_FILTER_NOTE;
     case "standing_unavailable":
@@ -46,6 +49,7 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
 const WARN: ReadonlySet<SearchNotice> = new Set([
   "semantic_unavailable",
   "semantic_timed_out",
+  "giving_profiles_unavailable",
   "name_too_short",
   "rate_limited",
   "timed_out",
