@@ -491,9 +491,11 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
       }
       left join internal.mv_funder_grant_profile gp on gp.funder_org_id = s.org_id`
     : "";
+  // The "gives in" / "funds this cause" filters join before the feature cut,
+  // so they choose among every candidate, not just the best 200.
   const filterJoins = [
-    givesIn ? `join internal.mv_funder_giving_state gsf on gsf.funder_org_id = s.org_id and gsf.state = ${givesIn}::text and gsf.n_grants_5y > 0` : "",
-    causeFilter ? `join internal.mv_funder_giving_cause gcf on gcf.funder_org_id = s.org_id and gcf.ntee_major = ${causeFilter}::text and gcf.n_grants_5y >= 2` : "",
+    givesIn ? `join internal.mv_funder_giving_state gsf on gsf.funder_org_id = sd.org_id and gsf.state = ${givesIn}::text and gsf.n_grants_5y > 0` : "",
+    causeFilter ? `join internal.mv_funder_giving_cause gcf on gcf.funder_org_id = sd.org_id and gcf.ntee_major = ${causeFilter}::text and gcf.n_grants_5y >= 2` : "",
   ]
     .filter(Boolean)
     .join("\n      ");
@@ -548,7 +550,7 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
                + ${num(w.localLeg)} * coalesce(1.0 / (60 + c.giv_r), 0)) * 30.5)::float8 as rel
       from cand c
       join internal.search_documents sd on sd.id = c.id
-      join internal.organizations o on o.id = sd.org_id
+      join internal.organizations o on o.id = sd.org_id${filterJoins ? `\n      ${filterJoins}` : ""}
       where o.canonical_org_id is null
         and sd.doc_kind = any(${kinds}::text[])
         and sd.org_type = any(${types}::text[])${filters.length ? `\n        and ${filters.join("\n        and ")}` : ""}
@@ -563,7 +565,7 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
              ev.last_fy::int as last_fy${profileCols}
       from scored s
       join internal.search_documents d on d.id = s.id
-      left join internal.mv_funder_event_stats ev on ev.org_id = s.org_id and ev.event_type = 'grant'${profileJoins}${filterJoins ? `\n      ${filterJoins}` : ""}
+      left join internal.mv_funder_event_stats ev on ev.org_id = s.org_id and ev.event_type = 'grant'${profileJoins}
     )
     select f.org_id,
            (${parts.join("\n            + ")})::float8 as rank,
