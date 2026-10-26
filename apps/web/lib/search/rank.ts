@@ -26,6 +26,12 @@
  */
 
 export type RankWeights = {
+  /**
+   * How the fit for the searcher (place, cause) meets relevance:
+   *   "add"       relevance + fit: a local funder can outrank a closer topical match
+   *   "multiply"  relevance x (1 + fit): fit lifts funders that already match the words
+   */
+  blend: "add" | "multiply";
   /** Weight of the keyword leg against the meaning leg (1). */
   keywordLeg: number;
   /** Weight of the in-state leg. */
@@ -47,11 +53,12 @@ export type RankWeights = {
 };
 
 export const RANK_WEIGHTS: RankWeights = {
+  blend: "multiply",
   keywordLeg: 0.8,
   localLeg: 1,
-  geo: 0.45,
-  located: 0.15,
-  cause: 0.3,
+  geo: 1,
+  located: 0.3,
+  cause: 0.6,
   open: 0.05,
   preselected: 0.12,
   stale: 0.2,

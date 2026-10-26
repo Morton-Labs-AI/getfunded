@@ -487,10 +487,11 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
     .filter(Boolean)
     .join("\n      ");
 
-  // The fit score (lib/search/rank.ts).
-  const parts: string[] = ["f.rel"];
+  // The fit score (lib/search/rank.ts): fit for the searcher (place, cause)
+  // either adds to relevance or multiplies it; the rest always adds.
+  const fit: string[] = [];
   if (st) {
-    parts.push(
+    fit.push(
       o.profiles
         ? `(case when f.in_state_5y > 0 then ${num(w.geo)} * least(1.0, ln(1 + f.in_state_5y) / ln(${GEO_FULL_AT + 1})) else 0 end)`
         : `coalesce(${num(w.geo)} * (1.2 - 0.2 * array_position(f.top_states, ${st}::text)), 0)`,
@@ -498,12 +499,14 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
     );
   }
   if (cause) {
-    parts.push(
+    fit.push(
       o.profiles
         ? `(case when f.cause_5y > 0 then ${num(w.cause)} * least(1.0, f.cause_5y::numeric / greatest(coalesce(f.grants_5y, 0) * ${num(CAUSE_FULL_SHARE)}, 3)) else 0 end)`
         : `(case when f.cause_hit then ${num(w.cause * 0.6)} else 0 end)`,
     );
   }
+  const parts: string[] =
+    w.blend === "multiply" && fit.length ? [`f.rel * (1 + ${fit.join(" + ")})`] : ["f.rel", ...fit];
   parts.push(`(case f.app_posture when 'open' then ${num(w.open)} when 'preselected_only' then ${num(-w.preselected)} else 0 end)`);
   parts.push(`(case when f.last_fy is not null and f.last_fy < ${Math.trunc(o.maxFy - STALE_AFTER_YEARS)} then ${num(-w.stale)} else 0 end)`);
   if (o.profiles && ctx.budget) {
