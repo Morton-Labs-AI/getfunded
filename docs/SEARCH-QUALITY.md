@@ -45,7 +45,9 @@ and what is left. The numbers come from the search eval suite
 - [ ] 9,922 private foundations report giving in their latest 990-PF ($6.8B a year together; 2,806 give $50k or more) but have no search summary, because none of their grants are itemized in the corpus; topic search cannot find them
 - [ ] Tuned results are fully local: two profiles in different states share none of their top 20 (twin Jaccard 0.00). Decide how many national funders a tuned first page should keep (the geo weights in `rank.ts`)
 - [ ] Write full state names into the search summaries ("Ohio" as well as "OH"), so the meaning leg connects a written-out state to a funder's geography
-- [ ] Funders whose grants all went to one or two organizations (often a supporting fund for their own affiliate) fill 12% of the judged top-10 slots, and none of the 28 listing a single grantee was a strong lead. A ranking change for them is its own PR, stacked on this one
+- [x] Funders whose grants all went to one or two organizations (often a supporting fund for their own affiliate) filled 12% of the judged top-10 slots, and none of the 28 listing a single grantee was a strong lead. They now rank lower and say so (`fewGrantees` in `rank.ts`): topic match 0.82 → 0.89, judged strong@10 0.55 → 0.63
+- [ ] Decide the personalization guards: the cause lift (0.17 → 0.06) and geo lift (0.78 → 0.66) fell with the change above because results without a profile improved, while the shares with a profile rose or held. Guarding the shares with a profile, and reporting the lifts, would measure what the lifts were meant to
+- [ ] An exact count of distinct grantees over five years in the giving profile, to replace reading the summary's grantee list
 
 ## After the giving profiles are filled
 
