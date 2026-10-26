@@ -154,9 +154,14 @@ async function main() {
   const n = args.sample ? Number(args.sample) : null;
   const token = evalToken();
   const transport = chooseTransport(target, args.transport);
-  const tokenOnTarget = Boolean(token) && !/getfunded\.ai$/i.test(new URL(target).host);
-  const concurrency = Number(args.concurrency ?? (tokenOnTarget ? 6 : 1));
-  const rpm = args.rpm ? Number(args.rpm) : tokenOnTarget ? 0 : 25;
+  // The token goes with every request when one is set; a deployment created
+  // without EVAL_TOKEN ignores it. Production is throttled under its public
+  // rate limit unless --rpm says otherwise (set --rpm 0 only when production
+  // carries the same EVAL_TOKEN).
+  const isProd = /(^|\.)getfunded\.ai$/i.test(new URL(target).host);
+  const tokenOnTarget = Boolean(token);
+  const concurrency = Number(args.concurrency ?? (isProd ? 4 : tokenOnTarget ? 6 : 1));
+  const rpm = args.rpm !== undefined ? Number(args.rpm) : isProd || !tokenOnTarget ? 25 : 0;
   const label = String(args.label ?? new URL(target).host.split(".")[0]);
   const { causes } = readJson("cases/causes.json");
   const thresholds = readJson("thresholds.json");
@@ -165,7 +170,7 @@ async function main() {
   const log = (m) => console.error(`[eval] ${m}`);
 
   const lists = buildLists(suites, n, causes);
-  log(`${lists.length} searches against ${target} (${transport}${tokenOnTarget ? ", eval token" : `, ${rpm}/min`}), concurrency ${concurrency}`);
+  log(`${lists.length} searches against ${target} (${transport}${tokenOnTarget ? ", eval token" : ""}${rpm ? `, ${rpm}/min` : ""}), concurrency ${concurrency}`);
   const started = Date.now();
   const get = makeClient({ base: target, transport, token: tokenOnTarget ? token : null, cwd: webDir, perMinute: rpm });
   let done = 0;
@@ -188,7 +193,7 @@ async function main() {
 
   // Ground truth for every funder that reached a top 10.
   const cache = openFactsCache(path.join(here, ".cache"));
-  const factsToken = token && !/getfunded\.ai$/i.test(new URL(factsFrom).host) ? token : null;
+  const factsToken = token;
   let factsStatus = "skipped (no eval token for the facts deployment)";
   if (factsToken) {
     const wants = [];
