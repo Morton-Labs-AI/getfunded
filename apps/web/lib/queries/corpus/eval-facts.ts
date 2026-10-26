@@ -59,57 +59,61 @@ export async function readEvalFacts(ids: string[], topic: string | null): Promis
     const funders: Record<string, FunderFacts> = Object.fromEntries(ids.map((id) => [id, emptyFacts(topic)]));
     if (ids.length === 0) return { maxFy, minFy, funders };
 
-    const summary = await sql.unsafe<
-      { id: string; n_all: number; n_5y: number; first_fy: number | null; last_fy: number | null; median_5y: number | null; linked_5y: number }[]
-    >(
-      `select pe.funder_org_id::text as id, count(*)::int as n_all,
-              count(*) filter (where pe.fiscal_year >= $2)::int as n_5y,
-              min(pe.fiscal_year)::int as first_fy, max(pe.fiscal_year)::int as last_fy,
-              (percentile_cont(0.5) within group (order by pe.amount)
-                 filter (where pe.fiscal_year >= $2 and pe.amount > 0))::float8 as median_5y,
-              count(*) filter (where pe.fiscal_year >= $2 and pe.recipient_org_id is not null)::int as linked_5y
-       from public.funding_events pe
-       where pe.funder_org_id = any($1::uuid[]) and ${LIVE}
-       group by 1`,
-      [ids, minFy] as never[],
+    // All-time counts come from the stats view; everything in the window from
+    // ONE pass over the funders' live grants, aggregated three ways.
+    const allTime = await sql.unsafe<{ id: string; n: string; first_fy: number | null; last_fy: number | null }[]>(
+      `select org_id::text as id, n::text, first_fy::int, last_fy::int
+       from internal.mv_funder_event_stats where org_id = any($1::uuid[]) and event_type = 'grant'`,
+      [ids] as never[],
     );
-    for (const s of summary) {
-      const f = funders[s.id];
+    for (const r of allTime) {
+      const f = funders[r.id];
       if (!f) continue;
-      f.grantsAll = s.n_all;
-      f.grants5y = s.n_5y;
-      f.firstFy = s.first_fy;
-      f.lastFy = s.last_fy;
-      f.median5y = s.median_5y === null ? null : Math.round(s.median_5y);
-      f.linked5y = s.linked_5y;
+      f.grantsAll = Number(r.n);
+      f.firstFy = r.first_fy;
+      f.lastFy = r.last_fy;
     }
 
-    const byState = await sql.unsafe<{ id: string; st: string; n: number }[]>(
-      `select pe.funder_org_id::text as id, upper(trim(pe.recipient_state)) as st, count(*)::int as n
-       from public.funding_events pe
-       where pe.funder_org_id = any($1::uuid[]) and pe.fiscal_year >= $2 and pe.recipient_state is not null and ${LIVE}
-       group by 1, 2`,
+    const rows = await sql.unsafe<{ k: string; id: string; key: string | null; n: number; med: number | null; linked: number | null }[]>(
+      `with g as materialized (
+         select pe.funder_org_id, pe.recipient_state, pe.recipient_org_id, pe.amount
+         from public.funding_events pe
+         where pe.funder_org_id = any($1::uuid[]) and pe.fiscal_year >= $2 and ${LIVE}
+       )
+       select 'sum' as k, g.funder_org_id::text as id, null::text as key, count(*)::int as n,
+              (percentile_cont(0.5) within group (order by g.amount) filter (where g.amount > 0))::float8 as med,
+              count(*) filter (where g.recipient_org_id is not null)::int as linked
+       from g group by g.funder_org_id
+       union all
+       select 'st', g.funder_org_id::text, upper(trim(g.recipient_state)), count(*)::int, null, null
+       from g where g.recipient_state is not null group by 2, 3
+       union all
+       select 'c', g.funder_org_id::text, upper(left(ro.ntee_code, 1)), count(*)::int, null, null
+       from g join internal.organizations ro on ro.id = g.recipient_org_id
+       where ro.ntee_code is not null group by 2, 3`,
       [ids, minFy] as never[],
     );
-    for (const r of byState) if (funders[r.id] && /^[A-Z]{2}$/.test(r.st)) funders[r.id].byState5y[r.st] = r.n;
-
-    const byCause = await sql.unsafe<{ id: string; c: string; n: number }[]>(
-      `select pe.funder_org_id::text as id, upper(left(ro.ntee_code, 1)) as c, count(*)::int as n
-       from public.funding_events pe
-       join internal.organizations ro on ro.id = pe.recipient_org_id
-       where pe.funder_org_id = any($1::uuid[]) and pe.fiscal_year >= $2 and ro.ntee_code is not null and ${LIVE}
-       group by 1, 2`,
-      [ids, minFy] as never[],
-    );
-    for (const r of byCause) if (funders[r.id] && /^[A-Z]$/.test(r.c)) funders[r.id].byCause5y[r.c] = r.n;
+    for (const r of rows) {
+      const f = funders[r.id];
+      if (!f) continue;
+      if (r.k === "sum") {
+        f.grants5y = r.n;
+        f.median5y = r.med === null ? null : Math.round(r.med);
+        f.linked5y = r.linked ?? 0;
+      } else if (r.k === "st" && r.key && /^[A-Z]{2}$/.test(r.key)) f.byState5y[r.key] = r.n;
+      else if (r.k === "c" && r.key && /^[A-Z]$/.test(r.key)) f.byCause5y[r.key] = r.n;
+    }
 
     if (topic) {
       // websearch_to_tsquery never raises on user syntax; "OR" joins alternatives.
+      // The tsvector lives on the table; the view supplies the licence filter
+      // and the filing id the superseded check needs.
       const topical = await sql.unsafe<{ id: string; n: number }[]>(
-        `select pe.funder_org_id::text as id, count(*)::int as n
-         from internal.funding_events pe
-         where pe.funder_org_id = any($1::uuid[]) and pe.fiscal_year >= $2
-           and pe.search_tsv @@ websearch_to_tsquery('english', $3::text) and ${LIVE}
+        `select fe.funder_org_id::text as id, count(*)::int as n
+         from internal.funding_events fe
+         join public.funding_events pe on pe.id = fe.id
+         where fe.funder_org_id = any($1::uuid[]) and fe.fiscal_year >= $2
+           and fe.search_tsv @@ websearch_to_tsquery('english', $3::text) and ${LIVE}
          group by 1`,
         [ids, minFy, topic] as never[],
       );
