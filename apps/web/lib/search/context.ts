@@ -85,6 +85,27 @@ export function causesFromProgramAreas(areas: string[] | null | undefined): stri
   return [...out];
 }
 
+/** The fields of `workspaces.profile` that tune search (lib/workspace/context.ts). */
+export type ProfileFields = {
+  state?: string;
+  city?: string;
+  cause_areas?: string[];
+  program_areas?: string[];
+  annual_budget?: number;
+};
+
+/**
+ * A workspace profile as search context, or null when it says nothing search
+ * can use. Cause areas chosen in onboarding win; free-text program areas from
+ * older profiles are mapped as a fallback.
+ */
+export function profileContextFrom(profile: ProfileFields | null | undefined): ProfileContext | null {
+  if (!profile) return null;
+  const causes = profile.cause_areas?.length ? profile.cause_areas : causesFromProgramAreas(profile.program_areas);
+  const ctx: ProfileContext = { state: profile.state ?? null, city: profile.city ?? null, causes, budget: profile.annual_budget ?? null };
+  return ctx.state || causes.length || ctx.budget ? ctx : null;
+}
+
 function validState(s: string | null | undefined): string | null {
   const v = s?.trim().toUpperCase();
   return v && STATE_NAMES[v] ? v : null;

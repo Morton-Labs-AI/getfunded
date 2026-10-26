@@ -65,6 +65,12 @@ export const GIVING_TO_NOTE =
 
 export const GIVING_TO_PLACEHOLDER = "e.g. food bank, community college, animal shelter";
 
+export const GIVES_IN_HINT = "Funders whose filings show grants paid to organizations in this state in the last five fiscal years.";
+export const CAUSE_FILTER_HINT =
+  "Funders whose filings show grants paid to organizations in this group in the last five fiscal years. " +
+  "Not every grant names a recipient we can classify, so a funder can fund a cause without showing here.";
+export const GIVING_PROFILES_PENDING_HINT = "Not available yet: the giving profiles behind this filter are still being prepared.";
+
 export const RATE_LIMITED_NOTE = (seconds: number) =>
   `You have searched a lot in the last minute. Please wait ${seconds} second${seconds === 1 ? "" : "s"} and try again.`;
 

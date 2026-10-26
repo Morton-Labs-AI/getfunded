@@ -260,8 +260,9 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {},
  * Grantmakers whose own name matches a short topic query, for the "Funders
  * named ..." line. Candidates come through the trigram index on the query's
  * distinctive words (one indexed condition, so the planner never falls back
- * to reading all 2.3M names), then must be close in similarity and have a
- * funder summary (grants on file).
+ * to reading all 2.3M names), then must contain the query almost word for
+ * word ("Kresge" in "KRESGE FOUNDATION") and have a funder summary (grants on
+ * file); the largest giver first.
  */
 async function namedFunders(sql: postgres.TransactionSql, q: string): Promise<NamedFunder[]> {
   const tokens = nameTokens(normalizeName(q));
@@ -273,12 +274,14 @@ async function namedFunders(sql: postgres.TransactionSql, q: string): Promise<Na
   const rows = await sql.unsafe<{ id: string; name: string; city: string | null; state: string | null }[]>(
     `select o.id::text as id, o.name, o.city, o.state
      from internal.organizations o
+     left join internal.mv_org_latest_financials fin on fin.org_id = o.id
      where ${narrow}
        and o.canonical_org_id is null
-       and similarity(o.name, ${qp}::text) >= 0.45
+       and word_similarity(${qp}::text, o.name) >= 0.8
        and exists (select 1 from internal.search_documents sd
                    where sd.org_id = o.id and sd.program_id is null and sd.doc_kind = 'foundation')
-     order by similarity(o.name, ${qp}::text) desc, o.id
+     order by word_similarity(${qp}::text, o.name) desc,
+              coalesce(fin.qualifying_distributions, fin.charitable_disbursements, 0) desc, o.id
      limit 3`,
     values as never[],
   );
