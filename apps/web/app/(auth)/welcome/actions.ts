@@ -6,7 +6,9 @@ import { z } from "zod";
 import { US_STATES } from "@/components/auth/us-states";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { DbError, withUser } from "@/lib/db/app";
+import { readApplicantRecord } from "@/lib/queries/corpus/applicant";
 import { requireWorkspace, type WorkspaceProfile } from "@/lib/workspace/context";
+import { fillFromRecord, mergeSearchProfile, searchProfileFields } from "@/lib/workspace/search-profile";
 
 /**
  * Onboarding: write the workspace name and `workspaces.profile` once, with a
@@ -114,6 +116,7 @@ const formSchema = z.object({
   annual_budget: budgetField,
   populations_served: listField,
   keywords: listField,
+  ...searchProfileFields,
 });
 
 type Parsed = z.infer<typeof formSchema>;
@@ -138,6 +141,7 @@ function mergeProfile(existing: WorkspaceProfile, form: Parsed): WorkspaceProfil
     if (empty) delete next[key];
     else next[key] = value;
   }
+  mergeSearchProfile(next, form);
   return next as WorkspaceProfile;
 }
 
@@ -172,6 +176,9 @@ export async function saveOnboarding(_previous: OnboardingState, formData: FormD
   }
 
   const profile = mergeProfile(workspace.profile, form);
+  // "Lets us match your own public filings": blank city, state, cause and
+  // budget are filled from the organization's own IRS record.
+  if (profile.ein) fillFromRecord(profile as Record<string, unknown>, await readApplicantRecord(profile.ein));
 
   let updated = 0;
   try {

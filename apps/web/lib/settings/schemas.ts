@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import { US_STATES } from "@/components/auth/us-states";
+import { searchProfileFields } from "@/lib/workspace/search-profile";
 import { INVITE_ROLES } from "./invites";
 
 /** Mirrors `API_SCOPES` in lib/api/keys.ts without importing that server-only module. */
@@ -108,6 +109,7 @@ export const organizationFormSchema = z.object({
   annual_budget: budgetField,
   populations_served: listField,
   keywords: listField,
+  ...searchProfileFields,
 });
 export type OrganizationForm = z.infer<typeof organizationFormSchema>;
 

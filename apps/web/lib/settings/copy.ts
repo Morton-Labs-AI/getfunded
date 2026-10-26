@@ -35,7 +35,7 @@ export const PROFILE_FIELD_COPY: Record<
   ein: {
     label: "EIN",
     what: "Your 9-digit IRS number.",
-    why: "Lets the app find your own public filings and your past funders.",
+    why: "Lets the app find your own public filings and your past funders, and fill a blank city, state, cause and budget from your IRS record.",
     placeholder: "12-3456789",
   },
   website: {

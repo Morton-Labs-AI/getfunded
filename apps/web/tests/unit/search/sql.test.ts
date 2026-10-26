@@ -153,9 +153,11 @@ describe("buildSearchSql", () => {
   it("returns grantmakers, not companies, for all funder types, and companies when asked", () => {
     const vec = Array.from({ length: 512 }, () => 0.1);
     const all = buildSearchSql(params({ q: "robotics for girls", mode: "thesis" }), { vec });
+    if (all.text === null) throw new Error("expected SQL");
     expect(all.values).toContainEqual(["foundation"]);
     expect(all.values).toContainEqual(["private_foundation", "public_charity"]);
     const companies = buildSearchSql(params({ q: "robotics for girls", mode: "thesis", type: "company" }), { vec });
+    if (companies.text === null) throw new Error("expected SQL");
     expect(companies.values).toContainEqual(["company"]);
   });
 

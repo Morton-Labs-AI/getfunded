@@ -14,7 +14,18 @@ import { DEFAULT_SEARCH_PARAMS } from "@/lib/search/params";
 describe("visible labels", () => {
   it("search filters: one visible label per select, in plain words", () => {
     render(<FilterControls current={DEFAULT_SEARCH_PARAMS} base="/search" />);
-    for (const label of ["Type", "State", "Applications", "Gives per year", "Assets", "Focus area", "Sort", "Funds organizations like"]) {
+    for (const label of [
+      "Type",
+      "Gives in",
+      "Funds this cause",
+      "Based in",
+      "Applications",
+      "Gives per year",
+      "Assets",
+      "Funder's own category",
+      "Sort",
+      "Funds organizations like",
+    ]) {
       const control = screen.getByLabelText(label);
       expect(control, label).toBeInTheDocument();
       expect(control.getAttribute("aria-label"), label).toBeNull();

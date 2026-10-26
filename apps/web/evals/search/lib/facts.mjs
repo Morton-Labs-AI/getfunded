@@ -9,7 +9,7 @@ import path from "node:path";
 import { pool } from "./http.mjs";
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
-const BATCH = 25;
+const BATCH = 12;
 
 export function openFactsCache(dir) {
   mkdirSync(dir, { recursive: true });
@@ -63,15 +63,25 @@ export async function ensureFacts(wants, cache, get, { concurrency = 3, log = ()
   log(`facts: ${jobs.length} requests for ${wants.length} (funder, topic) pairs not in the cache`);
   let failed = 0;
   await pool(jobs, concurrency, async (job, k) => {
-    const qs = new URLSearchParams({ ids: job.ids.join(",") });
-    if (job.topic) qs.set("topic", job.topic);
-    const r = await get(`/api/eval/facts?${qs}`);
-    if (r.status !== 200 || !r.json?.funders) {
-      failed++;
-      log(`facts request ${k + 1}/${jobs.length} failed: ${r.status} ${r.error ?? r.json?.error?.message ?? ""}`);
-      return;
-    }
-    cache.put(r.json, job.topic);
+    // A batch holding one of the very largest funders can outrun the route's
+    // timeout; split it and try the halves before giving up.
+    const attempt = async (ids) => {
+      const qs = new URLSearchParams({ ids: ids.join(",") });
+      if (job.topic) qs.set("topic", job.topic);
+      const r = await get(`/api/eval/facts?${qs}`);
+      if (r.status === 200 && r.json?.funders) {
+        cache.put(r.json, job.topic);
+        return true;
+      }
+      if (ids.length > 1 && (r.status === 504 || r.status === 0)) {
+        const mid = Math.ceil(ids.length / 2);
+        const [a, b] = [await attempt(ids.slice(0, mid)), await attempt(ids.slice(mid))];
+        return a && b;
+      }
+      log(`facts request ${k + 1}/${jobs.length} failed for ${ids.length} id(s): ${r.status} ${r.error ?? r.json?.error?.message ?? ""}`);
+      return false;
+    };
+    if (!(await attempt(job.ids))) failed++;
     if ((k + 1) % 20 === 0) cache.save();
   });
   cache.save();
