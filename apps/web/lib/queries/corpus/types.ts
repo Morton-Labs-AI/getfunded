@@ -63,6 +63,8 @@ export type SearchFit = {
   windowLastFy?: number;
   /** Latest fiscal year with a paid grant on file. */
   lastFy?: number;
+  /** Grantees its search summary lists (all years, at most 15); absent when the summary does not say. */
+  grantees?: number;
 };
 
 export type SearchHit = {

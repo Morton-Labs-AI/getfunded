@@ -11,10 +11,11 @@ function years(fit: SearchFit): string {
 
 /**
  * The facts behind a topic result's place in the list, from the funder's own
- * filings: grants paid in the searcher's state and to groups like theirs, and
- * the typical size of a grant. SOURCE class (teal, document glyph), because
- * each is a count of filed grant rows, not a judgment. Nothing is shown that
- * was not computed; an absence is not a finding.
+ * filings: grants paid in the searcher's state and to groups like theirs, the
+ * typical size of a grant, and, when its grants all went to one or two
+ * organizations, that too (why it sits lower). SOURCE class (teal, document
+ * glyph), because each is a count of filed grant rows, not a judgment.
+ * Nothing is shown that was not computed; an absence is not a finding.
  */
 export function fitFacts(fit: SearchFit | null): string[] {
   if (!fit) return [];
@@ -32,6 +33,8 @@ export function fitFacts(fit: SearchFit | null): string[] {
     out.push(rank === 1 ? `Gives most in ${place}` : `${place} is among its top recipient states`);
   }
   if (place && fit.located) out.push(`Based in ${place}`);
+  if (fit.grantees === 1) out.push("Grants on file all went to one organization");
+  else if (fit.grantees === 2) out.push("Grants on file went to two organizations");
   return out;
 }
 
@@ -39,7 +42,7 @@ export function FitLine({ fit }: { fit: SearchFit | null }) {
   const facts = fitFacts(fit);
   if (facts.length === 0) return null;
   return (
-    <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-source" aria-label="Why this funder fits">
+    <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-source" aria-label="What its grant records show">
       {facts.map((f) => (
         <li key={f} className="inline-flex items-center gap-1">
           <FileCheck className="size-3 shrink-0" aria-hidden />

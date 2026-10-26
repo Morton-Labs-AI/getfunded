@@ -59,7 +59,7 @@ import {
   type SearchSort,
   type SearchType,
 } from "./params";
-import { CAUSE_FULL_SHARE, GEO_FULL_AT, LEG_LIMITS, RANK_WEIGHTS, STALE_AFTER_YEARS, type RankWeights } from "./rank";
+import { CAUSE_FULL_SHARE, FEW_GRANTEES, GEO_FULL_AT, LEG_LIMITS, RANK_WEIGHTS, STALE_AFTER_YEARS, type RankWeights } from "./rank";
 import { excludeRevokedSql } from "./standing-filter";
 import { contentWords, understand, type Understanding } from "./understand";
 
@@ -397,6 +397,13 @@ function namePool(name: string, p: SearchParams, ps: Params, profiles: boolean):
 type TopicOptions = { profiles: boolean; maxFy: number; w: RankWeights };
 
 /**
+ * The grantee list in a funder's search summary (corpus embed.py writes
+ * "Grantees: A; B; C. Grant geography: ..."), matched only when the list ends
+ * inside the summary, so a summary cut off mid-list counts as unknown.
+ */
+const GRANTEES_RE = String.raw`Grantees: (.*?)\.(?:\s+(?:Grant geography|Application materials|Application deadlines|Award restrictions):|\s*$)`;
+
+/**
  * The topic pool: funders whose giving matches the words, ranked by fit for
  * the searcher (see the header and lib/search/rank.ts). Every leg returns
  * search_documents ids in its own order; the arrays keep that order
@@ -522,6 +529,9 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
     w.blend === "multiply" && fit.length ? [`f.rel * (1 + ${fit.join(" + ")})`] : ["f.rel", ...fit];
   parts.push(`(case f.app_posture when 'open' then ${num(w.open)} when 'preselected_only' then ${num(-w.preselected)} else 0 end)`);
   parts.push(`(case when f.last_fy is not null and f.last_fy < ${Math.trunc(o.maxFy - STALE_AFTER_YEARS)} then ${num(-w.stale)} else 0 end)`);
+  parts.push(
+    `(case f.n_grantees ${FEW_GRANTEES.map((share, i) => `when ${i + 1} then ${num(-w.fewGrantees * share)}`).join(" ")} else 0 end)`,
+  );
   if (o.profiles && ctx.budget) {
     const b = ctx.budget;
     parts.push(
@@ -562,6 +572,7 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
              string_to_array(substring(d.doc_text from 'Grant geography: ([A-Z]{2}(?:, [A-Z]{2})*)'), ', ') as top_states,
              left(d.doc_text, 240) as snippet,
              ${causeRe ? `(d.doc_text ~* ${causeRe}::text)` : "null::boolean"} as cause_hit,
+             array_length(string_to_array(substring(d.doc_text from '${GRANTEES_RE}'), '; '), 1) as n_grantees,
              ev.last_fy::int as last_fy${profileCols}
       from scored s
       join internal.search_documents d on d.id = s.id
@@ -583,7 +594,8 @@ function topicPool(p: SearchParams, vec: number[] | null, u: Understanding, ctx:
              'median5y', f.median_paid_5y,
              'windowFirstFy', f.window_first_fy,
              'windowLastFy', f.window_last_fy,
-             'lastFy', f.last_fy)) as fit
+             'lastFy', f.last_fy,
+             'grantees', f.n_grantees)) as fit
     from feat f`;
   return { sql, notices };
 }
