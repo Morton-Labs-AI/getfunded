@@ -16,7 +16,7 @@ import { filingSourceLabel, nteeMajorLabel, orgTypeLabel } from "@/lib/content/l
 import { embedText, resolveContext, type ProfileContext, type SearcherContext } from "@/lib/search/context";
 import { embedQuery } from "@/lib/search/embed";
 import { PAGE_SIZE, nameQuery, type SearchParams } from "@/lib/search/params";
-import { buildSearchSql, likeContains, nameTokens, normalizeName, type RanMode } from "@/lib/search/sql";
+import { buildSearchSql, nameTokens, normalizeName, wordStart, type RanMode } from "@/lib/search/sql";
 import { unquote } from "@/lib/search/ein";
 import { understand, type Understanding } from "@/lib/search/understand";
 
@@ -278,8 +278,8 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {},
 async function namedFunders(sql: postgres.TransactionSql, q: string): Promise<NamedFunder[]> {
   const tokens = nameTokens(normalizeName(q));
   if (tokens.length === 0) return [];
-  const values: unknown[] = tokens.map((t) => likeContains(t));
-  const narrow = tokens.map((_, i) => `o.name ilike $${i + 1}::text`).join(" and ");
+  const values: unknown[] = tokens.map((t) => wordStart(t));
+  const narrow = tokens.map((_, i) => `o.name ~* $${i + 1}::text`).join(" and ");
   values.push(q);
   const qp = `$${values.length}`;
   const rows = await sql.unsafe<{ id: string; name: string; city: string | null; state: string | null }[]>(

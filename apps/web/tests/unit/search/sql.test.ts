@@ -59,9 +59,9 @@ describe("buildSearchSql", () => {
     if (built.text === null) return;
     expect(built.ran).toBe("name");
     expect(built.poolLimit).toBe(POOL_LIMIT);
-    // "50" and "X" are too short to narrow by; "_" is escaped for LIKE.
-    expect(built.values).toContain("%FUND\\_RAISERS%");
-    expect(built.values).toContain("%TABLE%");
+    // "50" and "X" are too short to narrow by; each word must START a word of the name.
+    expect(built.values).toContain("\\mFUND_RAISERS");
+    expect(built.values).toContain("\\mTABLE");
     expect(built.values).toContain("50 FUND_RAISERS DROP TABLE X");
     expect(built.values).toContain("or");
     checkPlaceholders(built.text, built.values, ["drop table", "50%", "or'"]);
@@ -77,8 +77,8 @@ describe("buildSearchSql", () => {
 
     const built = buildSearchSql(params({ q: "Annie E. Casey Foundation", mode: "name" }));
     if (built.text === null) throw new Error("expected SQL");
-    expect(built.values).toContain("%ANNIE%");
-    expect(built.values).toContain("%CASEY%");
+    expect(built.values).toContain("\\mANNIE");
+    expect(built.values).toContain("\\mCASEY");
     expect(built.values).toContain("ANNIE E CASEY FOUNDATION");
     expect(built.text).toMatch(/0\.35 \* log\(1 \+ greatest\(/);
     // Every-word-generic names fall back to the whole phrase.
@@ -100,8 +100,8 @@ describe("buildSearchSql", () => {
     // Both spellings must be contained whole; the trigram index narrows by the words.
     expect(built.values).toContain("CHILDREN S HOSPITAL");
     expect(built.values).toContain("CHILDRENS HOSPITAL");
-    expect(built.values).toContain("%HOSPITAL%");
-    expect(built.values).toContain("%CHILDREN%");
+    expect(built.values).toContain("\\mHOSPITAL");
+    expect(built.values).toContain("\\mCHILDREN");
     expect((built.text.match(/strpos\(o\.name_normalized/g) ?? []).length).toBe(2);
     checkPlaceholders(built.text, built.values, ["children's", "hospital"]);
   });

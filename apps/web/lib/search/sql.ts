@@ -337,6 +337,15 @@ const GENERIC_NAME_TOKENS = new Set([
 ]);
 
 /**
+ * A trigram-indexable regular expression for a word that STARTS with `token`
+ * ("\mford" finds FORD and FORDHAM, not STANFORD; "\mchildren" also finds
+ * CHILDRENS). Far fewer candidates than a substring match on a short token.
+ */
+export function wordStart(token: string): string {
+  return `\\m${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`;
+}
+
+/**
  * The words that make a name distinctive ("MOORE" in "Moore Foundation"),
  * longest first, at most three. A trigram match on "%foundation%" touches
  * hundreds of thousands of names; one on "%moore%" a thousand.
@@ -361,7 +370,7 @@ function namePool(name: string, p: SearchParams, ps: Params, profiles: boolean):
   const norms = [...new Set(variants.map(normalizeName))].filter(Boolean);
   const tokens = nameTokens(norms[0] ?? "");
   const narrow = tokens.length
-    ? tokens.map((t) => `o.name ilike ${ps.add(likeContains(t))}::text`).join(" and ")
+    ? tokens.map((t) => `o.name ~* ${ps.add(wordStart(t))}::text`).join(" and ")
     : `(${variants.map((v) => `o.name ilike ${ps.add(likeContains(v))}::text`).join(" or ")})`;
   const whole = norms.map((n) => `strpos(o.name_normalized, ${ps.add(n)}::text) > 0`).join(" or ");
   const norm = norms[0] ?? normalizeName(name);
