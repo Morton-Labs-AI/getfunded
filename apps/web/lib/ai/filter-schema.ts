@@ -8,7 +8,10 @@
  * can follow lib/search/params.ts when the search builder settles its names.
  */
 import { z } from "zod";
-export const FILTER_PROMPT_VERSION = "filter-p1";
+
+import { NTEE_MAJOR } from "@/lib/content/labels";
+
+export const FILTER_PROMPT_VERSION = "filter-p2";
 
 export const US_STATES = [
   "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME",
@@ -31,6 +34,8 @@ export const FILTER_PARAM_KEYS = {
   like: "like",
   orgType: "type",
   state: "state",
+  givesIn: "gives_in",
+  cause: "cause",
   posture: "posture",
   ntee: "ntee",
   minGiving: "min_distributions",
@@ -46,6 +51,8 @@ export const FilterToolOutput = z
     like: z.string().max(400).nullish(),
     org_type: z.string().max(40).nullish(),
     state: z.string().max(40).nullish(),
+    gives_in: z.string().max(40).nullish(),
+    cause: z.string().max(4).nullish(),
     posture: z.string().max(40).nullish(),
     ntee: z.string().max(4).nullish(),
     min_giving: z.number().nullish(),
@@ -141,11 +148,15 @@ export function normalizeFilter(raw: unknown): NormalizedFilter {
   const orgType = typeof o.org_type === "string" ? o.org_type.trim().toLowerCase() : null;
   if (orgType && (FILTER_ORG_TYPES as readonly string[]).includes(orgType)) set("orgType", orgType, ORG_TYPE_LABELS[orgType] ?? orgType);
   const state = normalizeState(o.state);
-  if (state) set("state", state, `State: ${state}`);
+  if (state) set("state", state, `Based in ${state}`);
+  const givesIn = normalizeState(o.gives_in);
+  if (givesIn) set("givesIn", givesIn, `Gives in ${givesIn}`);
+  const cause = typeof o.cause === "string" ? o.cause.trim().toUpperCase() : null;
+  if (cause && /^[A-Z]$/.test(cause) && NTEE_MAJOR[cause]) set("cause", cause, `Funds ${NTEE_MAJOR[cause].toLowerCase()} groups`);
   const posture = typeof o.posture === "string" ? o.posture.trim().toLowerCase() : null;
   if (posture && (FILTER_POSTURES as readonly string[]).includes(posture)) set("posture", posture, POSTURE_LABELS[posture]);
   const ntee = typeof o.ntee === "string" ? o.ntee.trim().toUpperCase() : null;
-  if (ntee && /^[A-Z]$/.test(ntee)) set("ntee", ntee, `NTEE group ${ntee}`);
+  if (ntee && /^[A-Z]$/.test(ntee)) set("ntee", ntee, `Funder's own category: ${NTEE_MAJOR[ntee] ?? ntee}`);
   const minGiving = money(o.min_giving);
   if (minGiving) set("minGiving", String(minGiving), `Gives at least ${compact(minGiving)} a year`);
   const minAssets = money(o.min_assets);
