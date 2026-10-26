@@ -12,6 +12,7 @@ import {
   FUNDER_TYPES,
   KEYWORD_LEG_LIMIT,
   POOL_LIMIT,
+  SEMANTIC_CANDIDATES,
   SEMANTIC_POOL_LIMIT,
   buildSearchSql,
   likeContains,
@@ -99,7 +100,7 @@ describe("buildSearchSql", () => {
     expect(built.notices).toContain("semantic_unavailable");
   });
 
-  it("sends a thesis search through hybrid_search with the vector and every filter inside the call", () => {
+  it("sends a thesis search through hybrid_search with no filter arguments, then filters what it returns", () => {
     const vec = Array.from({ length: 512 }, (_, i) => i / 512);
     const built = buildSearchSql(params({ q: "youth mental health", mode: "thesis", posture: "open", minDistributions: 500000, state: "OR", ntee: "F" }), { vec });
     expect(built.text).not.toBeNull();
@@ -107,13 +108,28 @@ describe("buildSearchSql", () => {
     expect(built.ran).toBe("semantic");
     expect(built.poolLimit).toBe(SEMANTIC_POOL_LIMIT);
     expect(built.text).toContain("internal.hybrid_search(");
+    // Any filter argument switches hybrid_search to an exact scan of every
+    // vector, which timed out in production; the index walk needs them all null.
+    expect(built.text).toContain(`${SEMANTIC_CANDIDATES},\n           null::text[], null::text[], null::text, null::numeric, null::text[], null::numeric) h`);
+    expect(built.text).toMatch(/h\.state = \$\d+::text/);
+    expect(built.text).toMatch(/h\.app_posture = \$\d+::text/);
+    expect(built.text).toMatch(/h\.annual_distributions >= \$\d+::numeric/);
+    expect(built.text).toContain("o.canonical_org_id is null");
     expect(built.values).toContain(vecLiteral(vec));
-    expect(built.values).toContainEqual(["open"]);
+    expect(built.values).toContain("open");
     expect(built.values).toContain(500000);
-    // The NTEE filter cannot go inside hybrid_search, so it is applied after the pool.
+    // The NTEE filter is not a search_documents column, so it is applied after the pool.
     expect(built.text).toMatch(/where o\.ntee_code like \$\d+::text/);
     expect(built.notices).toContain("posture_filter");
+    expect(built.notices).toContain("semantic_filtered");
     checkPlaceholders(built.text, built.values, ["youth mental health", "[0,"]);
+  });
+
+  it("adds no filter notice to an unfiltered thesis search", () => {
+    const vec = Array.from({ length: 512 }, (_, i) => i / 512);
+    const built = buildSearchSql(params({ q: "youth mental health", mode: "thesis" }), { vec });
+    expect(built.ran).toBe("semantic");
+    expect(built.notices).not.toContain("semantic_filtered");
   });
 
   it("browses from the financials view when sorting by giving, and from organizations otherwise", () => {

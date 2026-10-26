@@ -35,6 +35,14 @@ export const SEMANTIC_UNAVAILABLE_NOTICE =
   "Describe-the-work search is not available right now, so we matched your words as keywords instead. " +
   "Results may be narrower than a meaning-based search would give.";
 
+export const SEMANTIC_TIMED_OUT_NOTICE =
+  "Describe-the-work search took too long just now, so we matched your words as keywords instead. " +
+  "Try again in a moment for meaning-based results.";
+
+export const SEMANTIC_FILTERED_NOTE = (candidates: number) =>
+  `Filters were applied to the ${candidates.toLocaleString("en-US")} funders whose giving reads most like your description. ` +
+  "Remove a filter to widen the list.";
+
 export const NAME_TOO_SHORT_NOTE = "Type at least three letters of the name so we can match it.";
 
 export const POOL_BOUNDED_NOTE = (limit: number) =>
