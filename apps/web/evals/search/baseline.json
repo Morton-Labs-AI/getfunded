@@ -3,6 +3,7 @@
   "at": "2026-10-26T22:32:11.567Z",
   "target": "https://getfunded-1opmdu5xc-morton-labs.vercel.app",
   "git": "d1bf212 Search ranking: funders whose grants all went to one or two organizations rank lower, and sa",
+  "note": "personalization.geo_with_profile and cause_with_profile were computed later from this run's saved results, when they replaced the lifts as guards; every other measure is as the run reported it",
   "summary": {
     "requests": 457,
     "error_rate": 0,
@@ -94,6 +95,8 @@
       "twin_jaccard_budget": 1,
       "shared_mean_pairwise_jaccard": 0.006,
       "profile_coverage": 1,
+      "geo_with_profile": 0.997,
+      "cause_with_profile": 0.84,
       "geo_lift": 0.662,
       "cause_lift": 0.064
     },

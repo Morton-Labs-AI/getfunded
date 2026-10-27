@@ -41,6 +41,14 @@ Do not edit a case or a threshold to make a run pass. If a case is wrong (the
 funder named in a navigational case changed its EIN, say), fix it in its own
 commit and say so.
 
+The personalization guards are the shares of the top 10 that fit the profile,
+with the profile attached. The lifts over the same words without a profile are
+reported, not guarded: a lift also falls when search without a profile gets
+better (the grantee change took the cause lift from 0.17 to 0.06 while every
+share with a profile rose or held). A falling share with a profile is a loss.
+When a lift falls, read the twin Jaccards and the per-query table in the
+report before calling it one.
+
 ## Growing the golden labels
 
 The data-derived measures say whether a funder gives in a state or to a cause;
@@ -69,8 +77,9 @@ The 2026-10-26 review (`reports/`) left these:
   refresh-views`) before "gives in" and "funds this cause" work and before
   ranking switches from the summary's top states to exact counts. Measure
   again after the fill: geography and cause should move most.
-- About 45 to 50 thousand foundations have no search document (no grants on
-  file in the corpus), so topic search cannot find them at all.
+- 9,922 private foundations report giving (about $6.8B a year together) but
+  have no search document, because none of their grants are itemized in the
+  corpus; topic search cannot find them at all.
 - Search summaries spell states as codes ("OH"); embedding them with the full
   name too would help meaning-based search with places.
 - Recipient NTEE links cover about 46% of grant rows; Tier-3 recipient matching
