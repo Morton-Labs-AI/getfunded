@@ -77,9 +77,16 @@ The 2026-10-26 review (`reports/`) left these:
   refresh-views`) before "gives in" and "funds this cause" work and before
   ranking switches from the summary's top states to exact counts. Measure
   again after the fill: geography and cause should move most.
-- 9,922 private foundations report giving (about $6.8B a year together) but
-  have no search document, because none of their grants are itemized in the
-  corpus; topic search cannot find them at all.
+- 9,922 private foundations report charitable distributions on their latest
+  990-PF but have no search document, because none of their grants are
+  itemized in the corpus; topic search cannot find them at all. Most report no
+  grants paid: 8,872 filed $0 on Part I, line 25, among them 2,161 operating
+  foundations that run their own programs and hold $5.56B of the $6.8B in
+  distributions. Only 1,050 reported grants paid ($229M together). Size a gap
+  like this by grants paid, not by distributions. Summaries for the 1,050 and
+  for 736 more that say they accept applications are in
+  [open-nonprofit-platform PR 11](https://github.com/getfunded-ai/open-nonprofit-platform/pull/11),
+  not embedded yet.
 - Search summaries spell states as codes ("OH"); embedding them with the full
   name too would help meaning-based search with places.
 - Recipient NTEE links cover about 46% of grant rows; Tier-3 recipient matching
