@@ -1,5 +1,16 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type postgres from "postgres";
 import { sql } from "@/lib/db";
+import {
+  hybridPlan,
+  hybridSource,
+  isStatementTimeout,
+  keywordSource,
+  SEMANTIC_TIMEOUT_MS,
+  WALK_CANDIDATES,
+  type HybridFilters,
+  type HybridPlan,
+} from "@/lib/queries/hybrid";
 import {
   GuardError,
   guardSql,
@@ -285,7 +296,7 @@ export async function runDbTool(
     }
 
     if (name === "semantic_funder_search") {
-      const { embedQuery, vecLiteral } = await import("./embed");
+      const { embedQuery } = await import("./embed");
       const query = String(input.query ?? "").trim();
       if (!query) return "ERROR: empty query";
       const limit = Math.min(Number(input.limit) || 15, 30);
@@ -295,19 +306,33 @@ export async function runDbTool(
       } catch (err) {
         return `SEMANTIC SEARCH UNAVAILABLE: ${err instanceof Error ? err.message : err}. Fall back to run_query FTS.`;
       }
+      const filters: HybridFilters = {
+        kinds: (input.kinds as string[]) ?? null,
+        orgTypes: (input.org_types as string[]) ?? null,
+        state: (input.state as string) ?? null,
+        minSize: (input.min_size as number) ?? null,
+        postures: (input.app_postures as string[]) ?? null,
+        minDistributions: (input.min_distributions as number) ?? null,
+      };
       const t0 = performance.now();
-      const rows = await sql`
-        select * from internal.hybrid_search(
-          ${query},
-          ${vecLiteral(vec)}::extensions.halfvec(512),
-          ${limit},
-          ${(input.kinds as string[]) ?? null},
-          ${(input.org_types as string[]) ?? null},
-          ${(input.state as string) ?? null},
-          ${(input.min_size as number) ?? null},
-          ${(input.app_postures as string[]) ?? null},
-          ${(input.min_distributions as number) ?? null}
-        )`;
+      let plan: HybridPlan | "keyword";
+      let rows: postgres.Row[];
+      try {
+        ({ plan, rows } = await sql.begin("read only", async (tx) => {
+          await tx.unsafe(`set local statement_timeout = '${SEMANTIC_TIMEOUT_MS}ms'`);
+          const plan = await hybridPlan(tx, filters);
+          const rows = await tx`
+            select * from ${hybridSource(tx, query, vec, limit, filters, plan)} h
+            order by h.rrf desc, h.size_amount desc nulls last`;
+          return { plan, rows };
+        }));
+      } catch (err) {
+        if (!isStatementTimeout(err)) throw err;
+        plan = "keyword";
+        rows = await sql.begin("read only", (tx) => tx`
+          select * from ${keywordSource(tx, query, limit, filters)} k
+          order by k.rrf desc`);
+      }
       const ms = Math.round(performance.now() - t0);
       emit({
         type: "rows",
@@ -327,9 +352,15 @@ export async function runDbTool(
         total: rows.length,
         ms,
       });
+      const note =
+        plan === "keyword"
+          ? `Semantic search ran out of time (${SEMANTIC_TIMEOUT_MS / 1000} s); these are keyword matches over the same documents.\n`
+          : plan === "walk" && rows.length < limit
+            ? `These filters kept ${rows.length} of the ${WALK_CANDIDATES} documents closest to the query.\n`
+            : "";
       if (rows.length === 0)
-        return "0 results. The corpus covers foundations with grants on file, SBIR companies, advisers, and federal programs.";
-      return rows
+        return note + "0 results. The corpus covers foundations with grants on file, SBIR companies, advisers, and federal programs.";
+      return note + rows
         .map(
           (r) =>
             `${r.org_id ?? "program:" + r.program_id} | ${r.name} | ${r.doc_kind} | ${r.state ?? "∅"} | ${r.app_posture ?? "∅"} | rrf=${Number(r.rrf).toFixed(4)} | ${String(r.snippet).slice(0, 140)}`
