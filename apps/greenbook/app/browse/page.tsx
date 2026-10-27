@@ -6,6 +6,7 @@ import {
   segmentCounts,
   thesisCapable,
   type BrowseFilters,
+  type ThesisResult,
 } from "@/lib/queries/browse";
 import { POSTURE_SCOPE_NOTE } from "@/lib/content/facts";
 import { BrowseControls } from "@/components/browse-controls";
@@ -39,7 +40,7 @@ export default async function BrowsePage({
   const [result, counts] = await Promise.all([
     thesisMode
       ? browseOrgsByThesis(filters as BrowseFilters & { thesis: string }, page)
-      : browseOrgs(filters).then((rows) => ({
+      : browseOrgs(filters).then((rows): ThesisResult => ({
           rows,
           totalMatched: -1,
           fallback: false,
@@ -107,7 +108,8 @@ export default async function BrowsePage({
       )}
       {thesisMode && result.fallback && (
         <p className="mt-3 text-[12.5px] text-ink-4">
-          Semantic search unavailable — matched &ldquo;{sp.thesis}&rdquo; as keywords instead.
+          {result.timedOut ? "Semantic search ran out of time" : "Semantic search unavailable"} —
+          matched &ldquo;{sp.thesis}&rdquo; as keywords instead.
         </p>
       )}
 
