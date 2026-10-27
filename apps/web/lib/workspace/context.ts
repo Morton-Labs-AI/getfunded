@@ -46,6 +46,16 @@ export const workspaceProfileSchema = z.looseObject({
   annual_budget: z.number().int().nonnegative().optional(),
   populations_served: z.array(z.string().max(120)).max(100).optional(),
   keywords: z.array(z.string().max(120)).max(200).optional(),
+  /** City the organization works from (search context; filled from the EIN record when known). */
+  city: z.string().max(120).optional(),
+  /** NTEE major group letters the organization works in, most central first (search context). */
+  cause_areas: z.array(z.string().regex(/^[A-Z]$/)).max(5).optional(),
+  /** How far the work reaches: local | state | regional | national | international. */
+  service_area: z.enum(["local", "state", "regional", "national", "international"]).optional(),
+  /** What the money is for: operating | program | capital | capacity | scholarships | events. */
+  funding_needs: z.array(z.enum(["operating", "program", "capital", "capacity", "scholarships", "events"])).max(6).optional(),
+  /** A typical request, whole dollars. */
+  typical_ask: z.number().int().nonnegative().optional(),
 });
 export type WorkspaceProfile = z.infer<typeof workspaceProfileSchema>;
 

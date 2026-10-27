@@ -1,7 +1,9 @@
 import { Info, TriangleAlert } from "lucide-react";
 
 import {
+  GIVING_PROFILES_UNAVAILABLE_NOTE,
   GIVING_TO_NOTE,
+  NAME_NO_MATCH_NOTE,
   NAME_TOO_SHORT_NOTE,
   POOL_BOUNDED_NOTE,
   POSTURE_FILTER_NOTE,
@@ -16,7 +18,7 @@ import type { SearchResult } from "@/lib/queries/corpus/types";
 import { SEMANTIC_CANDIDATES, type SearchNotice } from "@/lib/search/sql";
 import { cn } from "@/lib/utils";
 
-function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "retryAfterSec">): string {
+function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "retryAfterSec"> & { params?: { q: string | null } }): string {
   switch (notice) {
     case "semantic_unavailable":
       return SEMANTIC_UNAVAILABLE_NOTICE;
@@ -36,6 +38,10 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
       return SEMANTIC_TIMED_OUT_NOTICE;
     case "semantic_filtered":
       return SEMANTIC_FILTERED_NOTE(SEMANTIC_CANDIDATES);
+    case "giving_profiles_unavailable":
+      return GIVING_PROFILES_UNAVAILABLE_NOTE;
+    case "name_no_match":
+      return NAME_NO_MATCH_NOTE(result.params?.q ?? "");
     case "standing_filter":
       return STANDING_FILTER_NOTE;
     case "standing_unavailable":
@@ -46,6 +52,7 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
 const WARN: ReadonlySet<SearchNotice> = new Set([
   "semantic_unavailable",
   "semantic_timed_out",
+  "giving_profiles_unavailable",
   "name_too_short",
   "rate_limited",
   "timed_out",
@@ -53,7 +60,7 @@ const WARN: ReadonlySet<SearchNotice> = new Set([
 ]);
 
 /** Honest notices about what the search did and did not do. */
-export function SearchNotices({ result }: { result: Pick<SearchResult, "notices" | "poolLimit" | "retryAfterSec"> }) {
+export function SearchNotices({ result }: { result: Pick<SearchResult, "notices" | "poolLimit" | "retryAfterSec"> & { params?: { q: string | null } } }) {
   if (result.notices.length === 0) return null;
   return (
     <ul className="flex flex-col gap-1.5" aria-label="Notes about these results">

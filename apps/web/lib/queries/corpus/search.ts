@@ -13,14 +13,18 @@ import { corpusQuery } from "@/lib/db/corpus";
 import { formatEin } from "@/lib/format";
 import { IRS_MASTER_FILE_LABEL } from "@/lib/content/copy";
 import { filingSourceLabel, nteeMajorLabel, orgTypeLabel } from "@/lib/content/labels";
+import { embedText, resolveContext, type ProfileContext, type SearcherContext } from "@/lib/search/context";
 import { embedQuery } from "@/lib/search/embed";
 import { PAGE_SIZE, nameQuery, type SearchParams } from "@/lib/search/params";
-import { buildSearchSql, type BuiltSearch, type RanMode } from "@/lib/search/sql";
+import { buildSearchSql, nameTokens, normalizeName, wordStart, type RanMode } from "@/lib/search/sql";
+import { unquote } from "@/lib/search/ein";
+import { understand, type Understanding } from "@/lib/search/understand";
 
+import { givingProfilesReady } from "./giving-profile";
 import { positive, toInt } from "./safe";
 import { canReadIrsStanding, readStandingsByOrg } from "./standing";
 import type { IrsStanding } from "./standing-types";
-import type { GivingToEvidence, SearchHit, SearchResult } from "./types";
+import type { GivingToEvidence, NamedFunder, SearchFit, SearchHit, SearchResult } from "./types";
 
 export type SearchDeps = {
   /** Runs `fn` against a SQL handle. Defaults to corpusQuery. Tests pass a fake. */
@@ -52,6 +56,7 @@ type Row = {
   grants_last_fy: number | null;
   rank: number | null;
   snippet: string | null;
+  fit?: unknown;
   hit_n?: number | null;
   hit_total?: string | null;
   hit_samples?: (string | null)[] | null;
@@ -85,6 +90,25 @@ function reasonFor(ran: RanMode, p: SearchParams, row: Row): string | null {
     default:
       return null;
   }
+}
+
+/** The pool's fit object, kept only when it has the shape SearchFit promises. */
+export function fitOf(raw: unknown): SearchFit | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (r.tier !== "profiles" && r.tier !== "summary") return null;
+  const int = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : typeof v === "string" && /^\d+(\.\d+)?$/.test(v) ? Math.round(Number(v)) : undefined);
+  const fit: SearchFit = { tier: r.tier };
+  if (typeof r.state === "string") fit.state = r.state;
+  if (typeof r.located === "boolean") fit.located = r.located;
+  if (Array.isArray(r.topStates)) fit.topStates = r.topStates.filter((x): x is string => typeof x === "string").slice(0, 5);
+  if (typeof r.cause === "string") fit.cause = r.cause;
+  if (typeof r.causeMentioned === "boolean") fit.causeMentioned = r.causeMentioned;
+  for (const k of ["inState5y", "cause5y", "grants5y", "median5y", "windowFirstFy", "windowLastFy", "lastFy"] as const) {
+    const v = int(r[k]);
+    if (v !== undefined) fit[k] = v;
+  }
+  return fit;
 }
 
 function givingToOf(row: Row): GivingToEvidence | null {
@@ -127,6 +151,7 @@ export function rowToHit(row: Row, ran: RanMode, p: SearchParams, irsStanding: I
     sourceLabel: filing ? filingSourceLabel(filing.returnType, filing.fy) : IRS_MASTER_FILE_LABEL,
     irsStanding,
     match: { kind: ran, reason: reasonFor(ran, p, row), snippet: row.snippet, givingTo: givingToOf(row) },
+    fit: fitOf(row.fit),
     snapshot: {
       orgId: row.id,
       name: row.name,
@@ -172,46 +197,123 @@ export function timedOutResult(err: unknown, params: SearchParams): SearchResult
  */
 export const SEMANTIC_TIMEOUT_MS = 8_000;
 
-export async function searchFunders(params: SearchParams, deps: SearchDeps = {}): Promise<SearchResult> {
+const msSince = (start: number): number => Math.round(performance.now() - start);
+
+/**
+ * The latest fiscal year most funders have reached. Grants before
+ * maxFy - STALE_AFTER_YEARS count as "not recently giving" (lib/search/rank.ts);
+ * returns lag a year or more, so the year before the current one.
+ */
+export function corpusMaxFy(now: Date = new Date()): number {
+  return now.getUTCFullYear() - 1;
+}
+
+export type SearchOptions = {
+  /** The signed-in workspace's profile, for ranking only (lib/search/context.ts). */
+  profile?: ProfileContext | null;
+};
+
+type Build = { vec: number[] | null; understanding: Understanding; context: SearcherContext; maxFy: number };
+
+function hasContext(c: SearcherContext): boolean {
+  return Boolean(c.state || c.cause || c.budget);
+}
+
+export async function searchFunders(params: SearchParams, deps: SearchDeps = {}, opts: SearchOptions = {}): Promise<SearchResult> {
   const run = deps.run ?? corpusQuery;
   const embed = deps.embed ?? embedQuery;
+  const started = performance.now();
 
+  const understanding = understand(params.q);
+  const context = resolveContext(params, understanding, opts.profile ?? null);
   const wantsVector = Boolean(params.q && !params.ein && params.mode === "thesis");
-  const vec = wantsVector && params.q ? await embed(params.q) : null;
+  // The searcher's cause and place ride along in the embedded text, so the
+  // index walk starts near the funders that fit them (lib/search/context.ts).
+  const vec = wantsVector && params.q ? await embed(embedText(params.q, understanding, context)) : null;
+  const embedMs = wantsVector ? msSince(started) : null;
 
   // Pure first pass: it tells us whether a query runs at all (a name that is
   // too short does not), before any connection is opened.
-  const first = buildSearchSql(params, { vec });
+  const build: Build = { vec, understanding, context, maxFy: corpusMaxFy() };
+  const first = buildSearchSql(params, build);
   if (first.text === null) return emptyResult(params, { notices: first.notices });
-  if (first.ran !== "semantic") return runSearch(params, vec, first, run);
+  const dbStarted = performance.now();
+  const timed = (result: SearchResult): SearchResult => ({
+    ...result,
+    timing: { embedMs, dbMs: msSince(dbStarted), totalMs: msSince(started) },
+    context: hasContext(context) ? context : null,
+  });
+  if (first.ran === "name" && !params.ein && params.q && unquote(params.q) === null) {
+    // Words that read like a name but match no funder's name are asked again
+    // as a topic, with a notice, rather than answered with an empty page.
+    const named = await runSearch(params, build, run);
+    if (named.total > 0 || params.page > 1) return timed(named);
+    const asTopic = { ...params, mode: "thesis" as const };
+    const topicVec = await embed(embedText(params.q, understanding, context));
+    const topic = await searchFunders(asTopic, { run, embed: async () => topicVec }, opts);
+    return timed({ ...topic, notices: ["name_no_match", ...topic.notices] });
+  }
+  if (first.ran !== "semantic") return timed(await runSearch(params, build, run));
 
   try {
-    return await runSearch(params, vec, first, run, { timeoutMs: SEMANTIC_TIMEOUT_MS });
+    return timed(await runSearch(params, build, run, { timeoutMs: SEMANTIC_TIMEOUT_MS }));
   } catch (err) {
     // A slow meaning-based search is answered with keywords and a notice,
     // never an error page. Every other failure still propagates.
     if (!DbError.is(DbError.from(err), "timeout")) throw err;
     console.warn("[search] describe-the-work search timed out; answering with keywords");
-    const keyword = buildSearchSql(params, { vec: null });
-    if (keyword.text === null) throw err;
-    const result = await runSearch(params, null, keyword, run);
-    return { ...result, notices: ["semantic_timed_out", ...result.notices.filter((n) => n !== "semantic_unavailable")] };
+    const result = await runSearch(params, { ...build, vec: null }, run);
+    return timed({ ...result, notices: ["semantic_timed_out", ...result.notices.filter((n) => n !== "semantic_unavailable")] });
   }
 }
 
-async function runSearch(
-  params: SearchParams,
-  vec: number[] | null,
-  first: BuiltSearch,
-  run: NonNullable<SearchDeps["run"]>,
-  opts?: { timeoutMs?: number },
-): Promise<SearchResult> {
-  const { built, rows, standings } = await run(async (sql) => {
-    // The IRS standing view is readable only after corpus 0028 and web 0013.
-    // The probe cannot raise, and a "yes" is remembered for the process.
+/**
+ * Grantmakers whose own name matches a short topic query, for the "Funders
+ * named ..." line. Candidates come through the trigram index on the query's
+ * distinctive words (one indexed condition, so the planner never falls back
+ * to reading all 2.3M names), then must contain the query almost word for
+ * word ("Kresge" in "KRESGE FOUNDATION") and have a funder summary (grants on
+ * file); the largest giver first.
+ */
+async function namedFunders(sql: postgres.TransactionSql, q: string): Promise<NamedFunder[]> {
+  const tokens = nameTokens(normalizeName(q));
+  if (tokens.length === 0) return [];
+  const values: unknown[] = tokens.map((t) => wordStart(t));
+  const narrow = tokens.map((_, i) => `o.name ~* $${i + 1}::text`).join(" and ");
+  values.push(q);
+  const qp = `$${values.length}`;
+  const rows = await sql.unsafe<{ id: string; name: string; city: string | null; state: string | null }[]>(
+    `select o.id::text as id, o.name, o.city, o.state
+     from internal.organizations o
+     left join internal.mv_org_latest_financials fin on fin.org_id = o.id
+     where ${narrow}
+       and o.canonical_org_id is null
+       and word_similarity(${qp}::text, o.name) >= 0.8
+       and exists (select 1 from internal.search_documents sd
+                   where sd.org_id = o.id and sd.program_id is null and sd.doc_kind = 'foundation')
+     order by word_similarity(${qp}::text, o.name) desc,
+              coalesce(fin.qualifying_distributions, fin.charitable_disbursements, 0) desc, o.id
+     limit 3`,
+    values as never[],
+  );
+  return rows.map((r) => ({ orgId: r.id, name: r.name, city: r.city, state: r.state }));
+}
+
+async function runSearch(params: SearchParams, build: Build, run: NonNullable<SearchDeps["run"]>, opts?: { timeoutMs?: number }): Promise<SearchResult> {
+  const { built, rows, standings, profilesReady, named } = await run(async (sql) => {
+    // The IRS standing view is readable only after corpus 0028 and web 0013;
+    // the giving profiles only after corpus 0040, web 0018 and a refresh. The
+    // probes cannot raise, and a "yes" is remembered for the process.
     const standingReadable = await canReadIrsStanding(sql);
-    const second = params.standing && standingReadable ? buildSearchSql(params, { vec, standingReadable }) : first;
-    const built = second.text === null ? first : second;
+    const profilesReady = await givingProfilesReady(sql);
+    const built = buildSearchSql(params, { ...build, standingReadable, profilesReady });
+    if (built.text === null) throw new Error("search: a query that built once no longer builds");
+    if (built.ran === "semantic") {
+      // The meaning leg walks the HNSW index with no filter; an iterative scan
+      // lets that walk return every candidate the leg asks for.
+      await sql.unsafe("set local hnsw.ef_search = 100");
+      await sql.unsafe("set local hnsw.iterative_scan = relaxed_order");
+    }
     const rows = await sql.unsafe<Row[]>(built.text, built.values as never[]);
     // One more small read for the rows on this page, so a card can say when
     // the IRS automatically revoked an organization. Under a savepoint: if it
@@ -224,13 +326,26 @@ async function runSearch(
         console.warn("[corpus] irs standing for search results unavailable:", err instanceof Error ? err.message : err);
       }
     }
-    return { built, rows, standings };
+    // A short topic ("literacy", "Kresge") may also be a funder's name: offer
+    // the matching grantmakers above the results. Optional, so a savepoint.
+    let named: NamedFunder[] = [];
+    const words = (params.q ?? "").trim().split(/\s+/).filter(Boolean);
+    if ((built.ran === "semantic" || built.ran === "keyword") && params.page === 1 && words.length > 0 && words.length <= 3) {
+      try {
+        named = (await sql.savepoint((s) => namedFunders(s, (params.q ?? "").trim()))) as NamedFunder[];
+      } catch (err) {
+        console.warn("[corpus] named-funder probe unavailable:", err instanceof Error ? err.message : err);
+      }
+    }
+    return { built, rows, standings, profilesReady, named };
   }, opts);
   const total = rows[0]?.total ?? 0;
   const poolSize = rows[0]?.pool_size ?? 0;
   const notices = [...built.notices];
   const truncated = poolSize >= built.poolLimit;
-  if (truncated) notices.push("pool_bounded");
+  // A topic search ranks a fixed number of the best candidates every time;
+  // saying "more matched than we can rank" on each one would be noise.
+  if (truncated && built.ran !== "semantic" && built.ran !== "keyword") notices.push("pool_bounded");
 
   return {
     params,
@@ -242,5 +357,7 @@ async function runSearch(
     truncated,
     ran: built.ran,
     notices,
+    named: named.length ? named : undefined,
+    givingProfiles: profilesReady,
   };
 }

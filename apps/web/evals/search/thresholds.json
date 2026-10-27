@@ -1,0 +1,22 @@
+{
+  "_doc": "Targets a run must meet (guards) and how far a measure may fall below the baseline before it counts as a regression. Starting targets from the 2026-10-26 plan; recalibrate only with a reason written in the commit.",
+  "guards": {
+    "error_rate": { "max": 0 },
+    "degraded_rate": { "max": 0.02 },
+    "topical.funder_rate_at10": { "min": 0.95 },
+    "topical.topic_match_at10": { "min": 0.7 },
+    "topical.geo_match_at10": { "min": 0.7 },
+    "topical.recency_at10": { "min": 0.8 },
+    "topical.coverage": { "min": 0.95 },
+    "navigational.at3": { "min": 0.9 },
+    "latency.server_p95_topic_ms": { "max": 2500 },
+    "latency.server_p95_name_ms": { "max": 1000 },
+    "personalization.geo_lift": { "min": 0.25 },
+    "personalization.cause_lift": { "min": 0.15 },
+    "personalization.twin_jaccard_state": { "max": 0.35 },
+    "personalization.twin_jaccard_cause": { "max": 0.35 },
+    "personalization.profile_coverage": { "min": 1 },
+    "determinism": { "min": 1 }
+  },
+  "tolerance": { "rate": 0.03, "latency_pct": 0.25 }
+}

@@ -13,6 +13,8 @@ import { IRS_MASTER_FILE_FULL_NAME, IRS_MASTER_FILE_LABEL } from "@/lib/content/
 import { formatEin, formatMoneyCompact, formatNumber } from "@/lib/format";
 import type { SearchHit } from "@/lib/queries/corpus/types";
 
+import { FitLine, fitFacts } from "./fit-line";
+
 export type RenderSave = (hit: SearchHit) => React.ReactNode;
 
 function location(hit: SearchHit): string | null {
@@ -141,6 +143,7 @@ export function ResultCards({ hits, funderBase, renderSave }: { hits: SearchHit[
               </span>
             </div>
             <ProgramAreas hit={hit} />
+            <FitLine fit={hit.fit} />
             <MatchLine hit={hit} />
             <div className="mt-auto flex items-center justify-between gap-2 pt-1">
               <SourceChip label={hit.sourceLabel} />
@@ -175,6 +178,7 @@ export function ResultsTable({ hits, funderBase, renderSave }: { hits: SearchHit
                   {hit.name}
                 </Link>
                 <span className="ml-2 text-xs text-ink-4">{hit.orgTypeLabel}</span>
+                {fitFacts(hit.fit).length > 0 ? <span className="mt-0.5 block text-xs text-source">{fitFacts(hit.fit).slice(0, 2).join(" · ")}</span> : null}
                 {hit.match.givingTo ? (
                   <span className="mt-0.5 block text-xs text-ink-3">
                     {formatNumber(hit.match.givingTo.n)} matching grant{hit.match.givingTo.n === 1 ? "" : "s"}

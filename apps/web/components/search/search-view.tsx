@@ -4,20 +4,24 @@ import { connection } from "next/server";
 import { NlFilterBar } from "@/components/ai/nl-filter-bar";
 import { SaveFunderButton } from "@/components/workspace/save-funder-button";
 import { NO_RESULTS_HINT, NO_RESULTS_TITLE, RESULT_COUNT, SEARCH_TAGLINE, SEARCH_TITLE, SORTED_WITHIN_POOL_NOTE } from "@/lib/content/copy";
-import { searchFunders, emptyResult, timedOutResult } from "@/lib/queries/corpus/search";
+import { emptyResult, timedOutResult } from "@/lib/queries/corpus/search";
+import { searchFundersCached } from "@/lib/queries/corpus/search-cached";
 import { softFail } from "@/lib/queries/corpus/safe";
 import { getCorpusCounts } from "@/lib/queries/corpus/stats";
 import type { SearchHit, SearchResult } from "@/lib/queries/corpus/types";
+import type { ProfileContext } from "@/lib/search/context";
 import { limitSearchRender } from "@/lib/search/limit";
-import { isEmptySearch, parseSearchParams, type RawSearchParams } from "@/lib/search/params";
+import { isEmptySearch, parseSearchParams, toQueryString, type RawSearchParams } from "@/lib/search/params";
 
 import { FilterChips } from "./filter-chips";
 import { FilterControls } from "./filter-controls";
+import { NamedFunders } from "./named-funders";
 import { SearchNotices } from "./notices";
 import { Pager } from "./pager";
 import { ResultCards, ResultsTable, type RenderSave } from "./results";
 import { SearchForm } from "./search-form";
 import { SearchLanding } from "./search-landing";
+import { TunePanel } from "./tune-panel";
 
 export type SearchViewProps = {
   mode: "public" | "app";
@@ -26,6 +30,8 @@ export type SearchViewProps = {
   plan?: string;
   /** org id → saved_funders.id, when the app page already knows what is saved. */
   savedByOrg?: Record<string, string>;
+  /** The workspace profile as search context (app mode), so results rank for this organization. */
+  profile?: ProfileContext | null;
 };
 
 /**
@@ -34,7 +40,7 @@ export type SearchViewProps = {
  * In app mode every result gets a save button and the natural-language
  * filter bar sits under the query box.
  */
-export async function SearchView({ mode, searchParams, plan, savedByOrg }: SearchViewProps) {
+export async function SearchView({ mode, searchParams, plan, savedByOrg, profile = null }: SearchViewProps) {
   const params = parseSearchParams(searchParams);
   const base = mode === "app" ? "/app/search" : "/search";
   const funderBase = mode === "app" ? "/app/funders" : "/funder";
@@ -77,7 +83,7 @@ export async function SearchView({ mode, searchParams, plan, savedByOrg }: Searc
   let result: SearchResult;
   if (gate.ok) {
     try {
-      result = await searchFunders(params);
+      result = await searchFundersCached(params, profile);
     } catch (err) {
       // The statement timeout is an answer, not a crash: say so and keep the
       // form and filters on screen. Anything else still reaches the error page.
@@ -97,9 +103,13 @@ export async function SearchView({ mode, searchParams, plan, savedByOrg }: Searc
       {header}
       <SearchForm current={params} base={base} />
       {mode === "app" ? <NlFilterBar current={params} /> : null}
-      <FilterControls current={params} base={base} />
+      {params.q ? (
+        <TunePanel key={toQueryString(params)} current={params} base={base} context={result.context} mode={mode} hasProfile={Boolean(profile)} />
+      ) : null}
+      <FilterControls current={params} base={base} givingProfiles={result.givingProfiles ?? false} />
       <FilterChips params={params} base={base} />
       <SearchNotices result={result} />
+      <NamedFunders q={params.q} named={result.named} funderBase={funderBase} />
 
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-ink-3">
         <p className="tnum" aria-live="polite">

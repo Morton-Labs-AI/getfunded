@@ -1,0 +1,25 @@
+{
+  "_doc": "A grantseeker who already knows the funder's name, typed the way people type it. `ein` is the funder that must be in the top 3 (EINs checked against the corpus on 2026-10-26). Navigational search must keep working however topic search changes.",
+  "cases": [
+    { "id": "nav-gates", "query": "Gates Foundation", "ein": "562618866" },
+    { "id": "nav-ford", "query": "Ford Foundation", "ein": "131684331" },
+    { "id": "nav-rwjf", "query": "Robert Wood Johnson Foundation", "ein": "226029397" },
+    { "id": "nav-kellogg", "query": "Kellogg Foundation", "ein": "381359264" },
+    { "id": "nav-kresge", "query": "Kresge Foundation", "ein": "381359217" },
+    { "id": "nav-macarthur", "query": "MacArthur Foundation", "ein": "237093598" },
+    { "id": "nav-lilly", "query": "Lilly Endowment", "ein": "350868122" },
+    { "id": "nav-walton", "query": "Walton Family Foundation", "ein": "133441466" },
+    { "id": "nav-mellon", "query": "Mellon Foundation", "ein": "131879954" },
+    { "id": "nav-hewlett", "query": "Hewlett Foundation", "ein": "941655673" },
+    { "id": "nav-packard", "query": "Packard Foundation", "ein": "942278431" },
+    { "id": "nav-moore", "query": "Moore Foundation", "ein": "943397785" },
+    { "id": "nav-svcf", "query": "Silicon Valley Community Foundation", "ein": "205205488" },
+    { "id": "nav-knight", "query": "Knight Foundation", "ein": "650464177" },
+    { "id": "nav-mott", "query": "Mott Foundation", "ein": "381211227" },
+    { "id": "nav-rockefeller", "query": "Rockefeller Foundation", "ein": "131659629" },
+    { "id": "nav-carnegie", "query": "Carnegie Corporation", "ein": "131628151" },
+    { "id": "nav-casey", "query": "Annie E. Casey Foundation", "ein": "521951681" },
+    { "id": "nav-duke", "query": "Duke Endowment", "ein": "560529965" },
+    { "id": "nav-ein", "query": "56-2618866", "ein": "562618866" }
+  ]
+}

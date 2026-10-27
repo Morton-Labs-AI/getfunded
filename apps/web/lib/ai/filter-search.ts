@@ -8,7 +8,9 @@
  *   like        → q with mode "thesis" (the meaning-based search); when a name
  *                 is also set, it becomes giving_to (recipient keywords) instead
  *   org_type    → type, when the search page knows that type
- *   state       → state
+ *   state       → state (where the funder is based)
+ *   gives_in    → gives_in (where the funder has paid grants)
+ *   cause       → cause (the NTEE group of the organizations it pays)
  *   posture     → posture ('preselected_only' is spelled 'preselected' in URLs)
  *   ntee        → ntee
  *   min_giving  → min_distributions
@@ -84,6 +86,14 @@ export function filterToSearchParams(current: SearchParams, filter: NormalizedFi
         break;
       case "state":
         patch.state = chip.value;
+        applied.push(chip);
+        break;
+      case "givesIn":
+        patch.givesIn = chip.value;
+        applied.push(chip);
+        break;
+      case "cause":
+        patch.cause = chip.value;
         applied.push(chip);
         break;
       case "posture": {

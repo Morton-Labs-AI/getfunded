@@ -1,0 +1,116 @@
+{
+  "meta": {
+    "label": "search-v2-final",
+    "at": "2026-10-26T22:03:06.972Z",
+    "durationMs": 751335,
+    "target": "https://getfunded-aptszl7xg-morton-labs.vercel.app",
+    "transport": "vercel",
+    "factsFrom": "https://getfunded-aptszl7xg-morton-labs.vercel.app",
+    "factsStatus": "3 requests fetched, 1 failed",
+    "maxFy": 2025,
+    "git": "235e06d Search: 'gives in' and 'funds this cause' filter every candidate, before the feature cut",
+    "suites": [
+      "industries",
+      "navigational",
+      "robustness",
+      "personalization"
+    ],
+    "sample": null
+  },
+  "summary": {
+    "requests": 457,
+    "error_rate": 0,
+    "degraded_rate": 0,
+    "latency": {
+      "client_p50_ms": 1127,
+      "client_p95_ms": 2167,
+      "server_p50_topic_ms": 891,
+      "server_p95_topic_ms": 1952,
+      "server_p95_name_ms": 1886,
+      "client_p95_topic_ms": 2167,
+      "client_p95_name_ms": 2052,
+      "by_mode": {
+        "semantic": {
+          "n": 437,
+          "client_p50": 1141,
+          "client_p95": 2167,
+          "server_p50": 891,
+          "server_p95": 1952
+        },
+        "name": {
+          "n": 19,
+          "client_p50": 352,
+          "client_p95": 2076,
+          "server_p50": 133,
+          "server_p95": 1909
+        },
+        "ein": {
+          "n": 1,
+          "client_p50": 315,
+          "client_p95": 315,
+          "server_p50": 32,
+          "server_p95": 32
+        }
+      }
+    },
+    "topical": {
+      "cases": 82,
+      "funder_rate_at10": 1,
+      "topic_match_at10": 0.816,
+      "geo_match_at10": 1,
+      "recency_at10": 0.993,
+      "coverage": 1,
+      "by_cause_topic_at10": {
+        "A": 0.77,
+        "B": 0.97,
+        "C": 0.8,
+        "D": 0.87,
+        "E": 0.9,
+        "F": 0.77,
+        "G": 0.77,
+        "H": 0.97,
+        "I": 0.9,
+        "J": 0.77,
+        "K": 0.9,
+        "L": 0.8,
+        "M": 0.83,
+        "N": 0.7,
+        "O": 0.7,
+        "P": 1,
+        "Q": 0.8,
+        "R": 0.9,
+        "S": 0.83,
+        "T": 0.53,
+        "U": 0.87,
+        "V": 0.7,
+        "W": 0.8,
+        "X": 0.83
+      }
+    },
+    "navigational": {
+      "cases": 20,
+      "at3": 1,
+      "misses": []
+    },
+    "personalization": {
+      "pairs": 300,
+      "shared_geo_ctx": 0.997,
+      "shared_geo_none": 0.313,
+      "shared_cause_ctx": 0.818,
+      "shared_cause_none": 0.446,
+      "mission_geo_ctx": 0.996,
+      "mission_geo_none": 0.129,
+      "mission_cause_ctx": 0.795,
+      "mission_cause_none": 0.822,
+      "size_fit_ctx": 0.693,
+      "twin_jaccard_state": 0,
+      "twin_jaccard_cause": 0.106,
+      "twin_jaccard_budget": 1,
+      "shared_mean_pairwise_jaccard": 0.005,
+      "profile_coverage": 1,
+      "geo_lift": 0.776,
+      "cause_lift": 0.173
+    },
+    "determinism": 1
+  }
+}

@@ -5,6 +5,7 @@ import { useActionState, useId } from "react";
 
 import { saveOnboarding, type OnboardingState } from "@/app/(auth)/welcome/actions";
 import { US_STATES } from "@/components/auth/us-states";
+import { SearchProfileFields } from "@/components/settings/search-profile-fields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,8 +75,9 @@ export function WelcomeForm({
           {greetingName ? `Welcome, ${greetingName.split(/\s+/)[0]}.` : "Welcome."}
         </CardTitle>
         <CardDescription>
-          Tell us about your organization. We use this to judge how well a funder fits your work. Everything here is
-          optional except the name, and you can change it later in Settings.
+          Tell us about your organization. Search ranks funders that give where you work and to work like yours first,
+          and the fit analysis reads the same answers. Everything here is optional except the name, and you can change it
+          later in Settings.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -104,7 +106,7 @@ export function WelcomeForm({
           )}
 
           <div className="grid gap-5 sm:grid-cols-2">
-            {field("ein", "EIN", "Your 9-digit IRS number. Lets us match your own public filings.", (props) => (
+            {field("ein", "EIN", "Your 9-digit IRS number. We fill your city, state, cause and budget from your IRS record when you leave them blank.", (props) => (
               <Input
                 {...props}
                 defaultValue={p.ein ? formatEin(p.ein) : ""}
@@ -119,7 +121,7 @@ export function WelcomeForm({
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            {field("state", "State", "Where you are based. Many funders only give in their own state.", (props) => (
+            {field("state", "State", "Where you are based. Many funders only give in their own state, so search ranks them first.", (props) => (
               <Select name={props.name} defaultValue={p.state ?? "none"}>
                 <SelectTrigger
                   id={props.id}
@@ -159,6 +161,8 @@ export function WelcomeForm({
           {field("keywords", "Keywords", "Words a funder might use to describe work like yours. Separate with commas.", (props) => (
             <Input {...props} defaultValue={joinList(p.keywords)} placeholder="tutoring, literacy, after-school" />
           ))}
+
+          <SearchProfileFields profile={p} idPrefix={id("search")} errors={errors} />
 
           {state.error ? (
             <p role="alert" className="rounded-md border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger">

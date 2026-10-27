@@ -6,6 +6,7 @@ import { STANDING_FILTER_CHIP } from "@/lib/content/irs-standing-copy";
 import { NTEE_MAJOR, ORG_TYPE_LABELS } from "@/lib/content/labels";
 import { formatEin, formatMoneyCompact } from "@/lib/format";
 import { activeFilters, removeFilter, searchHref, type FilterKey, type SearchParams } from "@/lib/search/params";
+import { stateName } from "@/lib/search/understand";
 import { cn } from "@/lib/utils";
 
 function chipLabel(p: SearchParams, key: FilterKey): string {
@@ -17,7 +18,11 @@ function chipLabel(p: SearchParams, key: FilterKey): string {
     case "type":
       return ORG_TYPE_LABELS[p.type] ?? p.type;
     case "state":
-      return p.state ?? "";
+      return p.state ? `Based in ${stateName(p.state)}` : "";
+    case "givesIn":
+      return p.givesIn ? `Gives in ${stateName(p.givesIn)}` : "";
+    case "cause":
+      return p.cause ? `Funds ${(NTEE_MAJOR[p.cause] ?? p.cause).toLowerCase()} groups` : "";
     case "posture":
       return p.posture ? POSTURE_LABELS[p.posture] : "";
     case "minDistributions":

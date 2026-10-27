@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "eval:search": "node evals/search/run.mjs",
     "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
     "db:ping": "node --env-file=.env.local scripts/db-ping.mjs",
     "seed:demo": "node --env-file=.env.local scripts/seed-demo.mjs",
