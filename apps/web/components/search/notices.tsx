@@ -6,12 +6,14 @@ import {
   POOL_BOUNDED_NOTE,
   POSTURE_FILTER_NOTE,
   RATE_LIMITED_NOTE,
+  SEMANTIC_FILTERED_NOTE,
+  SEMANTIC_TIMED_OUT_NOTICE,
   SEMANTIC_UNAVAILABLE_NOTICE,
   TIMED_OUT_NOTE,
 } from "@/lib/content/copy";
 import { STANDING_FILTER_NOTE, STANDING_FILTER_UNAVAILABLE_NOTE } from "@/lib/content/irs-standing-copy";
 import type { SearchResult } from "@/lib/queries/corpus/types";
-import type { SearchNotice } from "@/lib/search/sql";
+import { SEMANTIC_CANDIDATES, type SearchNotice } from "@/lib/search/sql";
 import { cn } from "@/lib/utils";
 
 function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "retryAfterSec">): string {
@@ -30,6 +32,10 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
       return RATE_LIMITED_NOTE(result.retryAfterSec ?? 2);
     case "timed_out":
       return TIMED_OUT_NOTE;
+    case "semantic_timed_out":
+      return SEMANTIC_TIMED_OUT_NOTICE;
+    case "semantic_filtered":
+      return SEMANTIC_FILTERED_NOTE(SEMANTIC_CANDIDATES);
     case "standing_filter":
       return STANDING_FILTER_NOTE;
     case "standing_unavailable":
@@ -37,7 +43,14 @@ function text(notice: SearchNotice, result: Pick<SearchResult, "poolLimit" | "re
   }
 }
 
-const WARN: ReadonlySet<SearchNotice> = new Set(["semantic_unavailable", "name_too_short", "rate_limited", "timed_out", "standing_unavailable"]);
+const WARN: ReadonlySet<SearchNotice> = new Set([
+  "semantic_unavailable",
+  "semantic_timed_out",
+  "name_too_short",
+  "rate_limited",
+  "timed_out",
+  "standing_unavailable",
+]);
 
 /** Honest notices about what the search did and did not do. */
 export function SearchNotices({ result }: { result: Pick<SearchResult, "notices" | "poolLimit" | "retryAfterSec"> }) {

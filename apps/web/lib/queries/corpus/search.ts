@@ -15,7 +15,7 @@ import { IRS_MASTER_FILE_LABEL } from "@/lib/content/copy";
 import { filingSourceLabel, nteeMajorLabel, orgTypeLabel } from "@/lib/content/labels";
 import { embedQuery } from "@/lib/search/embed";
 import { PAGE_SIZE, nameQuery, type SearchParams } from "@/lib/search/params";
-import { buildSearchSql, type RanMode } from "@/lib/search/sql";
+import { buildSearchSql, type BuiltSearch, type RanMode } from "@/lib/search/sql";
 
 import { positive, toInt } from "./safe";
 import { canReadIrsStanding, readStandingsByOrg } from "./standing";
@@ -24,7 +24,7 @@ import type { GivingToEvidence, SearchHit, SearchResult } from "./types";
 
 export type SearchDeps = {
   /** Runs `fn` against a SQL handle. Defaults to corpusQuery. Tests pass a fake. */
-  run?: <T>(fn: (sql: postgres.TransactionSql) => Promise<T>) => Promise<T>;
+  run?: <T>(fn: (sql: postgres.TransactionSql) => Promise<T>, opts?: { timeoutMs?: number }) => Promise<T>;
   embed?: (text: string) => Promise<number[] | null>;
 };
 
@@ -165,6 +165,13 @@ export function timedOutResult(err: unknown, params: SearchParams): SearchResult
   return DbError.is(DbError.from(err), "timeout") ? emptyResult(params, { notices: ["timed_out"] }) : null;
 }
 
+/**
+ * How long a describe-the-work search may run before the answer falls back to
+ * keywords. The index walk takes about a second; this only catches a cold or
+ * overloaded database, and leaves the keyword query its own full timeout.
+ */
+export const SEMANTIC_TIMEOUT_MS = 8_000;
+
 export async function searchFunders(params: SearchParams, deps: SearchDeps = {}): Promise<SearchResult> {
   const run = deps.run ?? corpusQuery;
   const embed = deps.embed ?? embedQuery;
@@ -176,7 +183,29 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {})
   // too short does not), before any connection is opened.
   const first = buildSearchSql(params, { vec });
   if (first.text === null) return emptyResult(params, { notices: first.notices });
+  if (first.ran !== "semantic") return runSearch(params, vec, first, run);
 
+  try {
+    return await runSearch(params, vec, first, run, { timeoutMs: SEMANTIC_TIMEOUT_MS });
+  } catch (err) {
+    // A slow meaning-based search is answered with keywords and a notice,
+    // never an error page. Every other failure still propagates.
+    if (!DbError.is(DbError.from(err), "timeout")) throw err;
+    console.warn("[search] describe-the-work search timed out; answering with keywords");
+    const keyword = buildSearchSql(params, { vec: null });
+    if (keyword.text === null) throw err;
+    const result = await runSearch(params, null, keyword, run);
+    return { ...result, notices: ["semantic_timed_out", ...result.notices.filter((n) => n !== "semantic_unavailable")] };
+  }
+}
+
+async function runSearch(
+  params: SearchParams,
+  vec: number[] | null,
+  first: BuiltSearch,
+  run: NonNullable<SearchDeps["run"]>,
+  opts?: { timeoutMs?: number },
+): Promise<SearchResult> {
   const { built, rows, standings } = await run(async (sql) => {
     // The IRS standing view is readable only after corpus 0028 and web 0013.
     // The probe cannot raise, and a "yes" is remembered for the process.
@@ -196,7 +225,7 @@ export async function searchFunders(params: SearchParams, deps: SearchDeps = {})
       }
     }
     return { built, rows, standings };
-  });
+  }, opts);
   const total = rows[0]?.total ?? 0;
   const poolSize = rows[0]?.pool_size ?? 0;
   const notices = [...built.notices];

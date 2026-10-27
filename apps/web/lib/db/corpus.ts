@@ -155,15 +155,22 @@ export const corpus: postgres.Sql = lazyPool("app", () => {
   });
 });
 
+export const CORPUS_TIMEOUT_MS = 15_000;
+
 /**
  * Run `fn` inside `BEGIN READ ONLY` with a 15 s statement timeout. Use this
  * for every hand-written corpus query. The read-only mode is a belt on top of
  * the role grants (the braces); the timeout protects the pool from a slow
- * trigram or vector query.
+ * trigram or vector query. A caller with a fallback of its own (search tries
+ * meaning first, then keywords) may ask for a shorter timeout, never a longer one.
  */
-export async function corpusQuery<T>(fn: (sql: postgres.TransactionSql) => Promise<T>): Promise<T> {
+export async function corpusQuery<T>(
+  fn: (sql: postgres.TransactionSql) => Promise<T>,
+  opts: { timeoutMs?: number } = {},
+): Promise<T> {
+  const ms = Math.min(Math.max(1, Math.round(opts.timeoutMs ?? CORPUS_TIMEOUT_MS)), CORPUS_TIMEOUT_MS);
   return corpus.begin("read only", async (sql) => {
-    await sql.unsafe("set local statement_timeout = '15s'");
+    await sql.unsafe(`set local statement_timeout = '${ms}ms'`);
     return fn(sql);
   }) as Promise<T>;
 }

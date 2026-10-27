@@ -1,4 +1,5 @@
 import { SearchX } from "lucide-react";
+import { connection } from "next/server";
 
 import { NlFilterBar } from "@/components/ai/nl-filter-bar";
 import { SaveFunderButton } from "@/components/workspace/save-funder-button";
@@ -65,6 +66,13 @@ export async function SearchView({ mode, searchParams, plan, savedByOrg }: Searc
     );
   }
 
+  // A search runs only for a real visitor's request. With Cache Components and
+  // partial prefetching, Next.js also prerenders this route (link prefetches,
+  // cache warming) with the URL's search params, and aborts any fetch still
+  // open when that prerender ends: the Voyage call failed there, while the
+  // query and the rate-limit token were spent twice. `connection()` keeps all
+  // of that out of prerenders; the skeleton covers the wait.
+  await connection();
   const gate = await limitSearchRender();
   let result: SearchResult;
   if (gate.ok) {

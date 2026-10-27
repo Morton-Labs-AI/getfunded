@@ -20,12 +20,17 @@
  *   keyword   full-text over organizations.search_tsv (names, places) and
  *             search_documents.search_tsv (giving summaries), merged by rank
  *   semantic  internal.hybrid_search (vector + FTS, RRF) with a Voyage query
- *             embedding; posture and distribution floors go INSIDE the function
+ *             embedding, called WITHOUT filters so it walks the HNSW index;
+ *             type, state, posture and money filters then run over the
+ *             SEMANTIC_CANDIDATES closest documents (see semanticPool)
  *   browse    no query text: filters only, ordered by the chosen sort
  *
  * Doctrine carried over from the sibling explorers:
  *   - canonical_org_id is null on every path (merge losers never list)
- *   - posture / distribution predicates go inside hybrid_search, never after
+ *   - hybrid_search gets no filter arguments: any filter switches it to an
+ *     exact scan of every vector, which outruns the statement timeout on the
+ *     hosted database (corpus 0011, benchmarks/queries.sql). Its filters are
+ *     applied to the rows it returns instead, from a wider candidate set
  *   - every money comparison casts the parameter explicitly
  *   - the IRS standing filter goes in the OUTER where, never inside a pool
  *     (lib/search/standing-filter.ts says why), and only when the caller has
@@ -45,6 +50,12 @@ import { excludeRevokedSql } from "./standing-filter";
 
 export const POOL_LIMIT = 400;
 export const SEMANTIC_POOL_LIMIT = 200;
+/**
+ * Rows asked of hybrid_search before the type and filter predicates run. Wide
+ * enough that the default funder types keep a full SEMANTIC_POOL_LIMIT pool;
+ * a narrow filter (one state) can still leave fewer, and a notice says so.
+ */
+export const SEMANTIC_CANDIDATES = 600;
 export const KEYWORD_LEG_LIMIT = 200;
 export const EIN_POOL_LIMIT = 50;
 
@@ -59,6 +70,10 @@ export type SearchNotice =
   | "rate_limited"
   /** The database stopped the query at the statement timeout (a very common name on a cold cache). */
   | "timed_out"
+  /** The meaning-based search ran out of time, so the page shows keyword matches instead. */
+  | "semantic_timed_out"
+  /** A describe-the-work search with filters: the filters ran over the closest SEMANTIC_CANDIDATES documents. */
+  | "semantic_filtered"
   /** Organizations the IRS automatically revoked were left out, because the reader asked for that. */
   | "standing_filter"
   /** The reader asked to leave them out, but the IRS lists cannot be read right now, so nothing was hidden. */
@@ -271,27 +286,40 @@ function keywordPool(q: string, p: SearchParams, ps: Params): string {
     group by org_id`;
 }
 
+/** True when a describe-the-work search carries a filter that narrows its candidates. */
+export function semanticFiltered(p: SearchParams): boolean {
+  return Boolean(p.state || p.minAssets || p.posture || p.minDistributions || p.type !== "all");
+}
+
+/**
+ * hybrid_search with every filter argument null takes its HNSW branch (an
+ * index walk, under a second on a cold cache). The same predicates it would
+ * have applied inside run here on the columns it returns, over the closest
+ * SEMANTIC_CANDIDATES documents, and merge losers drop out like on every path.
+ */
 function semanticPool(q: string, vec: number[], p: SearchParams, ps: Params): string {
   const qp = ps.add(q);
   const v = ps.add(vecLiteral(vec));
-  const kinds = ps.add(docKindsFor(p.type));
-  const types = ps.add(orgTypesFor(p.type));
-  const state = ps.add(p.state);
-  const minAssets = ps.add(p.minAssets);
-  const postures = ps.add(p.posture ? [POSTURE_DB[p.posture]] : null);
-  const minDist = ps.add(p.minDistributions);
+  const where = [
+    "h.org_id is not null",
+    "o.canonical_org_id is null",
+    `h.doc_kind = any(${ps.add(docKindsFor(p.type))}::text[])`,
+    `h.org_type = any(${ps.add(orgTypesFor(p.type))}::text[])`,
+  ];
+  if (p.state) where.push(`h.state = ${ps.add(p.state)}::text`);
+  if (p.minAssets) where.push(`h.size_amount >= ${ps.add(p.minAssets)}::numeric`);
+  if (p.posture) where.push(`h.app_posture = ${ps.add(POSTURE_DB[p.posture])}::text`);
+  if (p.minDistributions) where.push(`h.annual_distributions >= ${ps.add(p.minDistributions)}::numeric`);
   return `select h.org_id, h.rrf::float8 as rank, h.snippet
     from internal.hybrid_search(
            ${qp}::text,
            ${v}::extensions.halfvec(512),
-           ${SEMANTIC_POOL_LIMIT},
-           ${kinds}::text[],
-           ${types}::text[],
-           ${state}::text,
-           ${minAssets}::numeric,
-           ${postures}::text[],
-           ${minDist}::numeric) h
-    where h.org_id is not null`;
+           ${SEMANTIC_CANDIDATES},
+           null::text[], null::text[], null::text, null::numeric, null::text[], null::numeric) h
+    join internal.organizations o on o.id = h.org_id
+    where ${where.join("\n      and ")}
+    order by h.rrf desc, h.size_amount desc nulls last
+    limit ${SEMANTIC_POOL_LIMIT}`;
 }
 
 function browsePool(p: SearchParams, ps: Params): string {
@@ -348,6 +376,7 @@ export function buildSearchSql(
     pool = semanticPool(p.q, opts.vec, p, ps);
     poolLimit = SEMANTIC_POOL_LIMIT;
     postNtee = Boolean(p.ntee);
+    if (semanticFiltered(p) || p.ntee) notices.push("semantic_filtered");
   } else if (p.q) {
     if (p.mode === "thesis") notices.push("semantic_unavailable");
     ran = "keyword";
