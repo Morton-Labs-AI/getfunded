@@ -56,7 +56,7 @@ miss.
 | `topical.recency_at10` | Share whose latest grant is within three years of the corpus's latest fiscal year |
 | `topical.coverage` | Cases with at least 10 results |
 | `navigational.at3` | A funder typed by name (or EIN) is in the top 3 |
-| `personalization.*` | The same words searched by 100 synthetic nonprofits, with and without their profile: how much more often the top 10 gives in their state (`geo_lift`) and funds their cause (`cause_lift`); how different twins' lists are (`twin_jaccard_*`, lower is more personal) |
+| `personalization.*` | The same words searched by 100 synthetic nonprofits, with and without their profile. Guarded: the share of the top 10 that gives in their state (`geo_with_profile`) and funds their cause (`cause_with_profile`) with the profile attached, and how different twins' lists are (`twin_jaccard_*`, lower is more personal). Reported only: the lift over the same words without the profile (`geo_lift`, `cause_lift`), which also falls when the results without a profile get better |
 | `determinism` | The same search twice gives the same top 20 |
 
 ### The cases

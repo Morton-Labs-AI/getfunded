@@ -49,6 +49,7 @@ export function renderReport({ meta, metrics, guards, causes }) {
     lines.push(`| Mission query: gave in the org's state | ${pct(p.mission_geo_ctx)} | ${pct(p.mission_geo_none)} | ${fmt("lift", diff(p.mission_geo_ctx, p.mission_geo_none))} |`);
     lines.push(`| Mission query: funders of the org's cause | ${pct(p.mission_cause_ctx)} | ${pct(p.mission_cause_none)} | ${fmt("lift", diff(p.mission_cause_ctx, p.mission_cause_none))} |`);
     lines.push("");
+    lines.push(`- Lift, both queries together: geo ${fmt("lift", p.geo_lift)}, cause ${fmt("lift", p.cause_lift)}. Reported, not guarded: a lift also falls when the results without a profile get better, so the guards are the shares with a profile and the twin Jaccards.`);
     lines.push(`- Twins, Jaccard@20 of the top 20 for the same shared query (lower = the profile changed more): state ${fmt("jaccard", p.twin_jaccard_state)}, cause ${fmt("jaccard", p.twin_jaccard_cause)}, budget ${fmt("jaccard", p.twin_jaccard_budget)}.`);
     lines.push(`- Mean pairwise Jaccard@20 across all profiles on the shared queries: ${fmt("jaccard", p.shared_mean_pairwise_jaccard)} (1.00 = everyone saw the same list).`);
     lines.push(`- Typical grant size fits the budget (mission query, with profile): ${pct(p.size_fit_ctx)}. Profiles with ≥ 10 results: ${pct(p.profile_coverage)}.`);

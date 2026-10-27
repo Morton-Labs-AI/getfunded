@@ -104,7 +104,7 @@ export function fitOf(raw: unknown): SearchFit | null {
   if (Array.isArray(r.topStates)) fit.topStates = r.topStates.filter((x): x is string => typeof x === "string").slice(0, 5);
   if (typeof r.cause === "string") fit.cause = r.cause;
   if (typeof r.causeMentioned === "boolean") fit.causeMentioned = r.causeMentioned;
-  for (const k of ["inState5y", "cause5y", "grants5y", "median5y", "windowFirstFy", "windowLastFy", "lastFy"] as const) {
+  for (const k of ["inState5y", "cause5y", "grants5y", "median5y", "windowFirstFy", "windowLastFy", "lastFy", "grantees"] as const) {
     const v = int(r[k]);
     if (v !== undefined) fit[k] = v;
   }

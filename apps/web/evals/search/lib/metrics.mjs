@@ -177,9 +177,18 @@ export function computeMetrics(lists, cache, { maxFy, determinism = [] }) {
     shared_mean_pairwise_jaccard: round(mean(crossJ)),
     profile_coverage: round(mean(scored.map((s) => (s.n >= 10 ? 1 : 0)))),
   };
+  const both = (a, b) => mean([a, b].filter((x) => x !== null));
   const lift = (a, b) => (a === null || b === null ? null : round(a - b));
-  personalization.geo_lift = lift(mean([personalization.shared_geo_ctx, personalization.mission_geo_ctx].filter((x) => x !== null)), mean([personalization.shared_geo_none, personalization.mission_geo_none].filter((x) => x !== null)));
-  personalization.cause_lift = lift(mean([personalization.shared_cause_ctx, personalization.mission_cause_ctx].filter((x) => x !== null)), mean([personalization.shared_cause_none, personalization.mission_cause_none].filter((x) => x !== null)));
+  const geoCtx = both(personalization.shared_geo_ctx, personalization.mission_geo_ctx);
+  const causeCtx = both(personalization.shared_cause_ctx, personalization.mission_cause_ctx);
+  // Guarded: the share of the top 10 that fits the profile, with the profile
+  // attached (shared and mission queries together).
+  personalization.geo_with_profile = round(geoCtx);
+  personalization.cause_with_profile = round(causeCtx);
+  // Reported, not guarded: the gain over the same words without the profile.
+  // A lift also falls when the results without a profile get better.
+  personalization.geo_lift = lift(geoCtx, both(personalization.shared_geo_none, personalization.mission_geo_none));
+  personalization.cause_lift = lift(causeCtx, both(personalization.shared_cause_none, personalization.mission_cause_none));
 
   const determinismRate = determinism.length ? round(mean(determinism.map((d) => (JSON.stringify(d.first) === JSON.stringify(d.second) ? 1 : 0)))) : null;
 

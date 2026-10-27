@@ -7,6 +7,7 @@
  *       + funds work like yours         the searcher's cause (tuning or profile)
  *       + accepts applications / not    the latest 990-PF's answer
  *       + still giving                  a grant in the last few fiscal years
+ *       + gives beyond one organization its grants on file reach more than one or two grantees
  *       + grant size fits the budget    only with exact giving profiles and a budget
  *
  * Relevance is reciprocal-rank fusion (k = 60) of three legs, scaled so a
@@ -20,6 +21,13 @@
  * the corpus 0040 giving profiles are loaded, and otherwise the funder's top
  * recipient states as its search summary lists them ("Grant geography: OH,
  * KY, ..."), first state strongest.
+ *
+ * "Gives beyond one organization" reads the grantee list in the funder's
+ * search summary ("Grantees: A; B; ...", up to 15 names, all years). A funder
+ * whose grants all went to one or two organizations is usually a supporting
+ * fund for its own affiliate (a station's "Friends of", a fire company's
+ * relief fund), not a funder another nonprofit can apply to. When the summary
+ * cuts off before the list ends, the count is unknown and nothing is taken off.
  *
  * Nothing here removes a funder. A preselected-only funder ranks lower and is
  * never called closed (governance rule 1).
@@ -48,6 +56,8 @@ export type RankWeights = {
   preselected: number;
   /** No grant in the last few fiscal years (subtracted). */
   stale: number;
+  /** Every grant on file went to one organization (subtracted; FEW_GRANTEES scales it for two and three). */
+  fewGrantees: number;
   /** Typical grant fits the searcher's budget (added) or dwarfs it (subtracted). */
   size: number;
 };
@@ -67,8 +77,24 @@ export const RANK_WEIGHTS: RankWeights = {
   open: 0.05,
   preselected: 0.12,
   stale: 0.2,
+  fewGrantees: 0.2,
   size: 0.1,
 };
+
+/**
+ * Share of `fewGrantees` taken off a funder whose summary lists one, two or
+ * three grantees. From the judged labels (evals/search/labels/golden, 240
+ * top-10 results, 2026-10-26): strong leads were 0 of 28 funders listing one
+ * grantee, 1 of 14 listing two, 1 of 6 listing three, against 90 of 119
+ * listing the full fifteen and 11 of 24 whose list could not be read.
+ *
+ * Measured with fewGrantees 0.2 against 0 (full suite on previews, the same
+ * 24 judged top 10s): topic match 0.82 to 0.89, judged strong@10 0.55 to
+ * 0.63, nDCG@10 0.88 to 0.92. The cause lift fell from 0.17 to 0.06, because
+ * the results without a profile got better (their cause share rose from 0.45
+ * to 0.66) while those with one rose from 0.82 to 0.85.
+ */
+export const FEW_GRANTEES = [1, 0.75, 0.3] as const;
 
 /** Grants to the state that earn the full geo score (log scale below it). */
 export const GEO_FULL_AT = 20;
