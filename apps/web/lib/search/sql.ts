@@ -364,13 +364,16 @@ const NAME_STOPWORDS = new Set([
 ]);
 
 /**
- * The name's words as a prefix tsquery over organizations.search_tsv
- * ("knight:* & foundation:*"), one group per spelling, or null when the
- * name has no distinctive word. The text index finds the funders whose
- * name has every word: 216 rows for "Knight Foundation" against the
- * 10,000 a trigram match on "\mknight" reads from a cold heap (1.2 s in
- * the 2026-10-27 production eval). Stemming means a half-typed last word
- * ("foundati") can miss; namePool then falls back to the trigram match.
+ * The name's words as a tsquery over organizations.search_tsv ("knight &
+ * foundation:*"), one group per spelling, or null when the name has no
+ * distinctive word. Every word but the last is whole (the whole-name check
+ * needs it whole anyway, and "park:*" would also read every Parker and
+ * Parkinson); the last may be half-typed, so it is a prefix. The text index
+ * finds the funders whose name has every word: 216 rows for "Knight
+ * Foundation" against the 10,000 a trigram match on "\mknight" reads from a
+ * cold heap (1.2 s in the 2026-10-27 production eval). Stemming means a
+ * half-typed last word ("foundati") can miss; namePool then falls back to
+ * the trigram match.
  * Postgres parses a word glued to another by "/" or "." as one token
  * ("LLOYD/MOORE"), so such a name (about 820 of 2.3M) is found by its
  * first word only.
@@ -378,10 +381,16 @@ const NAME_STOPWORDS = new Set([
 export function nameTsQuery(norms: string[]): string | null {
   if (!nameTokens(norms[0] ?? "").length) return null;
   const groups = norms
-    .map((n) => [...new Set(n.split(/[^A-Z0-9]+/).filter((t) => t.length >= 3 && !NAME_STOPWORDS.has(t)))])
+    .map((n) => {
+      const words = n.split(/[^A-Z0-9]+/).filter(Boolean);
+      const terms = words
+        .map((t, i) => (t.length >= 3 && !NAME_STOPWORDS.has(t) ? `${t.toLowerCase()}${i === words.length - 1 ? ":*" : ""}` : null))
+        .filter((t): t is string => t !== null);
+      return [...new Set(terms)];
+    })
     .filter((g) => g.length > 0);
   if (!groups.length) return null;
-  return groups.map((g) => `(${g.map((t) => `${t.toLowerCase()}:*`).join(" & ")})`).join(" | ");
+  return groups.map((g) => `(${g.join(" & ")})`).join(" | ");
 }
 
 /**

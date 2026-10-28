@@ -55,9 +55,12 @@ export const CITY_STATES: Record<string, string> = {
 
 /** Words that make a short query read as a funder's own name. */
 const NAME_WORDS =
-  /\b(foundation|foundations|fund|trust|endowment|charitable|philanthropies|philanthropy|corporation|corp|inc|incorporated|association|society|institute|united way|giving)\b/i;
-/** Words that make it a request for funders instead ("grants for", "who funds"). */
-const ASKING_WORDS = /\b(grants?|funding|funders?|funds\b|support for|who fund|looking for|programs?|services?)\b/i;
+  /\b(foundation|foundations|fund|trust|trusts|endowment|endowments|charitable|philanthropies|philanthropy|corporation|corp|inc|incorporated|association|society|institute|united way|giving)\b/i;
+/**
+ * Words that make it a request for funders instead ("grants for", "who funds").
+ * "Grant" right before a funder word is a surname ("William T. Grant Foundation").
+ */
+const ASKING_WORDS = /\b(grants?(?!\s+(?:family\s+)?(?:foundation|fund|trust|endowment)s?\b)|funding|funders?|funds\b|support for|who fund|looking for|programs?|services?)\b/i;
 
 export type Place = {
   state: string;
