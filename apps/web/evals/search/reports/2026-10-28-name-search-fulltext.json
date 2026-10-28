@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "label": "name-search-fulltext",
+    "at": "2026-10-28T15:44:46.918Z",
+    "durationMs": 34726,
+    "target": "https://getfunded-jziw5dajz-morton-labs.vercel.app",
+    "transport": "vercel",
+    "factsFrom": "https://getfunded-jziw5dajz-morton-labs.vercel.app",
+    "factsStatus": "0 requests fetched, 0 failed",
+    "maxFy": 2025,
+    "git": "7ef7dfc Match whole words before the last in a name search; route two name shapes",
+    "suites": [
+      "navigational"
+    ],
+    "sample": null
+  },
+  "summary": {
+    "requests": 20,
+    "error_rate": 0,
+    "degraded_rate": 0,
+    "latency": {
+      "client_p50_ms": 984,
+      "client_p95_ms": 2041,
+      "server_p50_topic_ms": null,
+      "server_p95_topic_ms": null,
+      "server_p95_name_ms": 572,
+      "client_p95_topic_ms": null,
+      "client_p95_name_ms": 2041,
+      "by_mode": {
+        "name": {
+          "n": 19,
+          "client_p50": 984,
+          "client_p95": 2045,
+          "server_p50": 215,
+          "server_p95": 576
+        },
+        "ein": {
+          "n": 1,
+          "client_p50": 951,
+          "client_p95": 951,
+          "server_p50": 42,
+          "server_p95": 42
+        }
+      }
+    },
+    "topical": {
+      "cases": 0,
+      "funder_rate_at10": null,
+      "topic_match_at10": null,
+      "geo_match_at10": null,
+      "recency_at10": null,
+      "coverage": null,
+      "by_cause_topic_at10": {}
+    },
+    "navigational": {
+      "cases": 20,
+      "at3": 1,
+      "misses": []
+    },
+    "personalization": {
+      "pairs": 0,
+      "shared_geo_ctx": null,
+      "shared_geo_none": null,
+      "shared_cause_ctx": null,
+      "shared_cause_none": null,
+      "mission_geo_ctx": null,
+      "mission_geo_none": null,
+      "mission_cause_ctx": null,
+      "mission_cause_none": null,
+      "size_fit_ctx": null,
+      "twin_jaccard_state": null,
+      "twin_jaccard_cause": null,
+      "twin_jaccard_budget": null,
+      "shared_mean_pairwise_jaccard": null,
+      "profile_coverage": null,
+      "geo_with_profile": null,
+      "cause_with_profile": null,
+      "geo_lift": null,
+      "cause_lift": null
+    },
+    "determinism": 1
+  }
+}
