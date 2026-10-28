@@ -356,9 +356,38 @@ export function nameTokens(normalized: string): string[] {
     .slice(0, 3);
 }
 
+/** English stop words Postgres drops from a tsquery; a name made only of them gets no full-text leg. */
+const NAME_STOPWORDS = new Set([
+  "THE", "AND", "FOR", "ARE", "BUT", "NOT", "ALL", "ANY", "CAN", "OUR", "OUT", "OFF", "OWN", "YOU", "YOUR", "HER",
+  "HIS", "HIM", "SHE", "WHO", "WHY", "HOW", "ITS", "WAS", "HAS", "HAD", "TOO", "FROM", "WITH", "INTO", "OVER",
+  "THEN", "THAN", "THEM", "THEY", "THIS", "THAT", "WHAT", "WHEN", "WHERE", "WHICH", "WHILE", "WILL", "VERY", "ONLY",
+]);
+
 /**
- * A funder's own name. Candidates come through the trigram index on the
- * distinctive words, then must contain the whole name as the corpus
+ * The name's words as a prefix tsquery over organizations.search_tsv
+ * ("knight:* & foundation:*"), one group per spelling, or null when the
+ * name has no distinctive word. The text index finds the funders whose
+ * name has every word: 216 rows for "Knight Foundation" against the
+ * 10,000 a trigram match on "\mknight" reads from a cold heap (1.2 s in
+ * the 2026-10-27 production eval). Stemming means a half-typed last word
+ * ("foundati") can miss; namePool then falls back to the trigram match.
+ * Postgres parses a word glued to another by "/" or "." as one token
+ * ("LLOYD/MOORE"), so such a name (about 820 of 2.3M) is found by its
+ * first word only.
+ */
+export function nameTsQuery(norms: string[]): string | null {
+  if (!nameTokens(norms[0] ?? "").length) return null;
+  const groups = norms
+    .map((n) => [...new Set(n.split(/[^A-Z0-9]+/).filter((t) => t.length >= 3 && !NAME_STOPWORDS.has(t)))])
+    .filter((g) => g.length > 0);
+  if (!groups.length) return null;
+  return groups.map((g) => `(${g.map((t) => `${t.toLowerCase()}:*`).join(" & ")})`).join(" | ");
+}
+
+/**
+ * A funder's own name. Candidates come through the full-text index on the
+ * name's words (or, when that finds nothing, the trigram index on the
+ * distinctive words), then must contain the whole name as the corpus
  * normalizes it (so "Annie E. Casey" finds "ANNIE E CASEY FOUNDATION").
  * Ranked: the exact name, the name as a whole phrase, a prefix, trigram
  * similarity, and how much the funder gives ("Moore Foundation" means the
@@ -378,20 +407,36 @@ function namePool(name: string, p: SearchParams, ps: Params, profiles: boolean):
   const prefix = `o.name_normalized like ${ps.add(likePrefix(norm))}::text`;
   const phrase = `o.name_normalized ~ ${ps.add(`\\m${norm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\M`)}::text`;
   const bits = orgFilters(p, ps, { profiles });
-  return `select o.id as org_id,
+  const candidates = (by: string) => `select o.id as org_id,
            ((case when ${exact} then 1.5 else 0 end)
             + (case when ${phrase} then 1 else 0 end)
             + (case when ${prefix} then 0.5 else 0 end)
             + similarity(o.name, ${q}::text)
             + 0.35 * log(1 + greatest(coalesce(${GIVING}, 0), coalesce(o.asset_amount, 0) * 0.05, 0)::numeric))::float8 as rank,
            null::text as snippet,
-           null::jsonb as fit
+           null::jsonb as fit,
+           o.name_normalized as name_key
     from internal.organizations o${joins({ ...bits, needFin: true })}
-    where ${narrow}
+    where ${by}
       and (${whole})
-      and ${bits.where.join("\n      and ")}
-    order by rank desc, o.name_normalized asc, o.id asc
+      and ${bits.where.join("\n      and ")}`;
+  const tsq = nameTsQuery(norms);
+  if (!tsq) {
+    return `${candidates(narrow)}
+    order by rank desc, name_key asc, org_id asc
     limit ${POOL_LIMIT}`;
+  }
+  // The trigram leg runs only when the text leg is empty (a one-time filter).
+  return `with by_words as (
+    ${candidates(`o.search_tsv @@ to_tsquery('english', ${ps.add(tsq)}::text)`)}
+  ), by_trigrams as (
+    ${candidates(`not exists (select 1 from by_words) and ${narrow}`)}
+  )
+  select * from by_words
+  union all
+  select * from by_trigrams
+  order by rank desc, name_key asc, org_id asc
+  limit ${POOL_LIMIT}`;
 }
 
 type TopicOptions = { profiles: boolean; maxFy: number; w: RankWeights };
