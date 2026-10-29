@@ -102,7 +102,9 @@ describe("buildSearchSql", () => {
     expect(built.values).toContain("CHILDRENS HOSPITAL");
     expect(built.values).toContain("\\mHOSPITAL");
     expect(built.values).toContain("\\mCHILDREN");
-    expect((built.text.match(/strpos\(o\.name_normalized/g) ?? []).length).toBe(2);
+    // Two spellings, checked in both legs (full-text, and the trigram fallback).
+    expect((built.text.match(/strpos\(o\.name_normalized/g) ?? []).length).toBe(4);
+    expect(built.values).toContain("(children & hospital:*) | (childrens & hospital:*)");
     checkPlaceholders(built.text, built.values, ["children's", "hospital"]);
   });
 
