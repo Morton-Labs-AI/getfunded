@@ -74,6 +74,18 @@ describe("filterToSearchParams", () => {
     expect(params.mode).toBe("name");
   });
 
+  it("where the money goes and what it pays for become gives_in and cause, not the funder's own record", () => {
+    const { params, applied } = filterToSearchParams(
+      EMPTY,
+      normalizeFilter({ like: "after-school tutoring", gives_in: "Ohio", cause: "b", state: null, ntee: null, replace: true }),
+    );
+    expect(params.givesIn).toBe("OH");
+    expect(params.cause).toBe("B");
+    expect(params.state).toBeNull();
+    expect(params.ntee).toBeNull();
+    expect(applied.map((c) => c.label)).toEqual(["Funds work like: after-school tutoring", "Gives in OH", "Funds education groups"]);
+  });
+
   it("a sentence that maps to nothing leaves the search untouched except the page", () => {
     const current = parseSearchParams({ state: "CA", page: "2" });
     const { params, applied } = filterToSearchParams(current, normalizeFilter({ replace: false }));

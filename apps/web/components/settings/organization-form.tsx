@@ -16,6 +16,7 @@ import { PROFILE_FIELD_COPY } from "@/lib/settings/copy";
 import type { WorkspaceProfile } from "@/lib/workspace/context";
 
 import { FormNotice } from "./form-notice";
+import { SearchProfileFields } from "./search-profile-fields";
 
 const INITIAL: ActionState = { ok: false };
 
@@ -156,6 +157,8 @@ export function OrganizationForm({
           {field("keywords", (props) => (
             <Input {...props} defaultValue={joinList(p.keywords)} placeholder={PROFILE_FIELD_COPY.keywords.placeholder} />
           ))}
+
+          <SearchProfileFields profile={p} idPrefix={id("search")} disabled={!canEdit} errors={errors} />
 
           <FormNotice state={state} />
 

@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "label": "production-baseline",
+    "at": "2026-10-26T20:45:16.301Z",
+    "durationMs": 1427872,
+    "target": "https://getfunded.ai",
+    "transport": "fetch",
+    "factsFrom": "https://getfunded-rmtelhv2z-morton-labs.vercel.app",
+    "factsStatus": "22 requests fetched, 2 failed",
+    "maxFy": 2025,
+    "git": "0982fce Eval facts: one pass over the window's live grants; filing id via the public view",
+    "suites": [
+      "industries",
+      "navigational",
+      "robustness",
+      "personalization"
+    ],
+    "sample": null
+  },
+  "summary": {
+    "requests": 457,
+    "error_rate": 0.91,
+    "degraded_rate": 0,
+    "latency": {
+      "client_p50_ms": 6976,
+      "client_p95_ms": 19807,
+      "server_p50_topic_ms": null,
+      "server_p95_topic_ms": null,
+      "server_p95_name_ms": null,
+      "client_p95_topic_ms": 20890,
+      "client_p95_name_ms": 18912,
+      "by_mode": {
+        "name": {
+          "n": 38,
+          "client_p50": 6543,
+          "client_p95": 18962,
+          "server_p50": null,
+          "server_p95": null
+        },
+        "ein": {
+          "n": 1,
+          "client_p50": 365,
+          "client_p95": 365,
+          "server_p50": null,
+          "server_p95": null
+        },
+        "semantic": {
+          "n": 2,
+          "client_p50": 19803,
+          "client_p95": 20890,
+          "server_p50": null,
+          "server_p95": null
+        }
+      }
+    },
+    "topical": {
+      "cases": 23,
+      "funder_rate_at10": 0.104,
+      "topic_match_at10": 0.052,
+      "geo_match_at10": null,
+      "recency_at10": 0.083,
+      "coverage": 0.913,
+      "by_cause_topic_at10": {
+        "A": 0.1,
+        "B": 0,
+        "C": 0.1,
+        "D": 0,
+        "F": 0.1,
+        "H": 0.1,
+        "I": 0.2,
+        "J": 0,
+        "K": 0.4,
+        "L": 0,
+        "M": 0,
+        "N": 0,
+        "O": 0,
+        "P": 0,
+        "Q": 0,
+        "R": 0.1,
+        "S": 0.1,
+        "U": 0,
+        "V": 0,
+        "W": 0,
+        "X": 0
+      }
+    },
+    "navigational": {
+      "cases": 16,
+      "at3": 0.75,
+      "misses": [
+        "MacArthur Foundation",
+        "Moore Foundation",
+        "Knight Foundation",
+        "Mott Foundation"
+      ]
+    },
+    "personalization": {
+      "pairs": 1,
+      "shared_geo_ctx": null,
+      "shared_geo_none": null,
+      "shared_cause_ctx": null,
+      "shared_cause_none": null,
+      "mission_geo_ctx": 0.3,
+      "mission_geo_none": 0.3,
+      "mission_cause_ctx": 1,
+      "mission_cause_none": 1,
+      "size_fit_ctx": 1,
+      "twin_jaccard_state": null,
+      "twin_jaccard_cause": null,
+      "twin_jaccard_budget": null,
+      "shared_mean_pairwise_jaccard": null,
+      "profile_coverage": 1,
+      "geo_lift": 0,
+      "cause_lift": 0
+    },
+    "determinism": 0.875
+  }
+}

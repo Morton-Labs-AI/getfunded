@@ -6,14 +6,16 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { EMPTY_CONTEXT } from "@/lib/search/context";
 import { DEFAULT_SEARCH_PARAMS, PAGE_SIZE, parseSearchParams, type SearchParams } from "@/lib/search/params";
 import {
   EIN_POOL_LIMIT,
   FUNDER_TYPES,
-  KEYWORD_LEG_LIMIT,
   POOL_LIMIT,
   SEMANTIC_POOL_LIMIT,
   buildSearchSql,
+  nameTokens,
+  normalizeName,
   likeContains,
   nameVariants,
   likePrefix,
@@ -51,16 +53,38 @@ describe("buildSearchSql", () => {
     expect(built.notices).toEqual(["name_too_short"]);
   });
 
-  it("builds the trigram name pool with LIKE metacharacters escaped", () => {
+  it("builds the name pool from distinctive words, with LIKE metacharacters escaped", () => {
     const built = buildSearchSql(params({ q: "50% Fund_raisers; drop table x", mode: "name", state: "or" }));
     expect(built.text).not.toBeNull();
     if (built.text === null) return;
     expect(built.ran).toBe("name");
     expect(built.poolLimit).toBe(POOL_LIMIT);
-    expect(built.values).toContain("%50\\% Fund\\_raisers; drop table x%");
+    // "50" and "X" are too short to narrow by; each word must START a word of the name.
+    expect(built.values).toContain("\\mFUND_RAISERS");
+    expect(built.values).toContain("\\mTABLE");
+    expect(built.values).toContain("50 FUND_RAISERS DROP TABLE X");
     expect(built.values).toContain("or");
     checkPlaceholders(built.text, built.values, ["drop table", "50%", "or'"]);
     expect(built.text).toContain("o.canonical_org_id is null");
+    expect(built.text).toContain("strpos(o.name_normalized,");
+  });
+
+  it("narrows a funder's name by its distinctive words and ranks the larger giver up", () => {
+    expect(nameTokens("GORDON E AND BETTY I MOORE FOUNDATION")).toEqual(["GORDON", "BETTY", "MOORE"]);
+    expect(nameTokens("MOORE FOUNDATION")).toEqual(["MOORE"]);
+    expect(nameTokens("COMMUNITY FOUNDATION")).toEqual([]);
+    expect(normalizeName("Annie E. Casey Foundation")).toBe("ANNIE E CASEY FOUNDATION");
+
+    const built = buildSearchSql(params({ q: "Annie E. Casey Foundation", mode: "name" }));
+    if (built.text === null) throw new Error("expected SQL");
+    expect(built.values).toContain("\\mANNIE");
+    expect(built.values).toContain("\\mCASEY");
+    expect(built.values).toContain("ANNIE E CASEY FOUNDATION");
+    expect(built.text).toMatch(/0\.35 \* log\(1 \+ greatest\(/);
+    // Every-word-generic names fall back to the whole phrase.
+    const generic = buildSearchSql(params({ q: "Community Foundation", mode: "name" }));
+    if (generic.text === null) throw new Error("expected SQL");
+    expect(generic.values).toContain("%Community Foundation%");
   });
 
   it("matches an apostrophe query with and without the apostrophe (IRS names drop it)", () => {
@@ -73,21 +97,24 @@ describe("buildSearchSql", () => {
     expect(built.text).not.toBeNull();
     if (built.text === null) return;
     expect(built.ran).toBe("name");
-    expect(built.values).toContain("%children's hospital%");
-    expect(built.values).toContain("%childrens hospital%");
-    expect(built.values).toContain("CHILDRENS HOSPITAL%");
-    expect((built.text.match(/o\.name ilike/g) ?? []).length).toBe(2);
-    checkPlaceholders(built.text, built.values, ["children", "hospital"]);
+    // Both spellings must be contained whole; the trigram index narrows by the words.
+    expect(built.values).toContain("CHILDREN S HOSPITAL");
+    expect(built.values).toContain("CHILDRENS HOSPITAL");
+    expect(built.values).toContain("\\mHOSPITAL");
+    expect(built.values).toContain("\\mCHILDREN");
+    expect((built.text.match(/strpos\(o\.name_normalized/g) ?? []).length).toBe(2);
+    checkPlaceholders(built.text, built.values, ["children's", "hospital"]);
   });
 
-  it("merges two keyword legs by rank and reports the keyword pool limit", () => {
+  it("runs a keyword topic search over funder summaries only, ranked by text", () => {
     const built = buildSearchSql(params({ q: "food bank", mode: "keyword", type: "private_foundation" }));
     expect(built.text).not.toBeNull();
     if (built.text === null) return;
     expect(built.ran).toBe("keyword");
-    expect(built.poolLimit).toBe(KEYWORD_LEG_LIMIT * 2);
+    expect(built.poolLimit).toBe(SEMANTIC_POOL_LIMIT);
     expect(built.text).toContain("internal.search_documents");
-    expect(built.text).toContain("union all");
+    expect(built.text).not.toContain("o.search_tsv"); // names are not a topic: no organization-name leg
+    expect(built.text).toContain("ts_rank_cd(sd.search_tsv");
     expect(built.values).toContain("food bank");
     expect(built.values).toContainEqual(["private_foundation"]);
     checkPlaceholders(built.text, built.values, ["food bank"]);
@@ -99,21 +126,86 @@ describe("buildSearchSql", () => {
     expect(built.notices).toContain("semantic_unavailable");
   });
 
-  it("sends a thesis search through hybrid_search with the vector and every filter inside the call", () => {
+  it("walks the HNSW index with no filter in the meaning leg and filters the merged candidates", () => {
     const vec = Array.from({ length: 512 }, (_, i) => i / 512);
     const built = buildSearchSql(params({ q: "youth mental health", mode: "thesis", posture: "open", minDistributions: 500000, state: "OR", ntee: "F" }), { vec });
     expect(built.text).not.toBeNull();
     if (built.text === null) return;
     expect(built.ran).toBe("semantic");
     expect(built.poolLimit).toBe(SEMANTIC_POOL_LIMIT);
-    expect(built.text).toContain("internal.hybrid_search(");
+    expect(built.text).not.toContain("hybrid_search");
+    // The meaning leg: no predicate but "has an embedding", so pgvector walks the index.
+    expect(built.text).toMatch(/where sd\.embedding is not null\s+order by sd\.embedding operator\(extensions\.<=>\) \$\d+::extensions\.halfvec\(512\)\s+limit 600/);
+    expect(built.text).toContain("with ordinality");
+    expect(built.text).toMatch(/o\.state = \$\d+::text/);
+    expect(built.text).toMatch(/sd\.app_posture = \$\d+::text/);
+    expect(built.text).toMatch(/sd\.annual_distributions >= \$\d+::numeric/);
+    expect(built.text).toMatch(/o\.ntee_code like \$\d+::text/);
+    expect(built.text).toContain("o.canonical_org_id is null");
     expect(built.values).toContain(vecLiteral(vec));
-    expect(built.values).toContainEqual(["open"]);
+    expect(built.values).toContain("open");
     expect(built.values).toContain(500000);
-    // The NTEE filter cannot go inside hybrid_search, so it is applied after the pool.
-    expect(built.text).toMatch(/where o\.ntee_code like \$\d+::text/);
     expect(built.notices).toContain("posture_filter");
+    expect(built.notices).toContain("semantic_filtered");
     checkPlaceholders(built.text, built.values, ["youth mental health", "[0,"]);
+  });
+
+  it("returns grantmakers, not companies, for all funder types, and companies when asked", () => {
+    const vec = Array.from({ length: 512 }, () => 0.1);
+    const all = buildSearchSql(params({ q: "robotics for girls", mode: "thesis" }), { vec });
+    if (all.text === null) throw new Error("expected SQL");
+    expect(all.values).toContainEqual(["foundation"]);
+    expect(all.values).toContainEqual(["private_foundation", "public_charity"]);
+    const companies = buildSearchSql(params({ q: "robotics for girls", mode: "thesis", type: "company" }), { vec });
+    if (companies.text === null) throw new Error("expected SQL");
+    expect(companies.values).toContainEqual(["company"]);
+  });
+
+  it("adds no filter notice to an unfiltered thesis search", () => {
+    const vec = Array.from({ length: 512 }, (_, i) => i / 512);
+    const built = buildSearchSql(params({ q: "youth mental health", mode: "thesis" }), { vec });
+    expect(built.ran).toBe("semantic");
+    expect(built.notices).not.toContain("semantic_filtered");
+  });
+
+  it("ranks for the searcher: an in-state leg, geography and cause from the summary without giving profiles", () => {
+    const vec = Array.from({ length: 512 }, () => 0.1);
+    const context = { ...EMPTY_CONTEXT, state: "OH", stateSource: "url" as const, cause: "B", causeSource: "url" as const, budget: 300000 };
+    const built = buildSearchSql(params({ q: "after-school tutoring", mode: "thesis" }), { vec, context, profilesReady: false });
+    if (built.text === null) throw new Error("expected SQL");
+    expect(built.text).toContain("sd.state = $"); // the in-state leg
+    expect(built.text).toContain("array_position(f.top_states,");
+    expect(built.text).toContain("d.doc_text ~* $");
+    expect(built.text).not.toContain("mv_funder_giving_state");
+    expect(built.text).not.toContain("median_paid_5y between"); // size fit needs the profiles
+    expect(built.values).toContain("OH");
+    expect(built.values).toContain("after-school OR tutoring");
+    expect(built.text).toContain("'tier', 'summary'");
+  });
+
+  it("reads the giving profiles for exact counts once they are ready", () => {
+    const vec = Array.from({ length: 512 }, () => 0.1);
+    const context = { ...EMPTY_CONTEXT, state: "OH", stateSource: "url" as const, cause: "B", causeSource: "url" as const, budget: 300000 };
+    const built = buildSearchSql(params({ q: "after-school tutoring", mode: "thesis" }), { vec, context, profilesReady: true });
+    if (built.text === null) throw new Error("expected SQL");
+    expect(built.text).toContain("left join internal.mv_funder_giving_state gs");
+    expect(built.text).toContain("left join internal.mv_funder_giving_cause gc");
+    expect(built.text).toContain("left join internal.mv_funder_grant_profile gp");
+    expect(built.text).toContain("median_paid_5y between");
+    expect(built.text).toContain("'tier', 'profiles'");
+  });
+
+  it("filters by where a funder gives and what it funds only with the giving profiles, and says so otherwise", () => {
+    const off = buildSearchSql(params({ givesIn: "OH", cause: "B" }), { profilesReady: false });
+    expect(off.notices).toContain("giving_profiles_unavailable");
+    expect(off.text).not.toContain("mv_funder_giving");
+    const on = buildSearchSql(params({ givesIn: "OH", cause: "B" }), { profilesReady: true });
+    if (on.text === null) throw new Error("expected SQL");
+    expect(on.ran).toBe("browse");
+    expect(on.text).toContain("from internal.mv_funder_giving_state g");
+    expect(on.text).toContain("gc.ntee_major = $");
+    expect(on.text).toContain("order by p.rank desc");
+    expect(on.notices).not.toContain("giving_profiles_unavailable");
   });
 
   it("browses from the financials view when sorting by giving, and from organizations otherwise", () => {

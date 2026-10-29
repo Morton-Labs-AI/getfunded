@@ -35,6 +35,21 @@ export const SEMANTIC_UNAVAILABLE_NOTICE =
   "Describe-the-work search is not available right now, so we matched your words as keywords instead. " +
   "Results may be narrower than a meaning-based search would give.";
 
+export const SEMANTIC_TIMED_OUT_NOTICE =
+  "Describe-the-work search took too long just now, so we matched your words as keywords instead. " +
+  "Try again in a moment for meaning-based results.";
+
+export const SEMANTIC_FILTERED_NOTE = (candidates: number) =>
+  `Filters were applied to the ${candidates.toLocaleString("en-US")} funders whose giving reads most like your description. ` +
+  "Remove a filter to widen the list.";
+
+export const NAME_NO_MATCH_NOTE = (q: string) =>
+  `No funder is named “${q}”, so we searched for funders whose giving matches those words. Put a name in quotes to search names only.`;
+
+export const GIVING_PROFILES_UNAVAILABLE_NOTE =
+  "Filtering by where a funder gives and which causes it funds is not ready yet, so that filter was not applied. " +
+  "Results still favor funders whose filings show grants in the place you searched for.";
+
 export const NAME_TOO_SHORT_NOTE = "Type at least three letters of the name so we can match it.";
 
 export const POOL_BOUNDED_NOTE = (limit: number) =>
@@ -52,6 +67,12 @@ export const GIVING_TO_NOTE =
   "that matched your other filters, so a wider search may surface more.";
 
 export const GIVING_TO_PLACEHOLDER = "e.g. food bank, community college, animal shelter";
+
+export const GIVES_IN_HINT = "Funders whose filings show grants paid to organizations in this state in the last five fiscal years.";
+export const CAUSE_FILTER_HINT =
+  "Funders whose filings show grants paid to organizations in this group in the last five fiscal years. " +
+  "Not every grant names a recipient we can classify, so a funder can fund a cause without showing here.";
+export const GIVING_PROFILES_PENDING_HINT = "Not available yet: the giving profiles behind this filter are still being prepared.";
 
 export const RATE_LIMITED_NOTE = (seconds: number) =>
   `You have searched a lot in the last minute. Please wait ${seconds} second${seconds === 1 ? "" : "s"} and try again.`;

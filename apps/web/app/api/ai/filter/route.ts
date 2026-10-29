@@ -10,6 +10,7 @@
  */
 import { FilterBody, type FilterResponse } from "@/lib/ai/api-schemas";
 import { runFilter } from "@/lib/ai/filter";
+import { profileContextFrom } from "@/lib/search/context";
 import { aiRoute } from "@/lib/ai/route";
 import { CREDIT_COSTS } from "@/lib/plans";
 import { boundedJson } from "@/lib/security";
@@ -24,9 +25,11 @@ const NO_STORE = { "cache-control": "no-store" } as const;
 export const maxDuration = 60;
 
 export async function POST(req: Request): Promise<Response> {
-  return aiRoute(req, "nl_filter", async ({ ctx }) => {
+  return aiRoute(req, "nl_filter", async ({ ctx, workspace }) => {
     const body = await boundedJson(req, FilterBody, 16_000);
-    const result = await runFilter(ctx, { text: body.sentence, current: body.current });
+    // The organization profile lets "near us" and "groups like us" mean something.
+    const org = profileContextFrom(workspace.profile);
+    const result = await runFilter(ctx, { text: body.sentence, current: body.current }, {}, org);
     const payload: FilterResponse = {
       params: result.searchParams,
       chips: result.chips,

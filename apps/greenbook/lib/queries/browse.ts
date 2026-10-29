@@ -1,5 +1,12 @@
 import { sql } from "@/lib/db";
-import { embedQuery, vecLiteral } from "@/lib/ai/embed";
+import { embedQuery } from "@/lib/ai/embed";
+import {
+  hybridPlan,
+  hybridSource,
+  isStatementTimeout,
+  SEMANTIC_TIMEOUT_MS,
+  type HybridFilters,
+} from "@/lib/queries/hybrid";
 
 export type Posture = "open" | "preselected" | "unstated";
 
@@ -161,6 +168,8 @@ export interface ThesisResult {
   totalMatched: number;
   /** True when the semantic leg was unavailable and keyword search ran. */
   fallback: boolean;
+  /** True when it was unavailable because it ran out of time. */
+  timedOut?: boolean;
 }
 
 export function thesisCapable(segment: BrowseFilters["segment"]): boolean {
@@ -175,12 +184,16 @@ const LEG_LIMIT = 200;
 /** Hybrid-search-backed browse: RRF-ordered matches, offset-paged within a
     fixed candidate pool (keyset cursors don't apply to rank order).
 
-    Posture and distribution predicates go INSIDE hybrid_search, never in the
-    post-filter block below. Open-to-apply is ~16% of the corpus, so
-    post-filtering a 200-row pool would leave ~30 rows nationally and ~0 with
-    a state filter — and those survivors would be the leftovers of a
-    preselected-dominated ranking, not the best open foundations. That is
-    exactly the bug migration 0011 exists to prevent, in a new dimension. */
+    Segment, state, size, posture and distribution predicates go to
+    hybridSource (lib/queries/hybrid.ts), never in the post-filter block
+    below. It keeps them inside hybrid_search when they leave a small slice of
+    the corpus: open-to-apply is ~10% of it, so post-filtering a 200-row pool
+    would leave ~20 rows nationally and ~0 with a state filter — and those
+    survivors would be the leftovers of a preselected-dominated ranking, not
+    the best open foundations. That is exactly the bug migration 0011 exists
+    to prevent, in a new dimension. Only filters that keep most of the corpus
+    (by Postgres's estimate: the foundations segment with no narrower filter)
+    run over the 600 closest documents instead. */
 export async function browseOrgsByThesis(
   f: BrowseFilters & { thesis: string },
   page = 0,
@@ -201,45 +214,61 @@ export async function browseOrgsByThesis(
     };
   }
 
-  const types = SEGMENT_TYPES[f.segment];
-  const sizeCol =
-    f.segment === "foundations"
-      ? sql`o.asset_amount`
-      : f.segment === "advisers"
-        ? sql`coalesce(o.aum, o.fund_size)`
-        : sql`o.fund_size`;
+  const filters: HybridFilters = {
+    kinds,
+    orgTypes: SEGMENT_TYPES[f.segment],
+    state: f.state ? f.state.toUpperCase() : null,
+    minSize: f.minAssets ?? null,
+    postures: f.posture ? [POSTURE_DB[f.posture]] : null,
+    minDistributions: f.minDist ?? null,
+  };
 
-  // row_number() over () preserves the SRF's RRF output order; the outer
-  // order by ord keeps it through the joins and post-filters.
-  const rows = await sql<BrowseRow[]>`
-    with hits as (
-      select h.org_id, row_number() over () as ord
-      from internal.hybrid_search(
-             ${f.thesis},
-             ${vecLiteral(vec)}::extensions.halfvec(512),
-             ${LEG_LIMIT},
-             ${kinds}::text[],
-             ${types}::text[],
-             ${f.state ? f.state.toUpperCase() : null},
-             ${f.minAssets ?? null},
-             ${f.posture ? [POSTURE_DB[f.posture]] : null}::text[],
-             ${f.minDist ?? null}) h
-      where h.org_id is not null
-    )
-    select o.id, o.name, o.name_normalized, o.org_type, o.city, o.state,
-           o.ntee_code, o.asset_amount::text, o.aum::text, o.fund_size::text,
-           o.is_era, o.focus_areas,
-           g.n::text as grants_n, g.total::text as grants_total
-    from hits h
-    join internal.organizations o on o.id = h.org_id
-    left join internal.mv_funder_event_stats g
-      on g.org_id = o.id and g.event_type = 'grant'
-    where o.canonical_org_id is null
-    ${f.ntee ? sql`and o.ntee_code like ${f.ntee + "%"}` : sql``}
-    ${f.era === "era" ? sql`and o.is_era = true` : f.era === "ria" ? sql`and o.is_era = false` : sql``}
-    ${f.fundType ? sql`and ${f.fundType} = any(o.focus_areas)` : sql``}
-    ${f.maxAssets ? sql`and ${sizeCol} <= ${f.maxAssets}` : sql``}
-    order by h.ord`;
+  let rows: BrowseRow[];
+  try {
+    rows = await sql.begin("read only", async (tx) => {
+      await tx.unsafe(`set local statement_timeout = '${SEMANTIC_TIMEOUT_MS}ms'`);
+      const plan = await hybridPlan(tx, filters);
+      const sizeCol =
+        f.segment === "foundations"
+          ? tx`o.asset_amount`
+          : f.segment === "advisers"
+            ? tx`coalesce(o.aum, o.fund_size)`
+            : tx`o.fund_size`;
+
+      // ord is hybrid_search's own order (rrf, then size); the outer order
+      // by ord keeps it through the joins and post-filters.
+      return tx<BrowseRow[]>`
+        with hits as (
+          select h.org_id,
+                 row_number() over (order by h.rrf desc, h.size_amount desc nulls last) as ord
+          from ${hybridSource(tx, f.thesis, vec, LEG_LIMIT, filters, plan)} h
+          where h.org_id is not null
+        )
+        select o.id, o.name, o.name_normalized, o.org_type, o.city, o.state,
+               o.ntee_code, o.asset_amount::text, o.aum::text, o.fund_size::text,
+               o.is_era, o.focus_areas,
+               g.n::text as grants_n, g.total::text as grants_total
+        from hits h
+        join internal.organizations o on o.id = h.org_id
+        left join internal.mv_funder_event_stats g
+          on g.org_id = o.id and g.event_type = 'grant'
+        where o.canonical_org_id is null
+        ${f.ntee ? tx`and o.ntee_code like ${f.ntee + "%"}` : tx``}
+        ${f.era === "era" ? tx`and o.is_era = true` : f.era === "ria" ? tx`and o.is_era = false` : tx``}
+        ${f.fundType ? tx`and ${f.fundType} = any(o.focus_areas)` : tx``}
+        ${f.maxAssets ? tx`and ${sizeCol} <= ${f.maxAssets}` : tx``}
+        order by h.ord`;
+    });
+  } catch (err) {
+    if (!isStatementTimeout(err)) throw err;
+    // Too slow (a cold cache) — keyword fallback, flagged so the page says why.
+    return {
+      rows: await browseOrgs({ ...f, q: f.thesis }),
+      totalMatched: -1,
+      fallback: true,
+      timedOut: true,
+    };
+  }
 
   return {
     rows: rows.slice(page * perPage, (page + 1) * perPage),

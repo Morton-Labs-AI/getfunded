@@ -34,12 +34,15 @@ The same search as the app. Query parameters match the search page URL.
 |---|---|
 | `q` | Name, EIN, or a sentence about your work |
 | `type` | `private_foundation`, `public_charity`, `company`, `gov_agency` (or `all`, the default) |
-| `state` | Two-letter state |
+| `state` | Two-letter state where the funder is based |
+| `gives_in` | Two-letter state where the funder has paid grants in the last five fiscal years (available once the giving profiles are loaded; otherwise ignored, with a `giving_profiles_unavailable` notice) |
+| `cause` | NTEE major-group letter of the organizations the funder has paid (same availability as `gives_in`) |
 | `posture` | `open`, `preselected`, `unknown` |
 | `standing` | `hide_revoked` leaves out organizations the IRS automatically revoked. Leave it out to hide nothing, which is the default. See [The IRS standing filter](/docs/search-guide#the-irs-standing-filter) |
 | `page` | 1-based page number |
+| `for_state`, `for_cause`, `for_budget`, `for_city` | Who is searching: your state, NTEE major group, annual budget in dollars and city. These change the order, never the membership: funders that give where you work and to work like yours rank first |
 
-Returns a page of funder summaries: id, name, EIN, type, city, state, posture, latest assets and latest giving, each with a `source` object. Grant counts and totals count the same rows the funder page shows: grants paid, excluding any row from a filing that a later amended return replaced.
+Returns a page of funder summaries: id, name, EIN, type, city, state, posture, latest assets and latest giving, each with a `source` object. Grant counts and totals count the same rows the funder page shows: grants paid, excluding any row from a filing that a later amended return replaced. A topic search adds `fit` to each summary: the facts behind its place in the list (grants paid in your state, grants to your cause, the median grant, each over a named range of fiscal years), and the response says which `context` it ranked for.
 
 ### `GET /api/v1/funders/{id}`
 

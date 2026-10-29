@@ -15,7 +15,9 @@ import { redirect } from "next/navigation";
 
 import { appUrl } from "@/lib/auth/env";
 import { DbError, withUser } from "@/lib/db/app";
+import { readApplicantRecord } from "@/lib/queries/corpus/applicant";
 import { WORKSPACE_COOKIE, requireWorkspace, setActiveWorkspace, type WorkspaceProfile } from "@/lib/workspace/context";
+import { fillFromRecord, mergeSearchProfile } from "@/lib/workspace/search-profile";
 import { ACCEPT_INVITE_COPY, acceptInviteFailure, inviteUrl, parseInviteToken } from "./invites";
 import { canDeleteWorkspace, canLeave, canManageApiKeys, isAdminRole } from "./roles";
 import {
@@ -96,6 +98,7 @@ function mergeProfile(existing: WorkspaceProfile, form: OrganizationForm): Works
     if (empty) delete next[key];
     else next[key] = value;
   }
+  mergeSearchProfile(next, form);
   return next as WorkspaceProfile;
 }
 
@@ -117,6 +120,8 @@ export async function updateOrganizationAction(_prev: ActionState, formData: For
     return { ok: false, error: "Only a workspace owner or admin can change the organization profile." };
   }
   const profile = mergeProfile(workspace.profile, form);
+  // Blank city, state, cause and budget are filled from the organization's own IRS record.
+  if (profile.ein) fillFromRecord(profile as Record<string, unknown>, await readApplicantRecord(profile.ein));
   try {
     const version = await withUser(user.id, (sql) =>
       svc.updateOrganization(sql, { workspaceId: workspace.id, version: form.version, name: form.name, profile }),

@@ -1,3 +1,5 @@
+> **Moved.** The canonical pipeline is now [getfunded-ai/open-nonprofit-platform](https://github.com/getfunded-ai/open-nonprofit-platform)/`corpus`. Do not edit this copy. It stays until the preserve-removed-material rule is lifted. See [MOVED.md](MOVED.md).
+
 # Working agreements for `corpus/`
 
 Read this before changing the data pipeline. These rules are enforced by tests and SQL

@@ -36,20 +36,36 @@ export function buildFilterTool(): Tool {
           description: "What they FUND, as a short description for semantic search over giving behaviour, e.g. 'food banks and hunger relief' or 'youth mental health'. Prefer this for any subject matter.",
         },
         org_type: { type: ["string", "null"], enum: [...FILTER_ORG_TYPES, null], description: "Only when the sentence names a kind of funder." },
-        state: { type: ["string", "null"], description: "Two-letter US state code of the FUNDER's location when the sentence names a state or a city's state." },
+        state: {
+          type: ["string", "null"],
+          description: "Two-letter state where the FUNDER IS BASED, only when the sentence says 'based in', 'located in' or 'from'. For where the money should go, use gives_in.",
+        },
+        gives_in: {
+          type: ["string", "null"],
+          description:
+            "Two-letter state where the funder has PAID GRANTS: 'funders in Ohio', 'who give in Ohio', 'Ohio funders', and 'near us', 'local' or 'in our state' (use the ORGANIZATION's state).",
+        },
+        cause: {
+          type: ["string", "null"],
+          description:
+            "One NTEE major-group letter for the kind of ORGANIZATIONS the funder pays (A arts, B education, C environment, D animals, E health, F mental health, K food, L housing, N recreation, O youth, P human services, Q international, R civil rights, S community, U science, X religion), when the sentence names a field. 'Our kind of work' means the ORGANIZATION's first cause.",
+        },
         posture: {
           type: ["string", "null"],
           enum: [...FILTER_POSTURES, null],
           description:
             "Application posture from the latest 990-PF: 'open' when they say accepts applications / open to proposals; 'preselected_only' when they ask for funders that do not take applications; 'unknown' only when they ask for funders with no statement. Note 'unknown' is an absence, not a closed door.",
         },
-        ntee: { type: ["string", "null"], description: "One NTEE major-group letter A-Z when the sentence maps cleanly to one (e.g. K = food, B = education, E = health)." },
+        ntee: {
+          type: ["string", "null"],
+          description: "Rarely: the funder's OWN NTEE category letter, only when the sentence asks for funders that are themselves of a kind. For what a funder pays for, use cause.",
+        },
         min_giving: { type: ["number", "null"], description: "Minimum dollars PAID OUT per year when the person describes giving volume ('gave over $500k', 'big grantmakers')." },
         min_assets: { type: ["number", "null"], description: "Minimum assets in dollars, only when the person talks about assets or endowment size." },
         max_assets: { type: ["number", "null"], description: "Maximum assets in dollars ('small family foundations')." },
         replace: { type: "boolean", description: "True when the sentence describes a new search; false when it refines the current filters ('also in Oregon')." },
       },
-      required: ["q", "like", "org_type", "state", "posture", "ntee", "min_giving", "min_assets", "max_assets", "replace"],
+      required: ["q", "like", "org_type", "state", "gives_in", "cause", "posture", "ntee", "min_giving", "min_assets", "max_assets", "replace"],
       additionalProperties: false,
     },
   };
@@ -64,14 +80,31 @@ export function buildFilterSystem(): string {
     "'assets/endowment over $X' → min_assets. 'accepts applications', 'open to proposals' → posture open.",
     "Write dollar amounts as plain numbers (500000, not '500k'). Use null for anything not stated.",
     "Set replace=true when the sentence stands on its own; false when it adds to the current filters.",
+    "Places: where the money should go is gives_in; state is only for where a funder is based.",
+    "Fields of work: a named field goes in cause as well as in like.",
+    "An ORGANIZATION line, when present, describes the person's own nonprofit: 'near us', 'local' and 'our state'",
+    "mean its state in gives_in; 'our work' or 'groups like us' mean its first cause.",
   ].join("\n");
 }
 
-export function buildFilterRequest(text: string, current: Record<string, string | string[] | undefined> | undefined, userId?: string): AiRequest {
+/** The person's own organization, as the filter may read it ("near us", "groups like us"). */
+export type FilterOrganization = { state?: string | null; city?: string | null; causes?: string[] | null };
+
+export function buildFilterRequest(
+  text: string,
+  current: Record<string, string | string[] | undefined> | undefined,
+  userId?: string,
+  org?: FilterOrganization | null,
+): AiRequest {
   const currentLine = current && Object.keys(current).length > 0 ? `CURRENT FILTERS: ${JSON.stringify(current)}\n` : "";
+  const orgParts = [
+    org?.state ? `state ${org.state}${org.city ? ` (${org.city})` : ""}` : null,
+    org?.causes?.length ? `causes ${org.causes.join(", ")}` : null,
+  ].filter(Boolean);
+  const orgLine = orgParts.length ? `ORGANIZATION: ${orgParts.join("; ")}\n` : "";
   return {
     system: buildFilterSystem(),
-    messages: [{ role: "user", content: `${currentLine}SENTENCE: ${text}` }],
+    messages: [{ role: "user", content: `${orgLine}${currentLine}SENTENCE: ${text}` }],
     tools: [buildFilterTool()],
     toolChoice: { name: "set_search_filters" },
     maxTokens: 600,
@@ -106,12 +139,13 @@ export async function runFilter(
   ctx: { userId: string; workspaceId: string },
   inputIn: FilterInput,
   deps: MeterDeps = {},
+  org: FilterOrganization | null = null,
 ): Promise<FilterResult> {
   const input = FilterInput.parse(inputIn);
   return meter(
     { userId: ctx.userId, workspaceId: ctx.workspaceId, feature: "filter", meta: { prompt_version: FILTER_PROMPT_VERSION } },
     async (ai) => {
-      const res = await ai.fast(buildFilterRequest(input.text, input.current, ctx.userId));
+      const res = await ai.fast(buildFilterRequest(input.text, input.current, ctx.userId, org));
       if (res.toolInput === undefined) throw new AiOutputRejectedError(["no filters produced"], res.usage);
       const normalized = normalizeFilter(res.mock ? mockFilterOutput(input.text) : res.toolInput);
       const merged = mergeFilterParams(input.current, normalized);
@@ -137,15 +171,22 @@ export async function runFilter(
 export function mockFilterOutput(text: string): FilterToolOutput {
   const lower = text.toLowerCase();
   const out: FilterToolOutput = { replace: true };
+  // A named place is where the money should go (gives_in) unless the
+  // sentence says the funder is based there.
+  let place: string | null = null;
   for (const [name, code] of Object.entries(STATE_NAMES)) {
     if (lower.includes(name)) {
-      out.state = code;
+      place = code;
       break;
     }
   }
-  if (!out.state) {
+  if (!place) {
     const m = /\b(AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b/.exec(text);
-    if (m) out.state = m[1];
+    if (m) place = m[1];
+  }
+  if (place) {
+    if (/\b(based|located|headquartered)\b/.test(lower)) out.state = place;
+    else out.gives_in = place;
   }
   if (/accept|open to|unsolicited/.test(lower)) out.posture = "open";
   if (/foundation/.test(lower)) out.org_type = "private_foundation";
@@ -164,7 +205,7 @@ export function mockFilterOutput(text: string): FilterToolOutput {
     .replace(/\s+/g, " ")
     .trim();
   if (topic.length > 3) {
-    const state = out.state;
+    const state = out.state ?? out.gives_in;
     const t = state ? topic.replace(new RegExp(`\\b${state.toLowerCase()}\\b`, "g"), " ").replace(/\s+/g, " ").trim() : topic;
     if (t.length > 3) out.like = t.slice(0, 80);
   }

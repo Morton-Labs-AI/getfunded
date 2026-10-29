@@ -12,7 +12,7 @@ Zach's rule for every coding agent in this repo. Full text: `docs/testing-policy
 - Handoff line: `Verified by: <what you ran>. Tests: not run (weekly review policy).`
 - Exceptions: Zach asks for tests; a bug that already escaped once (one reproducing test); changes to money,
   authentication, credentials, data deletion or database migrations.
-- The full suite still runs in this repo's existing CI on push; red runs are reviewed weekly from the Isengard command center, not chased per push.
+- The full suite still runs in this repo's existing CI on push; red runs are reviewed weekly from the Digital Command Center (DCC), not chased per push.
 
 ## Preserve removed material (user instruction, 2026-10-18)
 

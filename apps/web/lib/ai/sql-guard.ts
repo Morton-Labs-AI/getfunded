@@ -81,6 +81,10 @@ export const ALLOWED_MATVIEWS = [
   "mv_events_by_year",
   "mv_top_funders",
   "mv_amount_histogram",
+  // Corpus 0040 giving profiles (granted to funder_ro by web getfunded_0018).
+  "mv_funder_giving_state",
+  "mv_funder_giving_cause",
+  "mv_funder_grant_profile",
 ] as const;
 
 /**
