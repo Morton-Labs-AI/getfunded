@@ -22,6 +22,7 @@ import { z } from "zod";
 import { addUsage, type AiClient, type AiRequest, type MessageParam, type Usage } from "@/lib/ai/types";
 import { meter, type MeterDeps } from "@/lib/billing/meter";
 import { analyst as analystPool, analystEnabled } from "@/lib/db/corpus";
+import { givingProfilesReady } from "@/lib/queries/corpus/giving-profile";
 import { AskBody } from "./api-schemas";
 import {
   ASK_PROMPT_VERSION,
@@ -56,6 +57,8 @@ export type AskDeps = MeterDeps & {
   analyst?: postgres.Sql | null;
   /** Milliseconds for the statement timeout inside the read-only transaction. */
   statementTimeoutMs?: number;
+  /** Whether the corpus 0040 giving profiles hold data; probed on the analyst pool when absent. */
+  givingProfiles?: boolean;
 };
 
 export type Emit = (event: AskEvent) => void;
@@ -107,9 +110,14 @@ function historyMessages(history: AskInput["history"]): MessageParam[] {
 }
 
 /** Ask the model for the query (forced tool). In mock mode a known-safe query is used so the pipeline still runs end to end. */
-async function writeQuery(ai: AiClient, messages: MessageParam[], userId: string): Promise<{ sql: string; purpose: string; usage: Usage }> {
+async function writeQuery(
+  ai: AiClient,
+  messages: MessageParam[],
+  userId: string,
+  givingProfiles = false,
+): Promise<{ sql: string; purpose: string; usage: Usage }> {
   const tool = buildQueryTool();
-  const req: AiRequest = { system: buildAskSystem(), messages, tools: [tool], toolChoice: { name: tool.name }, maxTokens: 4000, effort: "low", userId };
+  const req: AiRequest = { system: buildAskSystem({ givingProfiles }), messages, tools: [tool], toolChoice: { name: tool.name }, maxTokens: 4000, effort: "low", userId };
   const res = await ai.fast(req);
   if (res.mock) return { ...MOCK_ASK_QUERY, usage: res.usage };
   const parsed = QueryCall.safeParse(normalizeToolInput(res.toolInput));
@@ -132,7 +140,9 @@ export async function runAsk(ctx: { userId: string; workspaceId: string }, input
     async (ai, reservation) => {
       emit({ type: "phase", phase: "write" });
       const messages: MessageParam[] = [...historyMessages(input.history), { role: "user", content: input.question }];
-      let { sql, purpose, usage } = await writeQuery(ai, messages, ctx.userId);
+      // The giving profiles are offered to the model only once they hold data.
+      const givingProfiles = deps.givingProfiles ?? (await givingProfilesReady(pool));
+      let { sql, purpose, usage } = await writeQuery(ai, messages, ctx.userId, givingProfiles);
 
       emit({ type: "phase", phase: "run" });
       emit({ type: "sql", sql, purpose });
@@ -157,7 +167,7 @@ export async function runAsk(ctx: { userId: string; workspaceId: string }, input
           if (attempt === 0 && ai.mode !== "mock") {
             messages.push({ role: "assistant", content: JSON.stringify({ sql, purpose }) });
             messages.push({ role: "user", content: buildRepairMessage(error) });
-            const repaired = await writeQuery(ai, messages, ctx.userId);
+            const repaired = await writeQuery(ai, messages, ctx.userId, givingProfiles);
             usage = addUsage(usage, repaired.usage);
             sql = repaired.sql;
             purpose = repaired.purpose;

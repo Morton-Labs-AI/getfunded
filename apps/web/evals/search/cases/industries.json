@@ -1,0 +1,100 @@
+{
+  "_doc": "What a grantseeker types, across every NTEE major group a nonprofit can belong to, in three phrasings: a short topic, a sentence, and a sentence with a place. `cause` is the NTEE major group the search is about; `state` is the place a good answer should give in; `topic` overrides the cause's topic terms (cases/causes.json) for the facts count. Results are judged on the funders' own grant records, never on names.",
+  "cases": [
+    { "id": "A-short", "cause": "A", "query": "arts education" },
+    { "id": "A-sentence", "cause": "A", "query": "community theater programs for youth and families" },
+    { "id": "A-place", "cause": "A", "state": "NM", "query": "art museum exhibitions and education programs in New Mexico" },
+
+    { "id": "B-short", "cause": "B", "query": "literacy" },
+    { "id": "B-sentence", "cause": "B", "query": "after-school reading tutoring for elementary students" },
+    { "id": "B-place", "cause": "B", "state": "GA", "query": "college scholarships for first-generation students in Georgia" },
+
+    { "id": "C-short", "cause": "C", "query": "land conservation" },
+    { "id": "C-sentence", "cause": "C", "query": "protecting rivers and watersheds from pollution" },
+    { "id": "C-place", "cause": "C", "state": "CO", "query": "climate resilience and clean energy projects in Colorado" },
+
+    { "id": "D-short", "cause": "D", "query": "animal shelter" },
+    { "id": "D-sentence", "cause": "D", "query": "spay and neuter programs for stray cats and dogs" },
+    { "id": "D-place", "cause": "D", "state": "FL", "query": "wildlife rehabilitation center in Florida" },
+
+    { "id": "E-short", "cause": "E", "query": "rural health clinics" },
+    { "id": "E-sentence", "cause": "E", "query": "free medical clinic for uninsured adults" },
+    { "id": "E-place", "cause": "E", "state": "AZ", "query": "community health center serving low-income families in Arizona" },
+
+    { "id": "F-short", "cause": "F", "query": "mental health" },
+    { "id": "F-sentence", "cause": "F", "query": "suicide prevention and crisis counseling for teenagers" },
+    { "id": "F-place", "cause": "F", "state": "WV", "query": "addiction recovery and substance abuse treatment in West Virginia" },
+
+    { "id": "G-short", "cause": "G", "query": "cancer patient support" },
+    { "id": "G-sentence", "cause": "G", "query": "support services for families living with Alzheimer's disease" },
+    { "id": "G-place", "cause": "G", "state": "MN", "query": "autism therapy and family support in Minnesota" },
+
+    { "id": "H-short", "cause": "H", "query": "medical research" },
+    { "id": "H-sentence", "cause": "H", "query": "research grants for pediatric cancer cures" },
+    { "id": "H-place", "cause": "H", "state": "MA", "query": "biomedical research on rare diseases in Massachusetts" },
+
+    { "id": "I-short", "cause": "I", "query": "legal aid" },
+    { "id": "I-sentence", "cause": "I", "query": "reentry services for people leaving prison" },
+    { "id": "I-place", "cause": "I", "state": "WA", "query": "free legal services for domestic violence survivors in Washington" },
+
+    { "id": "J-short", "cause": "J", "query": "job training" },
+    { "id": "J-sentence", "cause": "J", "query": "workforce development and career training for unemployed adults" },
+    { "id": "J-place", "cause": "J", "state": "MI", "query": "apprenticeship programs in the skilled trades in Michigan" },
+
+    { "id": "K-short", "cause": "K", "query": "food bank" },
+    { "id": "K-sentence", "cause": "K", "query": "fighting childhood hunger with weekend meal programs" },
+    { "id": "K-place", "cause": "K", "state": "KY", "query": "food pantry and hunger relief in rural Kentucky" },
+
+    { "id": "L-short", "cause": "L", "query": "affordable housing" },
+    { "id": "L-sentence", "cause": "L", "query": "emergency shelter and housing for homeless families" },
+    { "id": "L-place", "cause": "L", "state": "OH", "query": "home repair for low-income seniors in Ohio" },
+
+    { "id": "M-short", "cause": "M", "query": "disaster relief" },
+    { "id": "M-sentence", "cause": "M", "query": "volunteer fire department equipment and training" },
+    { "id": "M-place", "cause": "M", "state": "LA", "query": "hurricane recovery and disaster preparedness in Louisiana" },
+
+    { "id": "N-short", "cause": "N", "query": "youth sports" },
+    { "id": "N-sentence", "cause": "N", "query": "summer camps and outdoor recreation for children" },
+    { "id": "N-place", "cause": "N", "state": "UT", "query": "public parks and trails in Utah" },
+
+    { "id": "O-short", "cause": "O", "query": "youth mentoring" },
+    { "id": "O-sentence", "cause": "O", "query": "mentoring programs for at-risk teenagers" },
+    { "id": "O-place", "cause": "O", "state": "MS", "query": "boys and girls club after-school programs in Mississippi" },
+
+    { "id": "P-short", "cause": "P", "query": "senior services" },
+    { "id": "P-sentence", "cause": "P", "query": "support for foster children and their families" },
+    { "id": "P-place", "cause": "P", "state": "TN", "query": "domestic violence shelter for women and children in Tennessee" },
+
+    { "id": "Q-short", "cause": "Q", "query": "international development" },
+    { "id": "Q-sentence", "cause": "Q", "query": "clean water projects in developing countries" },
+    { "id": "Q-place", "cause": "Q", "state": "TX", "query": "refugee resettlement services in Texas" },
+
+    { "id": "R-short", "cause": "R", "query": "civil rights" },
+    { "id": "R-sentence", "cause": "R", "query": "voter education and civic engagement for young people" },
+    { "id": "R-place", "cause": "R", "state": "CA", "query": "immigrant rights and legal advocacy in California" },
+
+    { "id": "S-short", "cause": "S", "query": "community development" },
+    { "id": "S-sentence", "cause": "S", "query": "small business development in low-income neighborhoods" },
+    { "id": "S-place", "cause": "S", "state": "IA", "query": "downtown revitalization and main street programs in Iowa" },
+
+    { "id": "T-short", "cause": "T", "query": "nonprofit capacity building" },
+    { "id": "T-sentence", "cause": "T", "query": "training and technical assistance for small nonprofits" },
+    { "id": "T-place", "cause": "T", "state": "MT", "query": "grants for small nonprofits in Montana" },
+
+    { "id": "U-short", "cause": "U", "query": "STEM education" },
+    { "id": "U-sentence", "cause": "U", "query": "robotics and coding programs for girls" },
+    { "id": "U-place", "cause": "U", "state": "NC", "query": "science museum and STEM camps in North Carolina" },
+
+    { "id": "V-short", "cause": "V", "query": "policy research" },
+    { "id": "V-sentence", "cause": "V", "query": "research on economic mobility and poverty" },
+    { "id": "V-place", "cause": "V", "state": "VA", "query": "public policy research institute in Virginia" },
+
+    { "id": "W-short", "cause": "W", "query": "local journalism" },
+    { "id": "W-sentence", "cause": "W", "query": "public radio and community news coverage" },
+    { "id": "W-place", "cause": "W", "state": "PA", "query": "public library programs in Pennsylvania" },
+
+    { "id": "X-short", "cause": "X", "query": "faith-based ministry" },
+    { "id": "X-sentence", "cause": "X", "query": "church-based food and clothing ministry" },
+    { "id": "X-place", "cause": "X", "state": "NY", "query": "Jewish community center programs in New York" }
+  ]
+}

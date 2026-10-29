@@ -1,3 +1,5 @@
+> **Moved.** The canonical pipeline is now [getfunded-ai/open-nonprofit-platform](https://github.com/getfunded-ai/open-nonprofit-platform)/`corpus`. Do not edit this copy. It stays until the preserve-removed-material rule is lifted. See [MOVED.md](MOVED.md).
+
 # Open Funder Database — the `corpus/` pipeline
 
 The [active-funder campaign](docs/ACTIVE-FUNDERS-150K.md) targets 150,000 evidenced

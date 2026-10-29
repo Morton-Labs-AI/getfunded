@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GIVING_TO_PLACEHOLDER } from "@/lib/content/copy";
+import { CAUSE_FILTER_HINT, GIVES_IN_HINT, GIVING_PROFILES_PENDING_HINT, GIVING_TO_PLACEHOLDER } from "@/lib/content/copy";
 import {
   STANDING_FILTER_FIELD_LABEL,
   STANDING_FILTER_LABEL,
@@ -31,6 +31,7 @@ import {
   type SearchView,
 } from "@/lib/search/params";
 import { STANDING_FILTERS, type StandingFilter } from "@/lib/search/standing-filter";
+import { stateName } from "@/lib/search/understand";
 import { cn } from "@/lib/utils";
 
 const ANY = "any";
@@ -54,7 +55,7 @@ const SORT_LABELS: Record<SearchSort, string> = {
  * Structured filters. Every change writes the URL and resets the page, so
  * the back button, a shared link and the JSON API all see the same state.
  */
-export function FilterControls({ current, base }: { current: SearchParams; base: string }) {
+export function FilterControls({ current, base, givingProfiles = false }: { current: SearchParams; base: string; givingProfiles?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [givingTo, setGivingTo] = React.useState(current.givingTo ?? "");
@@ -92,7 +93,43 @@ export function FilterControls({ current, base }: { current: SearchParams; base:
           </Select>
         </Field>
 
-        <Field id={id("state")} label="State">
+        <Field id={id("gives-in")} label="Gives in">
+          <Select
+            value={current.givesIn ?? ANY}
+            onValueChange={(v) => set({ givesIn: v === ANY ? null : v })}
+            disabled={!givingProfiles && !current.givesIn}
+          >
+            <SelectTrigger id={id("gives-in")} className={selectClass} title={givingProfiles ? GIVES_IN_HINT : GIVING_PROFILES_PENDING_HINT}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Gives anywhere</SelectItem>
+              {US_STATES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {stateName(s)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field id={id("cause")} label="Funds this cause">
+          <Select value={current.cause ?? ANY} onValueChange={(v) => set({ cause: v === ANY ? null : v })} disabled={!givingProfiles && !current.cause}>
+            <SelectTrigger id={id("cause")} className={selectClass} title={givingProfiles ? CAUSE_FILTER_HINT : GIVING_PROFILES_PENDING_HINT}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any cause</SelectItem>
+              {NTEE_FILTER_GROUPS.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {NTEE_MAJOR[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field id={id("state")} label="Based in">
           <Select value={current.state ?? ANY} onValueChange={(v) => set({ state: v === ANY ? null : v })}>
             <SelectTrigger id={id("state")} className={selectClass}>
               <SelectValue />
@@ -159,7 +196,7 @@ export function FilterControls({ current, base }: { current: SearchParams; base:
           </Select>
         </Field>
 
-        <Field id={id("focus")} label="Focus area">
+        <Field id={id("focus")} label="Funder's own category">
           <Select value={current.ntee ?? ANY} onValueChange={(v) => set({ ntee: v === ANY ? null : v })}>
             <SelectTrigger id={id("focus")} className={selectClass}>
               <SelectValue />

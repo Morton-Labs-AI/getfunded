@@ -8,7 +8,7 @@
  */
 import type { Tool } from "@/lib/ai/types";
 
-export const ASK_PROMPT_VERSION = "ask-p2";
+export const ASK_PROMPT_VERSION = "ask-p3";
 
 export type RelationDoc = { name: string; columns: string; note?: string };
 
@@ -118,7 +118,30 @@ function renderDocs(docs: RelationDoc[]): string {
   return docs.map((d) => `${d.name} — ${d.columns}${d.note ? `\n  NOTE: ${d.note}` : ""}`).join("\n");
 }
 
-export function buildAskSystem(): string {
+/**
+ * Corpus 0040 giving profiles, described to the model only once they hold
+ * data (an unfilled view raises an error on every read).
+ */
+export const GIVING_PROFILE_DOCS: RelationDoc[] = [
+  {
+    name: "internal.mv_funder_giving_state",
+    columns: "funder_org_id uuid, state text, n_grants int, n_grants_5y int, total_amount numeric, total_5y numeric, first_fy, last_fy",
+    note: "Paid grants per funder and RECIPIENT state (where it gives), all years and the last five fiscal years. Indexed by (state, n_grants_5y desc): the fast way to answer 'who gives in Ohio'.",
+  },
+  {
+    name: "internal.mv_funder_giving_cause",
+    columns: "funder_org_id uuid, ntee_major text, n_grants int, n_grants_5y int, total_amount numeric, total_5y numeric, last_fy",
+    note: "Paid grants per funder and the NTEE major group of the RECIPIENT (what it funds; A arts, B education, E health, K food, L housing, O youth, P human services...). Only recipients linked to a record count.",
+  },
+  {
+    name: "internal.mv_funder_grant_profile",
+    columns:
+      "funder_org_id uuid, n_grants_5y, total_5y, paid_years_5y, annual_paid_5y, median_paid_5y, p25_paid_5y, p75_paid_5y, n_states_5y, top_state, top_state_share, n_causes_5y, last_fy, window_first_fy, window_last_fy",
+    note: "The shape of each funder's last five fiscal years of paid grants. Medians describe filed grants; never call them a check size.",
+  },
+];
+
+export function buildAskSystem(opts: { givingProfiles?: boolean } = {}): string {
   return [
     "You are the analyst for GetFunded, an open database of funders for nonprofits built from",
     "public IRS filings (Form 990 and 990-PF), the IRS Business Master File, SEC filings and",
@@ -153,6 +176,7 @@ export function buildAskSystem(): string {
     renderDocs(PUBLIC_VIEW_DOCS),
     "",
     renderDocs(MATVIEW_DOCS),
+    ...(opts.givingProfiles ? ["", renderDocs(GIVING_PROFILE_DOCS)] : []),
     "",
     "## Cookbook",
     "-- Open-to-apply screening with money paid out (the grantseeker's question):",
@@ -163,12 +187,31 @@ export function buildAskSystem(): string {
     "where p.application_posture = 'open' and o.state = 'TX' and m.qualifying_distributions >= 500000",
     "order by m.qualifying_distributions desc limit 50",
     "",
-    "-- Who funds a topic (grants-paid evidence):",
-    "select f.id as funder_org_id, f.name as funder, fe.recipient_name, fe.amount, fe.purpose_text, fe.fiscal_year",
-    "from public.funding_events fe join public.organizations f on f.id = fe.funder_org_id",
-    "where fe.event_type = 'grant' and fe.purpose_text ilike '%food bank%' and fe.recipient_state = 'OR'",
-    "order by fe.amount desc nulls last limit 50",
-    "",
+    ...(opts.givingProfiles
+      ? [
+          "-- Who funds a field of work in a state (grants paid there, last five fiscal years):",
+          "select o.id as org_id, o.name, o.city, o.state, gs.n_grants_5y as grants_in_state, gc.n_grants_5y as grants_to_field",
+          "from internal.mv_funder_giving_state gs",
+          "join internal.mv_funder_giving_cause gc on gc.funder_org_id = gs.funder_org_id and gc.ntee_major = 'K'",
+          "join public.organizations o on o.id = gs.funder_org_id",
+          "where gs.state = 'OR' and gs.n_grants_5y > 0",
+          "order by gc.n_grants_5y desc, gs.n_grants_5y desc limit 50",
+          "",
+          "-- Then the grants themselves for ONE funder (always filter funding_events by funder_org_id first; it has 18M rows):",
+          "select fe.recipient_name, fe.recipient_city, fe.amount, fe.purpose_text, fe.fiscal_year",
+          "from public.funding_events fe",
+          "where fe.funder_org_id = '<uuid>' and fe.event_type = 'grant' and fe.recipient_state = 'OR'",
+          "order by fe.fiscal_year desc, fe.amount desc nulls last limit 50",
+          "",
+        ]
+      : [
+          "-- Who funds a topic (grants-paid evidence):",
+          "select f.id as funder_org_id, f.name as funder, fe.recipient_name, fe.amount, fe.purpose_text, fe.fiscal_year",
+          "from public.funding_events fe join public.organizations f on f.id = fe.funder_org_id",
+          "where fe.event_type = 'grant' and fe.purpose_text ilike '%food bank%' and fe.recipient_state = 'OR'",
+          "order by fe.amount desc nulls last limit 50",
+          "",
+        ]),
     "-- A funder's giving history by year:",
     "select fiscal_year, count(*) as grants, sum(amount) as total",
     "from public.funding_events where funder_org_id = '<uuid>' and event_type = 'grant'",

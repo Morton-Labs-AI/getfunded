@@ -35,6 +35,17 @@ describe("DbError.from", () => {
     expect((e as DbError).pgCode).toBe("23505");
   });
 
+  it("recognises a server error whose class name the production bundle minified", () => {
+    // Escaped to production on 2026-10-26: on Vercel postgres.js errors are named
+    // "i", so a statement timeout surfaced as a 500 and the search error page.
+    const minified = pgError("57014", "canceling statement due to statement timeout", { severity: "ERROR", severity_local: "ERROR" });
+    minified.name = "i";
+    expect(DbError.is(DbError.from(minified), "timeout")).toBe(true);
+    // A client-side failure has no SQLSTATE and no severity: still not a server error.
+    const closed = Object.assign(new Error("write CONNECTION_CLOSED"), { code: "CONNECTION_CLOSED" });
+    expect(DbError.from(closed)).toBe(closed);
+  });
+
   it("maps insufficient_privilege to forbidden and query_canceled to timeout", () => {
     expect(DbError.is(DbError.from(pgError("42501", "permission denied")), "forbidden")).toBe(true);
     expect(DbError.is(DbError.from(pgError("57014", "canceling statement")), "timeout")).toBe(true);

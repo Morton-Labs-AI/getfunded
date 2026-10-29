@@ -36,12 +36,19 @@ type PgErrorLike = Error & {
   table_name?: string;
 };
 
+/**
+ * postgres.js sets `name` from `this.constructor.name`, and the production
+ * bundle minifies class names, so on Vercel a server error's `name` reads
+ * something like "i", not "PostgresError". A server error is recognised by its
+ * shape instead: a five-character SQLSTATE `code` plus a `severity`. Client-side
+ * failures (CONNECTION_CLOSED and the like) carry neither and stay unmapped.
+ */
 function isPostgresError(error: unknown): error is PgErrorLike {
-  return (
-    error instanceof Error &&
-    (error as { name?: string }).name === "PostgresError" &&
-    typeof (error as { code?: unknown }).code === "string"
-  );
+  if (!(error instanceof Error)) return false;
+  const e = error as { name?: string; code?: unknown; severity?: unknown; severity_local?: unknown };
+  if (typeof e.code !== "string") return false;
+  if (e.name === "PostgresError") return true;
+  return /^[0-9A-Z]{5}$/.test(e.code) && (typeof e.severity === "string" || typeof e.severity_local === "string");
 }
 
 /** `raise exception 'quota_exceeded' using detail = '{"used":..}'` or `'quota_exceeded: {..}'`. */

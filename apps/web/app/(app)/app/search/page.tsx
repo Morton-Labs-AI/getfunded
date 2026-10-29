@@ -5,6 +5,7 @@ import { SearchSkeleton } from "@/components/search/search-skeleton";
 import { SearchView } from "@/components/search/search-view";
 import { PageBody } from "@/components/workspace/page-header";
 import { SEARCH_TITLE } from "@/lib/content/copy";
+import { profileContextFrom } from "@/lib/search/context";
 import type { RawSearchParams } from "@/lib/search/params";
 import { requireWorkspace } from "@/lib/workspace/context";
 import { softFail } from "@/lib/workspace/safe";
@@ -18,7 +19,8 @@ type Props = { searchParams: Promise<RawSearchParams> };
  * Search inside the workspace: the same corpus search as /search, plus a
  * Save button on every result and the natural-language filter bar
  * (`NlFilterBar`, rendered by SearchView in app mode). Results already on
- * the list show as saved.
+ * the list show as saved, and the workspace's organization profile ranks
+ * funders that give where it works and to work like its own first.
  */
 export default function AppSearchPage({ searchParams }: Props) {
   return (
@@ -33,5 +35,7 @@ export default function AppSearchPage({ searchParams }: Props) {
 async function SearchContent({ searchParams }: Props) {
   const [sp, { user, workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const savedByOrg = await softFail("saved index", {}, () => savedOrgIndex({ userId: user.id, workspaceId: workspace.id }));
-  return <SearchView mode="app" searchParams={sp} plan={workspace.plan} savedByOrg={savedByOrg} />;
+  // The organization profile tunes every search (lib/search/context.ts); the
+  // page's "Ignore my profile" switch sets tune=off for one search.
+  return <SearchView mode="app" searchParams={sp} plan={workspace.plan} savedByOrg={savedByOrg} profile={profileContextFrom(workspace.profile)} />;
 }

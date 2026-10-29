@@ -1,0 +1,60 @@
+name: Weekly search eval
+
+# Funder search, measured the way a grantseeker meets it (apps/web/evals/search).
+# Weekly and by hand, never on push: the scorecard goes to the run's artifacts
+# and the Digital Command Center reads the result. It calls the public site, so
+# it needs no secret; the relevance measures that read funders' grant records
+# also run when the repository has an EVAL_TOKEN secret matching an
+# EVAL_TOKEN set on the production deployment (see the suite's README).
+
+on:
+  schedule:
+    - cron: "17 13 * * 1"
+  workflow_dispatch:
+    inputs:
+      sample:
+        description: "Cases per suite (blank for the full suite, about 20 minutes at the public rate limit)"
+        required: false
+        default: "12"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-search-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    name: Search eval against getfunded.ai
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The runner uses only Node's own modules; no npm install.
+      - name: Run the suite
+        env:
+          EVAL_TOKEN: ${{ secrets.EVAL_TOKEN }}
+        run: |
+          SAMPLE="${{ github.event.inputs.sample || '12' }}"
+          ARGS="--target prod --label weekly --save-report --facts-from prod"
+          if [ -n "$SAMPLE" ]; then ARGS="$ARGS --sample $SAMPLE"; fi
+          node evals/search/run.mjs $ARGS > scorecard.md
+      - name: Scorecard to the job summary
+        if: always()
+        run: cat scorecard.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: search-eval-${{ github.run_id }}
+          path: |
+            apps/web/scorecard.md
+            apps/web/evals/search/out/
+            apps/web/evals/search/reports/
+          retention-days: 90

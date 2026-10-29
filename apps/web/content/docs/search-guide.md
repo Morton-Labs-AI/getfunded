@@ -1,6 +1,6 @@
 ---
 title: Search guide
-description: The two search modes, the filters, what "application posture" means, and the IRS standing filter.
+description: The two search modes, tuning results for your organization, the filters, what "application posture" means, and the IRS standing filter.
 group: nonprofits
 order: 2
 ---
@@ -11,34 +11,48 @@ Search is free. It does not need an account and it never uses AI credits.
 
 ## Two ways to search
 
-### 1. By name or EIN
+### 1. By what the funder funds
 
-Type part of a funder's name, or its 9-digit EIN. This works for every organization in the database, including public charities.
+Type a few words or a sentence about your work. For example: "literacy", "food bank", or "mobile dental clinics for rural families in Kentucky".
 
-- "Community Foundation of" finds every community foundation with that phrase in its name.
+Search reads the funder's own filings: the purpose of each grant it paid, who received it, what it says about its program, and where it gives. It finds funders whose record looks like your work, even when they never use your words. "Food bank" finds funders of food banks, not organizations named food bank.
+
+A place in your words ("in Ohio", "Boise", "Denver, CO") ranks funders that give there first. It does not hide the others.
+
+This mode reads giving records, so it covers private foundations and the public charities that report the grants they make (Schedule I of Form 990). A public charity that reports no grants has no giving record to read; you can still find it by name or EIN. Companies and federal programs show when you choose that type.
+
+When the semantic index is slow or not available, search falls back to keywords and shows a notice.
+
+### 2. By name or EIN
+
+Type a funder's name, or its 9-digit EIN. A few words that read like a name ("Ford Foundation", "Lilly Endowment") go straight to the name lookup, and so does anything in quotes. When several funders share a name, the one that gives most comes first.
+
+- "Silicon Valley Community Foundation" finds that funder first.
 - "12-3456789" finds the one organization with that EIN.
 
-Name search matches names and titles only. A topic word like "youth" will also match organizations that have "youth" in their name, whether or not they fund youth work. For topics, use the second mode.
+When a short topic is also a funder's name ("Kresge"), the results start with a line naming those funders.
 
-### 2. By what the funder funds
+## Tune results for your organization
 
-Type a sentence about your work. For example: "mobile dental clinics for rural families".
+Tell search where you work, what you do and your budget ("Tune results" above the filters, or your organization profile once you sign in). Funders that have paid grants in your state and to groups like yours rank first, and each result says why with facts from its filings:
 
-Search reads the funder's own filings: the purpose of each grant it paid, what it says about its program, and where it gives. It finds funders whose record looks like your work, even when they never use your words.
+- "14 grants in Ohio, FY2021–2025"
+- "Gives most in Ohio" or "Ohio is among its top recipient states"
+- "Median grant $12,500 (140 grants, FY2021–2025)"
 
-This mode reads giving records, so it covers private foundations, companies, federal programs, and the public charities that report the grants they make (Schedule I of Form 990). A public charity that reports no grants has no giving record to read; you can still find it by name or EIN.
-
-When the semantic index is not available, search falls back to keywords and shows a notice.
+Tuning changes the order, never who can appear. A national funder that fits your words still shows. In the app, "Ignore my profile" turns tuning off for one search.
 
 ## Filters
 
 | Filter | What it does |
 |---|---|
 | Type | Private foundation, public charity, company, government agency |
-| State | The funder's state, from its filing address |
+| Gives in | Funders whose filings show grants paid to organizations in that state in the last five fiscal years |
+| Funds this cause | Funders whose filings show grants paid to organizations in that IRS category (NTEE major group) in the last five fiscal years. Not every grant names a recipient we can classify |
+| Based in | The funder's own state, from its filing address. Many funders give beyond it |
 | Application posture | See below |
 | Size | Latest assets or latest grants paid |
-| Focus area | The IRS category (NTEE major group) from the IRS master file, the IRS's list of tax-exempt organizations |
+| Funder's own category | The funder's own IRS category (NTEE major group) from the IRS master file. Most private foundations are listed as grantmakers or have no category, so this is rarely what you want; use Funds this cause |
 | IRS standing | "Any" (the default) or "Hide automatically revoked". See [The IRS standing filter](#the-irs-standing-filter) |
 
 Filters change the URL, so you can share or bookmark a search.

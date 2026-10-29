@@ -1,0 +1,105 @@
+{
+  "label": "search-v2-grantees",
+  "at": "2026-10-26T22:32:11.567Z",
+  "target": "https://getfunded-1opmdu5xc-morton-labs.vercel.app",
+  "git": "d1bf212 Search ranking: funders whose grants all went to one or two organizations rank lower, and sa",
+  "note": "personalization.geo_with_profile and cause_with_profile were computed later from this run's saved results, when they replaced the lifts as guards; every other measure is as the run reported it",
+  "summary": {
+    "requests": 457,
+    "error_rate": 0,
+    "degraded_rate": 0,
+    "latency": {
+      "client_p50_ms": 1134,
+      "client_p95_ms": 1890,
+      "server_p50_topic_ms": 889,
+      "server_p95_topic_ms": 1521,
+      "server_p95_name_ms": 1236,
+      "client_p95_topic_ms": 1901,
+      "client_p95_name_ms": 1421,
+      "by_mode": {
+        "semantic": {
+          "n": 437,
+          "client_p50": 1154,
+          "client_p95": 1901,
+          "server_p50": 889,
+          "server_p95": 1521
+        },
+        "name": {
+          "n": 19,
+          "client_p50": 311,
+          "client_p95": 1432,
+          "server_p50": 135,
+          "server_p95": 1246
+        },
+        "ein": {
+          "n": 1,
+          "client_p50": 272,
+          "client_p95": 272,
+          "server_p50": 42,
+          "server_p95": 42
+        }
+      }
+    },
+    "topical": {
+      "cases": 82,
+      "funder_rate_at10": 0.998,
+      "topic_match_at10": 0.887,
+      "geo_match_at10": 1,
+      "recency_at10": 0.994,
+      "coverage": 1,
+      "by_cause_topic_at10": {
+        "A": 0.93,
+        "B": 1,
+        "C": 0.9,
+        "D": 0.93,
+        "E": 1,
+        "F": 0.83,
+        "G": 0.77,
+        "H": 0.97,
+        "I": 1,
+        "J": 0.83,
+        "K": 0.93,
+        "L": 0.93,
+        "M": 0.93,
+        "N": 0.77,
+        "O": 0.87,
+        "P": 1,
+        "Q": 0.83,
+        "R": 0.9,
+        "S": 0.9,
+        "T": 0.57,
+        "U": 0.9,
+        "V": 0.8,
+        "W": 0.9,
+        "X": 0.9
+      }
+    },
+    "navigational": {
+      "cases": 20,
+      "at3": 1,
+      "misses": []
+    },
+    "personalization": {
+      "pairs": 300,
+      "shared_geo_ctx": 0.996,
+      "shared_geo_none": 0.511,
+      "shared_cause_ctx": 0.852,
+      "shared_cause_none": 0.663,
+      "mission_geo_ctx": 0.998,
+      "mission_geo_none": 0.159,
+      "mission_cause_ctx": 0.828,
+      "mission_cause_none": 0.888,
+      "size_fit_ctx": 0.712,
+      "twin_jaccard_state": 0,
+      "twin_jaccard_cause": 0.133,
+      "twin_jaccard_budget": 1,
+      "shared_mean_pairwise_jaccard": 0.006,
+      "profile_coverage": 1,
+      "geo_with_profile": 0.997,
+      "cause_with_profile": 0.84,
+      "geo_lift": 0.662,
+      "cause_lift": 0.064
+    },
+    "determinism": 1
+  }
+}
