@@ -12,16 +12,39 @@ The October 2026 consolidation left three repositories. The pipeline's canonical
 |---|---|---|---|---|---|
 | [getfunded-ai/open-nonprofit-platform](https://github.com/getfunded-ai/open-nonprofit-platform) | The open tools layer and the canonical home of the pipeline: `corpus/` (schema, migrations, hash ledger, loaders), the commons MCP service, grant-seeking skills, and evals. | Private until Zach publishes it. Apache-2.0 code, CC BY 4.0 data. | Same project `poznaikbjcgnthfmqueo` ("open-funder-db") and the same corpus roles. The commons service later adds a read-only `commons_reader` role. It never reads `getfunded.*`. | Its own Vercel project for the commons MCP service, root directory `services/commons-mcp`, intended host `mcp.getfunded.ai`. The pipeline runs on the maintainer's machine from this repository. | Zach Hynek (zach@mortonlabs.ai), Morton Labs, steward. |
 | [Morton-Labs-AI/getfunded](https://github.com/Morton-Labs-AI/getfunded) | The hosted GetFunded product: `apps/web/` (getfunded.ai) and `apps/greenbook/` (the maintainer's dashboard). `corpus/` is a frozen copy of the pipeline. Do not edit it. The canonical pipeline is `getfunded-ai/open-nonprofit-platform/corpus`. | Public. Apache-2.0 code, CC BY 4.0 data. | `poznaikbjcgnthfmqueo` ("open-funder-db"). Corpus plane `internal.*` and `public.*` views, written only by the pipeline as the owner. Roles: `getfunded_app` + `getfunded_login` (web app, workspace plane `getfunded.*`), `funder_ro` (the analyst's model-written SQL, allowlist only), `greenbook_ro` (Greenbook pages, corpus migration 0036), `funder_rw` (Greenbook `/admin` consoles, the only human write path into the corpus), `ofdb_publisher`. | Vercel project `getfunded`, root directory `apps/web`, production at getfunded.ai, one daily cron and one six-hourly signals cron. `corpus/` runs on the maintainer's machine. `apps/greenbook` is local only (`ADMIN_ENABLED=1` never on a public host). CI: `.github/workflows/ci.yml` on push and pull request, path-filtered per app. | Zach Hynek (zach@mortonlabs.ai), Morton Labs, steward. |
-| [Morton-Labs-AI/dnw-funder-intelligence](https://github.com/Morton-Labs-AI/dnw-funder-intelligence) | Donor Network West's private fundraising workspace on top of the corpus: discovery, fit engine, pipeline, outreach machine, engagements. | Private. DNW's brand and data never enter a public repository. | Same project `poznaikbjcgnthfmqueo`, schema `dnw.*`, roles `dnw_app` (reads the corpus through grants, writes only `dnw.*`) and `dnw_tracker`. Migrations `dnw_0001` onward, applied by hand through the Supabase MCP, no runner. Handoff promise: `pg_dump --schema=dnw`. | Local only, port 3020, never deployed (no real authentication yet). CI: weekly test workflow only. | Zach Hynek for Morton Labs, on behalf of Donor Network West. |
-| [Morton-Labs-AI/morton-fundraising](https://github.com/Morton-Labs-AI/morton-fundraising) | Morton Capital: Morton Labs' own investor-outreach CRM. A sourced static catalog of investors (`data/`), a private local-first JSON workspace, Gmail delivery with human approval, a Chrome side-panel extension, knowledge documents, and a loopback MCP endpoint for Claude. | Private. The catalog is the only versioned data; the workspace, dossiers and messages never enter `data/`. | None live. Local mode stores `.local/workspace.json`. Cloud mode expects a separate Supabase project that has not been created (`docs/BACKEND-SETUP.md`); it never uses the corpus project. | Local only, loopback `127.0.0.1:3040`. Default branch `codex/fundraising-foundation`. CI: `ci.yml` on every push (full suite). | Zach Hynek and Hamilton, Morton Labs founders. |
+| [Morton-Labs-AI/dnw-workspace](https://github.com/Morton-Labs-AI/dnw-workspace) | Donor Network West's private fundraising workspace on top of the corpus: discovery, fit engine, pipeline, outreach machine, engagements. | Private. DNW's brand and data never enter a public repository. | Same project `poznaikbjcgnthfmqueo`, schema `dnw.*`, roles `dnw_app` (reads the corpus through grants, writes only `dnw.*`) and `dnw_tracker`. Migrations `dnw_0001` onward, applied by hand through the Supabase MCP, no runner. Handoff promise: `pg_dump --schema=dnw`. | Local only, port 3020, never deployed (no real authentication yet). CI: weekly test workflow only. | Zach Hynek for Morton Labs, on behalf of Donor Network West. |
+| [Morton-Labs-AI/morton-capital](https://github.com/Morton-Labs-AI/morton-capital) | Morton Capital: Morton Labs' own investor-outreach CRM. A sourced static catalog of investors (`data/`), a private local-first JSON workspace, Gmail delivery with human approval, a Chrome side-panel extension, knowledge documents, and a loopback MCP endpoint for Claude. | Private. The catalog is the only versioned data; the workspace, dossiers and messages never enter `data/`. | None live. Local mode stores `.local/workspace.json`. Cloud mode expects a separate Supabase project that has not been created (`docs/BACKEND-SETUP.md`); it never uses the corpus project. | Local only, loopback `127.0.0.1:3040`. Default branch `codex/fundraising-foundation`. CI: `ci.yml` on every push (full suite). | Zach Hynek and Hamilton, Morton Labs founders. |
+
+## Renamed on 2026-10-21
+
+| Old name | Current name |
+|---|---|
+| morton-fundraising | morton-capital |
+| get-funded | archived-morton-crm-lovable |
+| open-funder-db | archived-open-funder-db |
+| open-funder-db-ui | archived-greenbook |
+| Nonprofit_grant_db | archived-open-funder-graph |
+| getfunded-ai/platform | archived-getfunded-saas-2025 |
+| dnw-funder-intelligence | dnw-workspace |
+| topfer-family-foundation | topfer-foundation-site |
+
+GitHub redirects the old names. The archived repositories below were renamed the same day with an `archived-` prefix.
 
 ## Archived repositories (read-only on GitHub)
+
+All four were archived on 2026-10-21, after the last consolidation pull requests merged (morton-fundraising #15 and #16, dnw-funder-intelligence #3, get-funded #3).
 
 | Repository | What replaced it | What was kept |
 |---|---|---|
 | Morton-Labs-AI/open-funder-db | `getfunded/corpus` (imported with `git subtree`, history preserved, 2026-10-07). getfunded's copy was already a strict superset: the migration runner, doctor, bootstrap, backfill, repair, derive, aliases, IRS standing, migrations 0000 and 0025 to 0036. | Nothing to move. Its funder-signals branch was superseded by getfunded PR #10 (migration 0035). |
 | Morton-Labs-AI/open-funder-db-ui (Greenbook) | `getfunded/apps/greenbook` (`git subtree add`, 36 commits, getfunded PR #11). | The work-in-progress community layer (schema `community.*`, live in the database since 2026-09-06) is preserved unmerged as getfunded branch `claude/greenbook-community-layer`. |
 | Morton-Labs-AI/get-funded (the Lovable prototype "Morton Labs CRM") | `morton-fundraising`. The command-center interface and the Gmail/Calendar/LinkedIn capture flows were carried on 2026-10-07; the MCP server (`app/api/mcp`) and the knowledge base (`/knowledge`) were re-homed on 2026-10-09 (morton-fundraising PR #15); the company narrative is Settings, Company profile. | Not carried: the Gemini, Perplexity and Firecrawl edge functions (Claude with web search does research here), the GitHub connector (stored a plaintext token; Claude Code reads the repositories directly), `ask_crm`. Its Supabase project `fiajkyujgnsawrcavigm` is paused once its data is exported. |
+| Zach-Hynek/Nonprofit_grant_db ("Open Funder Graph", April 2026) | `getfunded`. A docs-only plan for the same idea; no code. | Nothing to move. |
+
+## Related but outside this family
+
+- `getfunded-ai/platform` (private, separate GitHub organisation): a SvelteKit and Convex SaaS attempt from autumn 2025, last pushed 2025-11-21. It shares no code, data or database with this repository. Archived on GitHub as `getfunded-ai/archived-getfunded-saas-2025`.
+- `Zach-Hynek/topfer-foundation-site`: a grantmaker's website and grants manager, with its own database and host. It does not read the corpus.
 
 ## Boundaries that every repository keeps
 
