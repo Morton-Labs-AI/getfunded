@@ -13,7 +13,6 @@ import {
   getAiClient,
   makeAiClient,
   mockResponse,
-  modelAcceptsTemperature,
   modelsFromEnv,
   resetAiClientForTests,
   toCreateParams,
@@ -72,7 +71,7 @@ describe("toCreateParams", () => {
     expect(p).toMatchObject({ model: "claude-sonnet-5-5", max_tokens: 8192, system: "You score funders.", output_config: { effort: "low" } });
     expect(p.tools).toBeUndefined();
     expect(p.tool_choice).toBeUndefined();
-    expect(p.temperature).toBeUndefined();
+    expect("temperature" in p).toBe(false);
     expect(toCreateParams(baseReq, "claude-opus-5-5", "deep")).toMatchObject({ max_tokens: 16000, output_config: { effort: "high" } });
     expect(toCreateParams({ ...baseReq, maxTokens: 500, effort: "max" }, "claude-opus-5-5", "fast")).toMatchObject({ max_tokens: 500, output_config: { effort: "max" } });
   });
@@ -99,13 +98,9 @@ describe("toCreateParams", () => {
     expect(auto.tools?.[0]).toBe(emitTool);
   });
 
-  it("temperature only reaches models that still accept it; effort only models that support it", () => {
-    expect(modelAcceptsTemperature("claude-sonnet-5-5")).toBe(false);
-    expect(modelAcceptsTemperature("claude-opus-5-5")).toBe(false);
-    expect(modelAcceptsTemperature("claude-sonnet-4-6")).toBe(true);
-    expect(modelAcceptsTemperature("claude-haiku-4-5")).toBe(true);
-    expect(toCreateParams({ ...baseReq, temperature: 0 }, "claude-sonnet-5-5", "fast").temperature).toBeUndefined();
-    expect(toCreateParams({ ...baseReq, temperature: 0 }, "claude-sonnet-4-6", "fast").temperature).toBe(0);
+  it("never sends temperature (API 2026-10-21 rejects it on every model); effort only to models that support it", () => {
+    expect("temperature" in toCreateParams({ ...baseReq, temperature: 0 }, "claude-sonnet-5-5", "fast")).toBe(false);
+    expect("temperature" in toCreateParams({ ...baseReq, temperature: 0 }, "claude-sonnet-4-6", "fast")).toBe(false);
     expect(effortFor("claude-haiku-4-5", "low")).toBeNull();
     expect(effortFor("claude-opus-4-5", "max")).toBe("high");
     expect(effortFor("claude-opus-5-5", "xhigh")).toBe("xhigh");

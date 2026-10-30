@@ -30,7 +30,7 @@ export type AiRequest = {
   tools?: Tool[];
   toolChoice?: ToolChoice;
   maxTokens?: number;
-  /** Only forwarded to models that still accept sampling parameters (4.6 and earlier). */
+  /** Ignored. API version 2026-10-21 (SDK 1.x) rejects sampling parameters on every model. */
   temperature?: number;
   /** Thinking depth. Defaults: fast → low, deep → high. */
   effort?: Effort;
