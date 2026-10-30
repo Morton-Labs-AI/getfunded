@@ -69,11 +69,6 @@ const TIER_DEFAULTS: Record<AiTier, { maxTokens: number; effort: Effort }> = {
   deep: { maxTokens: 16_000, effort: "high" },
 };
 
-/** Sampling parameters were removed from Opus 4.7+ and Sonnet 5+; only 4.6-era and older models accept them. */
-export function modelAcceptsTemperature(model: string): boolean {
-  return /claude-(opus|sonnet|haiku)-(3|4-[0-6])\b/.test(model) || /claude-3/.test(model);
-}
-
 /** `output_config.effort` is rejected by Haiku 4.5 and Sonnet 4.5; Opus 4.5 knows only low/medium/high. */
 export function effortFor(model: string, requested: Effort): Effort | null {
   if (/claude-(haiku-4-5|sonnet-4-5)\b/.test(model)) return null;
@@ -136,7 +131,6 @@ export function toCreateParams(
     else if (forced) params.tool_choice = { type: "auto", disable_parallel_tool_use: true };
     else params.tool_choice = { type: "auto" };
   }
-  if (req.temperature !== undefined && modelAcceptsTemperature(model)) params.temperature = req.temperature;
   if (req.userId) params.metadata = { user_id: req.userId };
   return params;
 }
